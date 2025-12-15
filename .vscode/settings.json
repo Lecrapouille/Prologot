@@ -1,0 +1,11 @@
+{
+    // clang-format
+    "clang-format.executable": "clang-format",
+    "editor.formatOnSave": true,
+    // Remove trailing whitespace
+    "files.trimTrailingWhitespace": true,
+    // Prolog file associations
+    "files.associations": {
+        "*.pl": "prolog"
+    }
+}

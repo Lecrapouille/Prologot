@@ -1,0 +1,301 @@
+# MIT License
+# Copyright (c) 2024 Lecrapouille <lecrapouille@gmail.com>
+#
+# Prologot - SWI-Prolog integration for Godot 4
+# GitHub Actions CI workflow for multi-platform builds
+#
+# This CI pipeline:
+# 1. Builds and tests the Prologot extension for Linux, Windows, and macOS
+# 2. Packages releases when a version tag is pushed (e.g., v1.0.0)
+# 3. Lints GDScript files for code quality
+
+name: Build and Test Prologot
+
+on:
+  push:
+    branches: [master]
+    tags:
+      - 'v*'  # Trigger on version tags like v1.0.0, v0.1.0-beta, etc.
+  pull_request:
+    branches: [master]
+  workflow_dispatch:  # Allow manual triggering from GitHub UI
+
+jobs:
+  # ============================================================================
+  # Linux Build and Test Job
+  # ============================================================================
+  build-linux:
+    name: Build & Test (Linux, Godot ${{ matrix.godot-version }})
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        godot-version: ['4.5']
+      fail-fast: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y swi-prolog swi-prolog-nox build-essential scons
+
+      - name: Build extension
+        run: |
+          make GODOT_CPP=${{ matrix.godot-version }} all
+
+      - name: Download Godot Engine
+        run: |
+          wget https://github.com/godotengine/godot/releases/download/${{ matrix.godot-version }}-stable/Godot_v${{ matrix.godot-version }}-stable_linux.x86_64.zip
+          unzip Godot_v${{ matrix.godot-version }}-stable_linux.x86_64.zip
+          chmod +x Godot_v${{ matrix.godot-version }}-stable_linux.x86_64
+          sudo mv Godot_v${{ matrix.godot-version }}-stable_linux.x86_64 /usr/local/bin/godot
+
+      - name: Run unit tests
+        run: |
+          make tests
+        timeout-minutes: 10
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: prologot-linux-x86_64-godot${{ matrix.godot-version }}
+          path: |
+            bin/
+            prologot.gdextension
+          retention-days: 1
+
+  # ============================================================================
+  # Windows Build Job
+  # ============================================================================
+  build-windows:
+    name: Build (Windows, Godot ${{ matrix.godot-version }})
+    runs-on: windows-latest
+    continue-on-error: true
+
+    strategy:
+      matrix:
+        godot-version: ['4.5']
+      fail-fast: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install SCons
+        run: |
+          python -m pip install scons
+
+      - name: Install SWI-Prolog via Chocolatey
+        run: |
+          choco install swi-prolog --yes --no-progress
+        shell: pwsh
+
+      - name: Configure SWI-Prolog environment
+        # Explicitly add SWI-Prolog to PATH and set necessary environment variables for build
+        run: |
+          # Find the SWI-Prolog install directory
+          $swiPath = "C:\Program Files\swipl"
+          if (Test-Path $swiPath) {
+            # Add to PATH for current process and GH Actions job steps
+            $env:PATH = "$swiPath\bin;$env:PATH"
+            echo "$swiPath\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+            # Set environment variables for SCons
+            echo "PLBASE=$swiPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            echo "PLLIBDIR=$swiPath\lib" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+            # Verify swipl is available
+            Write-Host "SWI-Prolog installation verified:"
+            swipl --version
+            Write-Host "PLBASE: $swiPath"
+            Write-Host "PLLIBDIR: $swiPath\lib"
+
+            # Diagnostics: List important directories and files
+            Write-Host "`n=== Diagnostic: Files in $swiPath\bin ==="
+            Get-ChildItem "$swiPath\bin" -File | Select-Object Name, Length | Format-Table
+
+            Write-Host "`n=== Diagnostic: Files in $swiPath\lib ==="
+            if (Test-Path "$swiPath\lib") {
+              Get-ChildItem "$swiPath\lib" -File -ErrorAction SilentlyContinue | Select-Object Name, Length | Format-Table
+            } else {
+              Write-Host "Directory $swiPath\lib does not exist"
+            }
+
+            Write-Host "`n=== Diagnostic: Search for *.lib, *.dll.a, and *.a files ==="
+            Get-ChildItem "$swiPath" -Recurse -Include "*.lib","*.dll.a","*.a" -ErrorAction SilentlyContinue | Select-Object FullName, Length | Format-Table
+          } else {
+            Write-Error "SWI-Prolog not found at $swiPath"
+          }
+        shell: pwsh
+
+      - name: Build extension (Debug)
+        env:
+          PYTHONIOENCODING: utf-8
+          PLBASE: ${{ env.PLBASE }}
+          PLLIBDIR: ${{ env.PLLIBDIR }}
+        run: |
+          echo "Building Debug version..."
+          scons --godot-cpp=${{ matrix.godot-version }} target=template_debug arch=x86_64 verbose=1
+
+      - name: Build extension (Release)
+        env:
+          PYTHONIOENCODING: utf-8
+          PLBASE: ${{ env.PLBASE }}
+          PLLIBDIR: ${{ env.PLLIBDIR }}
+        run: |
+          echo "Building Release version..."
+          scons --godot-cpp=${{ matrix.godot-version }} target=template_release arch=x86_64 verbose=1
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: prologot-windows-x86_64-godot${{ matrix.godot-version }}
+          path: |
+            bin/
+            prologot.gdextension
+          retention-days: 1
+
+  # ============================================================================
+  # macOS Build Job
+  # ============================================================================
+  build-macos:
+    name: Build (macOS, Godot ${{ matrix.godot-version }})
+    runs-on: macos-latest
+
+    strategy:
+      matrix:
+        godot-version: ['4.5']
+      fail-fast: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          brew install scons swi-prolog pkg-config
+
+      - name: Build extension
+        run: |
+          make GODOT_CPP=${{ matrix.godot-version }} all
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: prologot-macos-arm64-godot${{ matrix.godot-version }}
+          path: |
+            bin/
+            prologot.gdextension
+          retention-days: 1
+
+  # ============================================================================
+  # GDScript Linting Job
+  # ============================================================================
+  # Checks GDScript files for code quality issues and style violations.
+  # This helps maintain consistent code style across the project.
+  lint-gdscript:
+    name: Lint GDScript
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install gdtoolkit
+        # gdtoolkit provides gdlint for GDScript static analysis.
+        run: |
+          pip install gdtoolkit
+
+      - name: Lint GDScript files
+        # Run gdlint on addons and tests directories.
+        # We allow this to fail without blocking the build (continue-on-error: true)
+        # to avoid breaking builds due to style issues.
+        run: |
+          gdlint addons/ tests/ || true
+        continue-on-error: true
+
+  # ============================================================================
+  # Release Packaging Job
+  # ============================================================================
+  # Creates a release package when a version tag is pushed (e.g., v1.0.0).
+  # The package includes:
+  # - Compiled binaries for all platforms
+  # - Addon files (GDScript, plugin configuration)
+  # - Documentation (README, LICENSE)
+  #
+  # Artifacts are used here to collect all platform builds into a single
+  # release archive without rebuilding anything.
+  package:
+    name: Package Release
+    needs: [build-linux, build-windows, build-macos]  # Wait for all builds
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')  # Only run on version tags
+
+    strategy:
+      matrix:
+        godot-version: ['4.5']
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        # Download all platform-specific build artifacts.
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release folder
+        # Organize downloaded artifacts into the final release structure:
+        # release/
+        #   bin/          - Compiled libraries for all platforms (Windows may be missing)
+        #   addons/       - Plugin files
+        #   prologot.gdextension - Extension configuration
+        #   LICENSE, README.md
+        run: |
+          mkdir -p release/bin
+          cp -r artifacts/prologot-linux-*-godot${{ matrix.godot-version }}/* release/bin/ 2>/dev/null || true
+          cp -r artifacts/prologot-windows-*-godot${{ matrix.godot-version }}/* release/bin/ 2>/dev/null || echo "Warning: Windows artifacts not available (build may have failed)"
+          cp -r artifacts/prologot-macos-*-godot${{ matrix.godot-version }}/* release/bin/ 2>/dev/null || true
+          cp -r addons release/
+          cp prologot.gdextension release/ 2>/dev/null || cp artifacts/prologot-linux-*-godot${{ matrix.godot-version }}/prologot.gdextension release/ 2>/dev/null || true
+          cp LICENSE release/
+          cp README.md release/
+
+      - name: Create release archive
+        # Package everything into a .zip file for distribution.
+        run: |
+          cd release
+          zip -r ../prologot-${{ github.ref_name }}-godot${{ matrix.godot-version }}.zip .
+
+      - name: Create GitHub Release
+        # Upload the release archive to GitHub Releases.
+        # Pre-release detection: If the tag contains 'alpha', 'beta', or 'rc',
+        # mark it as a pre-release.
+        uses: softprops/action-gh-release@v2
+        with:
+          files: prologot-${{ github.ref_name }}-godot${{ matrix.godot-version }}.zip
+          draft: false
+          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
+          generate_release_notes: true  # Auto-generate release notes from commits
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

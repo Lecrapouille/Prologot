@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://ctlnxld3c77wj"]
+
+[ext_resource type="Script" uid="uid://cw308wftxaje6" path="res://test_prologot.gd" id="1"]
+
+[node name="TestRunner" type="Node"]
+script = ExtResource("1")

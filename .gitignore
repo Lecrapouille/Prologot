@@ -1,0 +1,69 @@
+# --- Godot-specific ---
+.import/
+.export/
+.export_presets.cfg
+.godot/
+.android/
+.mono/
+godot-cpp-*/
+
+# Godot 3 compatibility
+.project/
+.export/
+
+# --- Build outputs ---
+bin/
+build/
+dist/
+
+# --- Logs & temporary files ---
+*.log
+*.tmp
+*.temp
+*.bak
+*.old
+*~
+
+# --- OS / Editor junk ---
+.DS_Store
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# --- IDEs ---
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# --- C++ / GDExtension ---
+*.o
+*.obj
+*.so
+*.dll
+*.dylib
+*.a
+*.lib
+*.pdb
+
+# CMake / build systems
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+
+# --- Mono / C# ---
+.nuget/
+*.csproj.user
+*.sln.DotSettings.user
+
+# --- Godot auto-generated ---
+*.translation
+
+# --- SCons ---
+.sconsign.dblite
+.sconsign
+.sconf_temp/
+.sconsign.tmp
+.scons_cache/
+.cache/
+*.os
