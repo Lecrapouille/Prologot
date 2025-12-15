@@ -1,0 +1,142 @@
+[gd_scene load_steps=2 format=3 uid="uid://vg7bg1ks1hmg"]
+
+[ext_resource type="Script" uid="uid://feib5un2x3bs" path="res://prologot-demos.gd" id="1_wtcfe"]
+
+[node name="demos-prologot" type="Node2D"]
+script = ExtResource("1_wtcfe")
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+
+[node name="MarginContainer" type="MarginContainer" parent="CanvasLayer"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 20
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CanvasLayer/MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="HeaderPanel" type="PanelContainer" parent="CanvasLayer/MarginContainer/VBoxContainer"]
+custom_minimum_size = Vector2(0, 60)
+layout_mode = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="CanvasLayer/MarginContainer/VBoxContainer/HeaderPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 15
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 15
+theme_override_constants/margin_bottom = 12
+
+[node name="HBoxContainer" type="HBoxContainer" parent="CanvasLayer/MarginContainer/VBoxContainer/HeaderPanel/MarginContainer"]
+layout_mode = 2
+
+[node name="TitleLabel" type="Label" parent="CanvasLayer/MarginContainer/VBoxContainer/HeaderPanel/MarginContainer/HBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 20
+text = "Example Title"
+
+[node name="CounterLabel" type="Label" parent="CanvasLayer/MarginContainer/VBoxContainer/HeaderPanel/MarginContainer/HBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "1/6"
+horizontal_alignment = 2
+
+[node name="ContentSplit" type="HSplitContainer" parent="CanvasLayer/MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+split_offset = 500
+
+[node name="CodePanel" type="PanelContainer" parent="CanvasLayer/MarginContainer/VBoxContainer/ContentSplit"]
+custom_minimum_size = Vector2(400, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="MarginContainer" type="MarginContainer" parent="CanvasLayer/MarginContainer/VBoxContainer/ContentSplit/CodePanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 12
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CanvasLayer/MarginContainer/VBoxContainer/ContentSplit/CodePanel/MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="CodeLabel" type="Label" parent="CanvasLayer/MarginContainer/VBoxContainer/ContentSplit/CodePanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "📝 Prolog Code"
+
+[node name="CodeDisplay" type="TextEdit" parent="CanvasLayer/MarginContainer/VBoxContainer/ContentSplit/CodePanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_font_sizes/font_size = 13
+editable = false
+
+[node name="ResultPanel" type="PanelContainer" parent="CanvasLayer/MarginContainer/VBoxContainer/ContentSplit"]
+custom_minimum_size = Vector2(400, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="MarginContainer" type="MarginContainer" parent="CanvasLayer/MarginContainer/VBoxContainer/ContentSplit/ResultPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 12
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CanvasLayer/MarginContainer/VBoxContainer/ContentSplit/ResultPanel/MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="ResultLabel" type="Label" parent="CanvasLayer/MarginContainer/VBoxContainer/ContentSplit/ResultPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "📊 Results"
+
+[node name="ResultDisplay" type="TextEdit" parent="CanvasLayer/MarginContainer/VBoxContainer/ContentSplit/ResultPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_font_sizes/font_size = 13
+text = "Click 'Execute' to see results..."
+editable = false
+wrap_mode = 1
+
+[node name="ButtonBar" type="HBoxContainer" parent="CanvasLayer/MarginContainer/VBoxContainer"]
+custom_minimum_size = Vector2(0, 50)
+layout_mode = 2
+theme_override_constants/separation = 15
+alignment = 1
+
+[node name="ExecuteButton" type="Button" parent="CanvasLayer/MarginContainer/VBoxContainer/ButtonBar"]
+custom_minimum_size = Vector2(220, 42)
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "▶ Execute"
+
+[node name="Spacer" type="Control" parent="CanvasLayer/MarginContainer/VBoxContainer/ButtonBar"]
+custom_minimum_size = Vector2(20, 0)
+layout_mode = 2
+
+[node name="PrevButton" type="Button" parent="CanvasLayer/MarginContainer/VBoxContainer/ButtonBar"]
+custom_minimum_size = Vector2(120, 42)
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "← Previous"
+
+[node name="NextButton" type="Button" parent="CanvasLayer/MarginContainer/VBoxContainer/ButtonBar"]
+custom_minimum_size = Vector2(120, 42)
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "Next →"
+
+[connection signal="pressed" from="CanvasLayer/MarginContainer/VBoxContainer/ButtonBar/ExecuteButton" to="." method="_on_execute_button_pressed"]
+[connection signal="pressed" from="CanvasLayer/MarginContainer/VBoxContainer/ButtonBar/PrevButton" to="." method="_on_prev_button_pressed"]
+[connection signal="pressed" from="CanvasLayer/MarginContainer/VBoxContainer/ButtonBar/NextButton" to="." method="_on_next_button_pressed"]

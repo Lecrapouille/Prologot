@@ -1,0 +1,32 @@
+[
+	{
+		"title": "Basic Queries - Family Relationships",
+		"file": "res://examples/01_basic_queries.pl",
+		"description": "Simple parent-child relationships. Try queries like:\n• parent(tom, bob)\n• parent(tom, X)"
+	},
+	{
+		"title": "Facts and Rules - Grandparents & Ancestors",
+		"file": "res://examples/02_facts_and_rules.pl",
+		"description": "Rule definitions and recursion. Try queries like:\n• grandparent(tom, ann)\n• ancestor(tom, X)\n• sibling(bob, X)"
+	},
+	{
+		"title": "Dynamic Assertions - Game State",
+		"file": "res://examples/03_dynamic_assertions.pl",
+		"description": "Runtime fact management with dynamic predicates.\nFacts are added/modified/removed at runtime."
+	},
+	{
+		"title": "Complex Queries - Combat System",
+		"file": "res://examples/04_complex_queries.pl",
+		"description": "Game mechanics with calculations. Try queries like:\n• damage(sword, orc, D)\n• one_shot_kill(axe, goblin)\n• enemy(X, HP, _, _)"
+	},
+	{
+		"title": "Pathfinding - Graph Traversal",
+		"file": "res://examples/05_pathfinding.pl",
+		"description": "Find paths between nodes with cycle detection. Try:\n• path(a, f, Path, Cost)\n• connected(a, X, C)"
+	},
+	{
+		"title": "AI Behavior - Decision Making",
+		"file": "res://examples/06_ai_behavior.pl",
+		"description": "AI state transitions based on conditions. Try:\n• decide_action(Action, 15, 8)\n• decide_action(Action, 50, 2)"
+	}
+]

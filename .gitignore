@@ -1,0 +1,121 @@
+# Prologot - .gitignore
+# MIT License - Copyright (c) 2024 Lecrapouille <lecrapouille@gmail.com>
+
+# =============================================================================
+# Build artifacts
+# =============================================================================
+
+# Compiled libraries
+bin/
+*.so
+*.dll
+*.dylib
+*.framework/
+.sconsign.dblite
+*.os
+*.o
+
+# =============================================================================
+# Dependencies
+# =============================================================================
+
+# godot-cpp (cloned separately with version suffix)
+godot-cpp-*/
+
+# SCons cache
+.scons_cache/
+
+# =============================================================================
+# IDE and Editor files
+# =============================================================================
+
+# Visual Studio Code
+.vscode/
+*.code-workspace
+
+# JetBrains IDEs
+.idea/
+*.iml
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+
+# =============================================================================
+# Operating System files
+# =============================================================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Linux
+*~
+
+# =============================================================================
+# Godot files
+# =============================================================================
+
+# Godot import cache
+.godot/
+.import/
+
+# Exported builds
+export/
+exports/
+
+# =============================================================================
+# Python
+# =============================================================================
+
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+.Python
+env/
+venv/
+.env
+.venv
+
+# =============================================================================
+# Logs and temporary files
+# =============================================================================
+
+*.log
+*.tmp
+*.temp
+*.bak
+*.backup
+
+# =============================================================================
+# Project-specific
+# =============================================================================
+
+# Local configuration overrides
+local.cfg
+*.local
+
+# Test output
+test_results/
+coverage/
+
