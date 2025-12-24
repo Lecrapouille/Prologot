@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Prologot - SWI-Prolog integration for Godot 4
-Installation and build script for Prologot GDExtension.
+Installation and build script for Godot GDExtension.
 """
 
 import os
@@ -75,9 +75,36 @@ def get_system():
     return system_map.get(system, 'linux')
 
 
+def get_arch():
+    """Detect CPU architecture and return standardized name."""
+    machine = platform.machine().lower()
+    arch_map = {
+        'x86_64': 'x86_64', 'amd64': 'x86_64', 'x64': 'x86_64',
+        'aarch64': 'arm64', 'arm64': 'arm64',
+        'i386': 'x86_32', 'i686': 'x86_32', 'x86': 'x86_32',
+    }
+    return arch_map.get(machine, machine)
+
+
 def get_cpu_count():
     """Get number of CPU cores, with fallback."""
     return os.cpu_count() or int(os.environ.get('NUMBER_OF_PROCESSORS', '4'))
+
+
+def get_scons_cmd():
+    """Get scons command (scons or python -m scons)."""
+    if shutil.which('scons'):
+        return ['scons']
+    # Try python -m scons
+    for python_cmd in ['python3', 'python']:
+        if shutil.which(python_cmd):
+            # Check if scons module is available
+            result = subprocess.run([python_cmd, '-m', 'scons', '--version'],
+                                  capture_output=True, text=True)
+            if result.returncode == 0:
+                return [python_cmd, '-m', 'scons']
+    Color.error("scons not found. Install with: pip3 install scons")
+    return None
 
 
 def parse_version(version_str):
@@ -138,11 +165,15 @@ def install_swi_prolog(force=False):
         return run_cmd(['brew', 'install', 'swi-prolog'])
 
     elif system == 'windows':
-        Color.warning("Download and install SWI-Prolog from:")
-        Color.info("https://www.swi-prolog.org/download/stable")
-        Color.info("Add SWI-Prolog to PATH")
-        input("Press Enter after installation...")
-        return shutil.which('swipl') is not None
+        # Try Chocolatey installation
+        if shutil.which('choco'):
+            Color.info("Installing SWI-Prolog via Chocolatey...")
+            return run_cmd(['choco', 'install', 'swi-prolog', '--yes'])
+        else:
+            Color.warning("Chocolatey not found. Manual installation required:")
+            Color.info("https://www.swi-prolog.org/download/stable")
+            Color.info("Or install Chocolatey: https://chocolatey.org/install")
+            return False
 
     else:
         Color.error(f"Unsupported system: {system}")
@@ -260,7 +291,7 @@ def create_gdextension_file():
     return True
 
 
-def compile_godot_cpp(godot_version, platform_name, target, jobs):
+def compile_godot_cpp(godot_version, platform_name, target, jobs, arch):
     """Compile godot-cpp library."""
     version_suffix = godot_version.replace('.', '_')
     godot_cpp_dir = Path(f'godot-cpp-{version_suffix}')
@@ -269,16 +300,24 @@ def compile_godot_cpp(godot_version, platform_name, target, jobs):
         Color.error(f"godot-cpp directory not found: {godot_cpp_dir}")
         return False
 
+    scons_cmd = get_scons_cmd()
+    if not scons_cmd:
+        return False
+
     Color.header(f"Compiling godot-cpp for Godot {godot_version}")
-    return run_cmd(['scons', f'platform={platform_name}', f'target={target}', f'-j{jobs}'],
-                   cwd=str(godot_cpp_dir), realtime=True)
+    cmd = scons_cmd + [f'platform={platform_name}', f'arch={arch}', f'target={target}', f'-j{jobs}']
+    return run_cmd(cmd, cwd=str(godot_cpp_dir), realtime=True)
 
 
-def compile_extension(platform_name, target, jobs):
+def compile_extension(platform_name, target, jobs, arch):
     """Compile the GDExtension."""
+    scons_cmd = get_scons_cmd()
+    if not scons_cmd:
+        return False
+
     Color.header(f"Compiling extension ({platform_name}, {target})")
-    return run_cmd(['scons', f'platform={platform_name}', f'target={target}', f'-j{jobs}'],
-                   realtime=True)
+    cmd = scons_cmd + [f'platform={platform_name}', f'arch={arch}', f'target={target}', f'-j{jobs}']
+    return run_cmd(cmd, realtime=True)
 
 
 # ============================================================================
@@ -294,6 +333,7 @@ def main():
     parser.add_argument('--target', default='template_debug',
                        choices=['template_debug', 'template_release'], help='Build target')
     parser.add_argument('--platform', help='Target platform (auto-detected if not set)')
+    parser.add_argument('--arch', help='Target architecture (e.g., x86_64, arm64). Auto-detected if not set.')
     parser.add_argument('--godot-cpp', required=True, help='Godot godot-cpp git tag or branch (e.g., "4.3", "4.3-stable", "godot-4.3-stable") [REQUIRED]')
     parser.add_argument('--jobs', type=int, help='Parallel compilation jobs (auto-detected if not set)')
 
@@ -304,12 +344,13 @@ def main():
     print(f"║ {title:^54} ║")
     print(f"╚{'='*56}╝{Color.END}\n")
 
-    # Platform detection
+    # Platform and architecture detection
     platform_name = args.platform or get_system()
+    arch = args.arch or get_arch()
     jobs = args.jobs or get_cpu_count()
     godot_version, git_tag = parse_godot_cpp_ref(args.godot_cpp)
 
-    Color.info(f"Platform: {platform_name}, Jobs: {jobs}, Godot: {godot_version}")
+    Color.info(f"Platform: {platform_name}, Arch: {arch}, Jobs: {jobs}, Godot: {godot_version}")
 
     if not validate_version(godot_version):
         return 1
@@ -336,7 +377,7 @@ def main():
         lib_exists = any((godot_cpp_dir / "bin").glob("*.a")) or any((godot_cpp_dir / "bin").glob("*.lib"))
 
         if args.compile_godot_cpp_only or not lib_exists:
-            if not compile_godot_cpp(godot_version, platform_name, args.target, jobs):
+            if not compile_godot_cpp(godot_version, platform_name, args.target, jobs, arch):
                 return 1
             if args.compile_godot_cpp_only:
                 return 0
@@ -347,7 +388,7 @@ def main():
 
     # Compile extension
     if not args.skip_compile:
-        if not compile_extension(platform_name, args.target, jobs):
+        if not compile_extension(platform_name, args.target, jobs, arch):
             return 1
 
     Color.success("Build completed successfully!\n")

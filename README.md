@@ -7,7 +7,7 @@
 
 **Prologot** is a GDExtension that integrates SWI-Prolog into Godot 4, enabling logic programming in your games. Use Prolog for AI decision-making, dialogue systems, rule engines, pathfinding, and more.
 
-**WARNING: This project is currently in at its beginning age and is currently instable. Do not use it yet! Debugging is currently in progress!**
+**WARNING: This project is currently in at its beginning age and is currently instable. Use it with care!**
 
 ## Features
 
@@ -29,35 +29,37 @@
 - [SCons](https://scons.org/) - is the building system used by Godot and therefore for this project.
 - [Python 3](https://www.python.org/) - since Scons is based on Python.
 - [C++ compiler](https://gcc.gnu.org/) - for building C++ sources, and optionally a Makefile.
+- [pkg-config](https://www.freedesktop.org/wiki/Software/pkg-config/) - for detecting SWI-Prolog compiler and linker flags.
 - The build script may ask your sudo password to install operating system packages.
 
 ### Installation
 
-#### 1.1 Install SWI-Prolog if needed on your system
+#### 1.1 Install SWI-Prolog and pkg-config if needed on your system
 
 **Linux (Debian/Ubuntu):**
 
 ```bash
 sudo apt-get update
-sudo apt-get install swi-prolog swi-prolog-nox
+sudo apt-get install swi-prolog swi-prolog-nox pkg-config
 ```
 
 **Linux (Arch):**
 
 ```bash
-sudo pacman -S swi-prolog
+sudo pacman -S swi-prolog pkgconf
 ```
 
 **macOS:**
 
 ```bash
-brew install swi-prolog
+brew install swi-prolog pkg-config
 ```
 
 **Windows:**
 
 - Download [SWI-Prolog 8.0+](https://www.swi-prolog.org/download/stable).
 - Add to PATH during installation.
+- Install pkg-config via [MSYS2](https://www.msys2.org/) or use vcpkg.
 
 #### 1.2 Install SCons if needed
 
@@ -80,7 +82,7 @@ The simplest way to build the project is using the **Makefile**. The hierarchy i
 |---------|-------------|
 | `make debug` | Compile the extension in debug mode. |
 | `make release` | Compile the extension in release mode for performance. |
-| `make all` | Build both debug and release versions and set up the demo. |
+| `make all` | Build both debug and release versions and set up demo and test projects. |
 
 **Note:** By default, it builds for Godot 4.4. To use another version: `make GODOT_CPP=4.3 debug`.
 
@@ -91,8 +93,9 @@ make help          # Show all available commands
 make check-deps    # Verify dependencies
 make clean         # Clean build artifacts
 make format        # Format C++ sources
-make setup-demo    # Set up the demo project (symlinks)
+make setup-internal-projects # Set up demo and test projects
 make run-demo      # Run the demo project in Godot
+make tests         # Run tests
 ```
 
 #### 4. Running the Demo
@@ -264,9 +267,128 @@ The plugin adds a **Prologot Console** dock in the editor where you can:
 
 | Method | Description |
 |--------|-------------|
-| `initialize(prolog_home: String = "") -> bool` | Initialize the Prolog engine |
+| `initialize(options: Dictionary = {}) -> bool` | Initialize the Prolog engine with configuration options |
 | `cleanup()` | Shut down the Prolog engine |
 | `is_initialized() -> bool` | Check if engine is initialized |
+
+**Initialization options** :
+
+Dictionary keys use spaces for better readability in GDScript.
+
+**Main options** :
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `"home"` | String | "" | Path to SWI-Prolog installation |
+| `"quiet"` | bool | true | Suppress informational messages |
+| `"goal"` | String/Array | - | Goal(s) to execute at startup |
+| `"toplevel"` | String | "" | Custom toplevel goal |
+| `"init file"` | String | "" | User initialization file |
+| `"script file"` | String | "" | Script source file to load |
+
+**Performance options** :
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `"stack limit"` | String | "" | Prolog stack limit (e.g. "1g", "512m", "256k") |
+| `"table space"` | String | "" | Space for SLG tables (e.g. "128m") |
+| `"shared table space"` | String | "" | Space for shared SLG tables |
+| `"optimised"` | bool | false | Enable optimised compilation |
+
+**Behavior options** :
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `"traditional"` | bool | false | Traditional mode, disable SWI-Prolog v7 extensions |
+| `"threads"` | bool | true | Allow threads |
+| `"signals"` | bool | true | Modify signal handling |
+| `"packs"` | bool | true | Attach packages/add-ons |
+| `"debug"` | bool | false | Generate debug info |
+| `"debug on interrupt"` | bool | false | Trigger debugger on interrupt |
+| `"tty"` | bool | true | Allow terminal control |
+
+**Error handling options** :
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `"on error"` | String | "print" | Error handling style: "print", "halt", "status" |
+| `"on warning"` | String | "print" | Warning handling style: "print", "halt", "status" |
+
+**Advanced options** :
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `"prolog flags"` | Dictionary | {} | Define Prolog flags |
+| `"file search paths"` | Dictionary | {} | Define file search paths |
+| `"custom args"` | Array | [] | Additional custom arguments |
+
+**Usage examples** :
+
+```gdscript
+# Simple initialization (default, quiet mode)
+prolog.initialize()
+
+# With welcome message
+prolog.initialize({"quiet": false})
+
+# Optimal configuration for a strategy game
+prolog.initialize({
+    "quiet": true,
+    "optimised": true,
+    "stack limit": "2g",      # 2 GB for complex AI
+    "table space": "512m",    # 512 MB for memoization
+    "threads": true,
+    "on error": "print"       # Don't crash the game
+})
+
+# Development mode with debug
+prolog.initialize({
+    "quiet": false,
+    "debug": true,
+    "debug on interrupt": true,
+    "on error": "print",
+    "on warning": "print"
+})
+
+# AI system with automatic initialization
+prolog.initialize({
+    "script file": "res://ai/rules.pl",
+    "goal": ["load_knowledge_base", "init_ai_agents"],
+    "stack limit": "1g",
+    "table space": "256m"
+})
+
+# Memory optimization for mobile
+prolog.initialize({
+    "quiet": true,
+    "stack limit": "128m",
+    "table space": "32m",
+    "threads": false,         # No threads on mobile
+    "packs": false            # No packages to reduce memory
+})
+
+# Advanced configuration with custom flags
+prolog.initialize({
+    "prolog flags": {
+        "verbose": "silent",
+        "max_depth": "1000"
+    },
+    "file search paths": {
+        "game": "res://prolog",
+        "data": "user://prolog_data"
+    },
+    "init file": "res://prolog/bootstrap.pl",
+    "goal": "init_game_engine"
+})
+
+# Strict error handling for development
+prolog.initialize({
+    "on error": "halt",       # Stop immediately
+    "on warning": "halt",     # Treat warnings as errors
+    "debug": true,
+    "traditional": false
+})
+```
 
 #### Loading Code
 
@@ -390,6 +512,25 @@ swipl --version
 
 # Add to PATH if needed (Linux/macOS)
 export PATH=$PATH:/usr/lib/swi-prolog/bin
+```
+
+### "pkg-config swipl not found"
+
+The build system uses `pkg-config` to detect SWI-Prolog compiler and linker flags.
+
+```bash
+# Check if pkg-config can find swipl
+pkg-config --cflags --libs swipl
+
+# If not found, install the development package
+# Debian/Ubuntu:
+sudo apt-get install swi-prolog-nox
+
+# macOS (Homebrew automatically provides pkg-config support):
+brew reinstall swi-prolog
+
+# Check PKG_CONFIG_PATH if needed
+echo $PKG_CONFIG_PATH
 ```
 
 ## License

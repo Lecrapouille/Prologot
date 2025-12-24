@@ -33,7 +33,7 @@ ln -s ../../../prologot.gdextension prologot.gdextension
 Or from the project root:
 
 ```bash
-make setup-demo
+make setup-internal-projects
 ```
 
 ## Running

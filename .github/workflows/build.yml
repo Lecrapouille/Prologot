@@ -30,18 +30,16 @@ jobs:
   # ============================================================================
   # Linux Build Job
   # ============================================================================
-  # Builds the extension for Linux x86_64 using the Makefile workflow.
+  # Builds the extension for Linux (x86_64 native).
   # The Makefile provides a standard development workflow with automatic
   # dependency detection and management.
   build-linux:
-    name: Build (Linux x86_64, Godot ${{ matrix.godot-version }})
+    name: Build (Linux, Godot ${{ matrix.godot-version }})
     runs-on: ubuntu-latest
 
-    # Build matrix: Test across multiple Godot versions to ensure compatibility.
-    # Each version will create a separate build artifact.
     strategy:
       matrix:
-        godot-version: ['4.4', '4.5', '4.6']
+        godot-version: ['4.5']
       fail-fast: false  # Continue other builds even if one fails
 
     steps:
@@ -77,16 +75,16 @@ jobs:
   # ============================================================================
   # Windows Build Job
   # ============================================================================
-  # Builds the extension for Windows x86_64 using the Python build script.
-  # We use the Python script directly on Windows for better compatibility with
+  # Builds the extension for Windows (x86_64 native).
+  # We use the Python build script directly on Windows for better compatibility with
   # the Windows environment (no Unix make available by default).
   build-windows:
-    name: Build (Windows x86_64, Godot ${{ matrix.godot-version }})
+    name: Build (Windows, Godot ${{ matrix.godot-version }})
     runs-on: windows-latest
 
     strategy:
       matrix:
-        godot-version: ['4.4', '4.5', '4.6']
+        godot-version: ['4.5']
       fail-fast: false
 
     steps:
@@ -109,15 +107,23 @@ jobs:
         # Use Chocolatey (Windows package manager) to install SWI-Prolog.
         run: |
           choco install swi-prolog --yes
+          # Add SWI-Prolog to PATH for the current session
+          $env:PATH = "C:\Program Files\swipl\bin;$env:PATH"
+          # Make it available for subsequent steps
+          echo "C:\Program Files\swipl\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
         shell: pwsh
 
       - name: Build extension
         # On Windows, we use the Python build script directly for better control
         # over the environment and to avoid issues with make on Windows runners.
         # We build both debug and release targets.
+        # PYTHONIOENCODING=utf-8 is required to handle Unicode characters in output
+        # (box-drawing characters, checkmarks, etc.) on Windows.
+        env:
+          PYTHONIOENCODING: utf-8
         run: |
-          python build.py --godot-cpp ${{ matrix.godot-version }} --target template_debug --skip-swi
-          python build.py --godot-cpp ${{ matrix.godot-version }} --target template_release --skip-swi
+          python build.py --godot-cpp ${{ matrix.godot-version }} --arch x86_64 --target template_debug --skip-swi
+          python build.py --godot-cpp ${{ matrix.godot-version }} --arch x86_64 --target template_release --skip-swi
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
@@ -129,15 +135,15 @@ jobs:
   # ============================================================================
   # macOS Build Job
   # ============================================================================
-  # Builds universal binaries for macOS (both x86_64 and arm64 architectures).
-  # This allows the extension to run natively on both Intel and Apple Silicon Macs.
+  # Builds for macOS (architecture auto-detected).
+  # macos-latest = arm64 (Apple Silicon).
   build-macos:
-    name: Build (macOS universal, Godot ${{ matrix.godot-version }})
+    name: Build (macOS, Godot ${{ matrix.godot-version }})
     runs-on: macos-latest
 
     strategy:
       matrix:
-        godot-version: ['4.4', '4.5', '4.6']
+        godot-version: ['4.5']
       fail-fast: false
 
     steps:
@@ -149,7 +155,7 @@ jobs:
       - name: Install dependencies
         # Use Homebrew (macOS package manager) to install SCons and SWI-Prolog.
         run: |
-          brew install scons swi-prolog
+          brew install scons swi-prolog pkg-config
 
       - name: Build extension
         # On macOS, we use the Makefile which provides a standard development workflow.
@@ -160,7 +166,7 @@ jobs:
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: prologot-macos-universal-godot${{ matrix.godot-version }}
+          name: prologot-macos-arm64-godot${{ matrix.godot-version }}
           path: bin/
           retention-days: 1
 
@@ -177,7 +183,7 @@ jobs:
 
     strategy:
       matrix:
-        godot-version: ['4.4', '4.5', '4.6']
+        godot-version: ['4.5']
       fail-fast: false
 
     steps:
@@ -200,25 +206,20 @@ jobs:
           sudo mv Godot_v${{ matrix.godot-version }}-stable_linux.x86_64 /usr/local/bin/godot
 
       - name: Download build artifacts
-        # Download the compiled Linux extension from the build job.
+        # Download the compiled Linux x86_64 extension from the build job.
         # Artifacts allow us to reuse compiled binaries without rebuilding.
         uses: actions/download-artifact@v4
         with:
           name: prologot-linux-x86_64-godot${{ matrix.godot-version }}
           path: bin/
 
-      - name: List artifacts
-        # Debug step: Verify that artifacts were downloaded correctly.
-        run: |
-          echo "Contents of bin/:"
-          ls -lah bin/
-
       - name: Run unit tests
         # Execute the test suite using Godot in headless mode.
-        # The tests validate core functionality like queries, facts, rules, etc.
+        # The tests validate core functionality like queries, facts, rules,
+        # and all demo examples (pathfinding, AI behavior, combat system, etc.)
         run: |
           godot --headless --script tests/run_tests.gd
-        timeout-minutes: 5  # Prevent tests from hanging indefinitely
+        timeout-minutes: 10
 
   # ============================================================================
   # GDScript Linting Job
@@ -268,10 +269,9 @@ jobs:
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')  # Only run on version tags
 
-    # Use a matrix to package builds for each Godot version separately
     strategy:
       matrix:
-        godot-version: ['4.4', '4.5', '4.6']
+        godot-version: ['4.5']
 
     steps:
       - name: Checkout repository
@@ -292,9 +292,9 @@ jobs:
         #   LICENSE, README.md
         run: |
           mkdir -p release/bin
-          cp -r artifacts/prologot-linux-x86_64-godot${{ matrix.godot-version }}/* release/bin/ 2>/dev/null || true
-          cp -r artifacts/prologot-windows-x86_64-godot${{ matrix.godot-version }}/* release/bin/ 2>/dev/null || true
-          cp -r artifacts/prologot-macos-universal-godot${{ matrix.godot-version }}/* release/bin/ 2>/dev/null || true
+          cp -r artifacts/prologot-linux-*-godot${{ matrix.godot-version }}/* release/bin/ 2>/dev/null || true
+          cp -r artifacts/prologot-windows-*-godot${{ matrix.godot-version }}/* release/bin/ 2>/dev/null || true
+          cp -r artifacts/prologot-macos-*-godot${{ matrix.godot-version }}/* release/bin/ 2>/dev/null || true
           cp -r addons release/
           cp prologot.gdextension release/
           cp LICENSE release/

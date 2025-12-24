@@ -65,24 +65,53 @@ public:
     // =========================================================================
 
     /**
-     * @brief Initializes the SWI-Prolog engine.
+     * @brief Initializes the SWI-Prolog engine with optional configuration.
      *
      * This method performs the following steps:
      * 1. Checks if already initialized (idempotent)
-     * 2. Sets up the SWI-Prolog home directory if provided
-     * 3. Initializes the Prolog engine with minimal arguments
-     * 4. Bootstraps helper predicates needed for consult_string()
+     * 2. Parses the options Dictionary for configuration settings
+     * 3. Sets up the SWI-Prolog home directory if provided
+     * 4. Initializes the Prolog engine with the specified options
+     * 5. Bootstraps helper predicates needed for consult_string()
      *
      * The bootstrap predicates enable loading Prolog code from strings by:
      * - Parsing multi-line Prolog code into individual clauses
      * - Handling directives (:-) and queries (?-) appropriately
      * - Asserting regular clauses into the knowledge base
      *
-     * @param p_prolog_home Optional path to SWI-Prolog installation directory.
-     *                    If empty, uses system default.
+     * @param p_options Dictionary containing initialization options:
+     *   Main options:
+     *     - "home" (String): Path to SWI-Prolog installation
+     *     - "quiet" (bool): Suppress informational messages (default: true)
+     *     - "goal" (String/Array): Goal(s) to execute at startup
+     *     - "toplevel" (String): Custom toplevel goal
+     *     - "init file" (String): User initialization file
+     *     - "script file" (String): Script source file to load
+     *   Performance options:
+     *     - "stack limit" (String): Prolog stack limit (e.g. "1g", "512m")
+     *     - "table space" (String): Space for SLG tables (e.g. "128m")
+     *     - "shared table space" (String): Space for shared SLG tables
+     *     - "optimised" (bool): Enable optimised compilation
+     *   Behavior options:
+     *     - "traditional" (bool): Traditional mode, disable v7 extensions
+     *     - "threads" (bool): Allow threads (default: true)
+     *     - "signals" (bool): Modify signal handling (default: true)
+     *     - "packs" (bool): Attach add-ons/packages (default: true)
+     *     - "debug" (bool): Generate debug info
+     *     - "debug on interrupt" (bool): Trigger debugger on interrupt
+     *     - "tty" (bool): Allow terminal control
+     *   Error handling:
+     *     - "on error" (String): Error handling style ("print", "halt",
+     * "status")
+     *     - "on warning" (String): Warning handling style ("print", "halt",
+     * "status") Advanced options:
+     *     - "prolog flags" (Dictionary): Define Prolog flags
+     *     - "file search paths" (Dictionary): Define file search paths
+     *     - "custom args" (Array): Additional custom arguments
+     *
      * @return true if initialization succeeded, false otherwise.
      */
-    bool initialize(String const& p_prolog_home = "");
+    bool initialize(Dictionary const& p_options = Dictionary());
 
     /**
      * @brief Cleans up and shuts down the Prolog engine.
@@ -285,6 +314,17 @@ protected:
 private:
 
     /**
+     * @brief Sets the SWI-Prolog home directory environment variable.
+     *
+     * This static helper function sets the SWI_HOME_DIR environment variable
+     * in a platform-independent way (uses _putenv_s on Windows, setenv on
+     * Unix).
+     *
+     * @param p_prolog_home Path to SWI-Prolog installation directory.
+     */
+    static void set_swi_home_dir(String const& p_prolog_home);
+
+    /**
      * @brief Converts a Prolog term to a Godot Variant.
      *
      * Internal helper method for converting Prolog data types to Godot types.
@@ -320,12 +360,13 @@ private:
     /**
      * @brief Helper to handle Prolog exceptions.
      *
-     * Note: Currently not implemented. Exception handling is done inline
-     * in query_all() using PL_Q_CATCH_EXCEPTION.
+     * This method extracts exception information from a failed query and
+     * stores it in m_last_error, then displays it as an error message.
      *
      * @param p_qid The query ID that raised the exception.
-     * @param p_context Context string for error messages.
-     * @return true if exception was handled, false otherwise.
+     * @param p_context Context string for error messages (e.g., "Query",
+     * "Consult").
+     * @return true if exception was handled, false if no exception occurred.
      */
     bool handle_prolog_exception(qid_t p_qid, String const& p_context);
 

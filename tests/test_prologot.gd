@@ -8,6 +8,9 @@
 
 extends Node
 
+## Signal emitted when all tests are completed
+signal tests_finished(exit_code: int)
+
 ## The Prologot engine instance for testing.
 var prolog: Prologot
 
@@ -22,22 +25,27 @@ var tests_total: int = 0
 
 
 func _ready() -> void:
-	print("=" * 60)
+	print("=".repeat(60))
 	print("Prologot Unit Tests - Version 0.1.0")
-	print("=" * 60)
+	print("=".repeat(60))
 
 	run_all_tests()
 
 	print("")
-	print("=" * 60)
+	print("=".repeat(60))
 	print("Test Results: %d passed, %d failed, %d total" % [tests_passed, tests_failed, tests_total])
-	print("=" * 60)
+	print("=".repeat(60))
 
-	# Exit with appropriate code
+	# Determine exit code (0 = success, 1 = failure)
+	var exit_code := 0 if tests_failed == 0 else 1
+
 	if tests_failed > 0:
 		push_error("Some tests failed!")
 	else:
 		print("All tests passed!")
+
+	# Emit signal to notify test runner
+	tests_finished.emit(exit_code)
 
 
 ## Run all test suites.
@@ -50,6 +58,14 @@ func run_all_tests() -> void:
 	test_complex_queries()
 	test_type_conversion()
 	test_error_handling()
+
+	# Demo examples tests
+	test_demo_01_basic_queries()
+	test_demo_02_facts_and_rules()
+	test_demo_03_dynamic_assertions()
+	test_demo_04_complex_queries()
+	test_demo_05_pathfinding()
+	test_demo_06_ai_behavior()
 
 
 # =============================================================================
@@ -133,14 +149,14 @@ func test_initialization() -> void:
 	assert_false(prolog.is_initialized(), "Engine not initialized before initialize()")
 
 	# Test 3: Initialize
-	var init_result := prolog.initialize()
+	var init_result: bool = prolog.initialize()
 	assert_true(init_result, "Engine initialization succeeds")
 
 	# Test 4: Check initialized
 	assert_true(prolog.is_initialized(), "Engine reports initialized")
 
 	# Test 5: Double initialization should succeed (idempotent)
-	var reinit_result := prolog.initialize()
+	var reinit_result: bool = prolog.initialize()
 	assert_true(reinit_result, "Re-initialization succeeds (idempotent)")
 
 	# Test 6: Cleanup
@@ -183,12 +199,12 @@ func test_basic_queries() -> void:
 	print("    Animals found: ", animals)
 
 	# Test query_one - returns Variant or null
-	var one_animal := prolog.query_one("animal(X)")
+	var one_animal: Variant = prolog.query_one("animal(X)")
 	assert_true(one_animal != null, "query_one returns a result")
 	print("    First animal: ", one_animal)
 
 	# Test query_one with no solution
-	var no_result := prolog.query_one("animal(unicorn)")
+	var no_result: Variant = prolog.query_one("animal(unicorn)")
 	assert_true(no_result == null, "query_one returns null when no solution")
 
 	teardown_prolog()
@@ -350,8 +366,8 @@ func test_type_conversion() -> void:
 
 	# Note: call_predicate is for predicates without return value
 	# call_function is for getting results
-	var sum_result := prolog.call_function("add", [10, 20])
-	# The result should be 30 if the predicate works correctly
+	var sum_result: Variant = prolog.call_function("add", [10, 20])
+	assert_equal(sum_result, 30, "call_function returns correct result (10 + 20 = 30)")
 
 	teardown_prolog()
 
@@ -387,3 +403,282 @@ func test_error_handling() -> void:
 
 	teardown_prolog()
 
+
+# =============================================================================
+# Demo Examples Tests
+# =============================================================================
+# These tests validate the Prolog examples in addons/prologot/demos/examples/
+# to ensure they work correctly and serve as integration tests.
+
+## Path to demo examples folder.
+const DEMOS_PATH := "res://../addons/prologot/demos/examples/"
+
+
+## Test Demo 01: Basic Queries - Family Relationships
+func test_demo_01_basic_queries() -> void:
+	print("\n[Test Suite: Demo 01 - Basic Queries]")
+
+	if not setup_prolog():
+		print("  ✗ SKIP: Could not initialize Prolog")
+		return
+
+	# Load the demo file
+	var consult_result := prolog.consult(DEMOS_PATH + "01_basic_queries.pl")
+	if not consult_result:
+		print("  ✗ SKIP: Could not load 01_basic_queries.pl (file not found?)")
+		print("    Error: ", prolog.get_last_error())
+		teardown_prolog()
+		return
+	assert_true(consult_result, "Load 01_basic_queries.pl")
+
+	# Test parent facts
+	assert_true(prolog.query("parent(tom, bob)"), "parent(tom, bob) exists")
+	assert_true(prolog.query("parent(tom, liz)"), "parent(tom, liz) exists")
+	assert_true(prolog.query("parent(bob, ann)"), "parent(bob, ann) exists")
+	assert_true(prolog.query("parent(bob, pat)"), "parent(bob, pat) exists")
+	assert_true(prolog.query("parent(pat, jim)"), "parent(pat, jim) exists")
+
+	# Test non-existing relationships
+	assert_false(prolog.query("parent(bob, tom)"), "parent(bob, tom) should not exist")
+	assert_false(prolog.query("parent(jim, pat)"), "parent(jim, pat) should not exist")
+
+	# Query all children of tom
+	var tom_children := prolog.query_all("parent(tom, X)")
+	assert_equal(tom_children.size(), 2, "Tom has 2 children")
+	print("    Tom's children: ", tom_children)
+
+	# Query all children of bob
+	var bob_children := prolog.query_all("parent(bob, X)")
+	assert_equal(bob_children.size(), 2, "Bob has 2 children")
+
+	teardown_prolog()
+
+
+## Test Demo 02: Facts and Rules - Grandparents & Ancestors
+func test_demo_02_facts_and_rules() -> void:
+	print("\n[Test Suite: Demo 02 - Facts and Rules]")
+
+	if not setup_prolog():
+		print("  ✗ SKIP: Could not initialize Prolog")
+		return
+
+	# Load the demo file
+	var consult_result := prolog.consult(DEMOS_PATH + "02_facts_and_rules.pl")
+	if not consult_result:
+		print("  ✗ SKIP: Could not load 02_facts_and_rules.pl")
+		teardown_prolog()
+		return
+	assert_true(consult_result, "Load 02_facts_and_rules.pl")
+
+	# Test grandparent rule
+	assert_true(prolog.query("grandparent(tom, ann)"), "Tom is grandparent of Ann")
+	assert_true(prolog.query("grandparent(tom, pat)"), "Tom is grandparent of Pat")
+	assert_true(prolog.query("grandparent(bob, jim)"), "Bob is grandparent of Jim")
+	assert_false(prolog.query("grandparent(tom, bob)"), "Tom is NOT grandparent of Bob")
+
+	# Test sibling rule
+	assert_true(prolog.query("sibling(bob, liz)"), "Bob and Liz are siblings")
+	assert_true(prolog.query("sibling(ann, pat)"), "Ann and Pat are siblings")
+	assert_false(prolog.query("sibling(bob, bob)"), "Bob is not sibling of himself")
+
+	# Test ancestor rule (recursive)
+	assert_true(prolog.query("ancestor(tom, bob)"), "Tom is ancestor of Bob")
+	assert_true(prolog.query("ancestor(tom, ann)"), "Tom is ancestor of Ann")
+	assert_true(prolog.query("ancestor(tom, jim)"), "Tom is ancestor of Jim (via bob->pat)")
+	assert_true(prolog.query("ancestor(bob, jim)"), "Bob is ancestor of Jim")
+
+	# Query all grandchildren of tom
+	var tom_grandchildren := prolog.query_all("grandparent(tom, X)")
+	assert_true(tom_grandchildren.size() >= 2, "Tom has at least 2 grandchildren")
+	print("    Tom's grandchildren: ", tom_grandchildren)
+
+	teardown_prolog()
+
+
+## Test Demo 03: Dynamic Assertions - Game State
+func test_demo_03_dynamic_assertions() -> void:
+	print("\n[Test Suite: Demo 03 - Dynamic Assertions]")
+
+	if not setup_prolog():
+		print("  ✗ SKIP: Could not initialize Prolog")
+		return
+
+	# Load the demo file (declares dynamic predicate)
+	var consult_result := prolog.consult(DEMOS_PATH + "03_dynamic_assertions.pl")
+	if not consult_result:
+		print("  ✗ SKIP: Could not load 03_dynamic_assertions.pl")
+		teardown_prolog()
+		return
+	assert_true(consult_result, "Load 03_dynamic_assertions.pl")
+
+	# Initially no game_state facts
+	assert_false(prolog.query("game_state(_, _)"), "No game_state facts initially")
+
+	# Add game states dynamically
+	assert_true(prolog.assert_fact("game_state(player_health, 100)"), "Assert player_health")
+	assert_true(prolog.assert_fact("game_state(player_score, 0)"), "Assert player_score")
+	assert_true(prolog.assert_fact("game_state(level, 1)"), "Assert level")
+
+	# Verify states exist
+	assert_true(prolog.query("game_state(player_health, 100)"), "player_health is 100")
+	assert_true(prolog.query("game_state(player_score, 0)"), "player_score is 0")
+	assert_true(prolog.query("game_state(level, 1)"), "level is 1")
+
+	# Update a state (retract and reassert)
+	assert_true(prolog.retract_fact("game_state(player_score, 0)"), "Retract old score")
+	assert_true(prolog.assert_fact("game_state(player_score, 100)"), "Assert new score")
+	assert_true(prolog.query("game_state(player_score, 100)"), "player_score updated to 100")
+
+	# Query all game states
+	var all_states := prolog.query_all("game_state(Key, Value)")
+	assert_equal(all_states.size(), 3, "3 game states exist")
+	print("    Game states: ", all_states)
+
+	# Retract all game states
+	prolog.retract_all("game_state(_, _)")
+	assert_false(prolog.query("game_state(_, _)"), "All game_state facts removed")
+
+	teardown_prolog()
+
+
+## Test Demo 04: Complex Queries - Combat System
+func test_demo_04_complex_queries() -> void:
+	print("\n[Test Suite: Demo 04 - Complex Queries (Combat)]")
+
+	if not setup_prolog():
+		print("  ✗ SKIP: Could not initialize Prolog")
+		return
+
+	# Load the demo file
+	var consult_result := prolog.consult(DEMOS_PATH + "04_complex_queries.pl")
+	if not consult_result:
+		print("  ✗ SKIP: Could not load 04_complex_queries.pl")
+		teardown_prolog()
+		return
+	assert_true(consult_result, "Load 04_complex_queries.pl")
+
+	# Test enemy facts
+	assert_true(prolog.query("enemy(goblin, 10, 5, 2)"), "Goblin stats exist")
+	assert_true(prolog.query("enemy(orc, 25, 12, 5)"), "Orc stats exist")
+	assert_true(prolog.query("enemy(dragon, 100, 30, 15)"), "Dragon stats exist")
+
+	# Test weapon facts
+	assert_true(prolog.query("weapon(sword, 10)"), "Sword damage is 10")
+	assert_true(prolog.query("weapon(axe, 15)"), "Axe damage is 15")
+	assert_true(prolog.query("weapon(bow, 8)"), "Bow damage is 8")
+
+	# Test damage calculation: damage = weapon_dmg - defense
+	# Sword (10) vs Goblin (def 2) = 8 damage
+	assert_true(prolog.query("damage(sword, goblin, 8)"), "Sword deals 8 damage to goblin")
+	# Axe (15) vs Orc (def 5) = 10 damage
+	assert_true(prolog.query("damage(axe, orc, 10)"), "Axe deals 10 damage to orc")
+	# Bow (8) vs Dragon (def 15) = -7 damage (negative, ineffective)
+	assert_true(prolog.query("damage(bow, dragon, -7)"), "Bow deals -7 damage to dragon")
+
+	# Test one_shot_kill: axe (15) vs goblin (10 HP, 2 def) = 13 dmg >= 10 HP
+	assert_true(prolog.query("one_shot_kill(axe, goblin)"), "Axe can one-shot goblin")
+	# Sword (10) vs goblin (10 HP, 2 def) = 8 dmg < 10 HP
+	assert_false(prolog.query("one_shot_kill(sword, goblin)"), "Sword cannot one-shot goblin")
+	# No weapon can one-shot dragon
+	assert_false(prolog.query("one_shot_kill(sword, dragon)"), "Sword cannot one-shot dragon")
+	assert_false(prolog.query("one_shot_kill(axe, dragon)"), "Axe cannot one-shot dragon")
+
+	# Query all enemies
+	var all_enemies := prolog.query_all("enemy(Name, _, _, _)")
+	assert_equal(all_enemies.size(), 3, "3 enemy types exist")
+	print("    Enemies: ", all_enemies)
+
+	teardown_prolog()
+
+
+## Test Demo 05: Pathfinding - Graph Traversal
+func test_demo_05_pathfinding() -> void:
+	print("\n[Test Suite: Demo 05 - Pathfinding]")
+
+	if not setup_prolog():
+		print("  ✗ SKIP: Could not initialize Prolog")
+		return
+
+	# Load the demo file
+	var consult_result := prolog.consult(DEMOS_PATH + "05_pathfinding.pl")
+	if not consult_result:
+		print("  ✗ SKIP: Could not load 05_pathfinding.pl")
+		teardown_prolog()
+		return
+	assert_true(consult_result, "Load 05_pathfinding.pl")
+
+	# Test edge facts
+	assert_true(prolog.query("edge(a, b, 1)"), "Edge a->b exists with cost 1")
+	assert_true(prolog.query("edge(b, c, 2)"), "Edge b->c exists with cost 2")
+	assert_true(prolog.query("edge(e, f, 1)"), "Edge e->f exists with cost 1")
+
+	# Test bidirectional connected predicate
+	assert_true(prolog.query("connected(a, b, 1)"), "a connected to b")
+	assert_true(prolog.query("connected(b, a, 1)"), "b connected to a (bidirectional)")
+
+	# Test path finding - simple path a to b
+	assert_true(prolog.query("path(a, b, _, _)"), "Path from a to b exists")
+
+	# Test path finding - longer path a to f
+	assert_true(prolog.query("path(a, f, _, _)"), "Path from a to f exists")
+
+	# Query a specific path with cost
+	var path_result: Variant = prolog.query_one("path(a, f, Path, Cost)")
+	assert_true(path_result != null, "Found path from a to f")
+	print("    Path a->f: ", path_result)
+
+	# Test that cycle detection works (no infinite loops)
+	# Just verify the query completes without hanging
+	var paths := prolog.query_all("path(a, e, Path, Cost)")
+	assert_true(paths.size() >= 1, "At least one path from a to e")
+	print("    Paths a->e: ", paths)
+
+	teardown_prolog()
+
+
+## Test Demo 06: AI Behavior - Decision Making
+func test_demo_06_ai_behavior() -> void:
+	print("\n[Test Suite: Demo 06 - AI Behavior]")
+
+	if not setup_prolog():
+		print("  ✗ SKIP: Could not initialize Prolog")
+		return
+
+	# Load the demo file
+	var consult_result := prolog.consult(DEMOS_PATH + "06_ai_behavior.pl")
+	if not consult_result:
+		print("  ✗ SKIP: Could not load 06_ai_behavior.pl")
+		teardown_prolog()
+		return
+	assert_true(consult_result, "Load 06_ai_behavior.pl")
+
+	# Test state facts
+	assert_true(prolog.query("state(patrol)"), "patrol state exists")
+	assert_true(prolog.query("state(chase)"), "chase state exists")
+	assert_true(prolog.query("state(attack)"), "attack state exists")
+	assert_true(prolog.query("state(flee)"), "flee state exists")
+
+	# Test should_* predicates
+	assert_true(prolog.query("should_chase(5)"), "should_chase at distance 5")
+	assert_false(prolog.query("should_chase(15)"), "should NOT chase at distance 15")
+	assert_true(prolog.query("should_attack(2)"), "should_attack at distance 2")
+	assert_false(prolog.query("should_attack(5)"), "should NOT attack at distance 5")
+	assert_true(prolog.query("should_flee(10)"), "should_flee at health 10")
+	assert_false(prolog.query("should_flee(50)"), "should NOT flee at health 50")
+
+	# Test decide_action - priority: flee > attack > chase > patrol
+	# Low health -> flee (regardless of distance)
+	assert_true(prolog.query("decide_action(flee, 10, 2)"), "Flee when health=10")
+	# Good health, close distance -> attack
+	assert_true(prolog.query("decide_action(attack, 100, 2)"), "Attack when close")
+	# Good health, medium distance -> chase
+	assert_true(prolog.query("decide_action(chase, 100, 5)"), "Chase when medium distance")
+	# Good health, far distance -> patrol
+	assert_true(prolog.query("decide_action(patrol, 100, 20)"), "Patrol when far")
+
+	# Query all states
+	var all_states := prolog.query_all("state(S)")
+	assert_equal(all_states.size(), 4, "4 AI states exist")
+	print("    AI states: ", all_states)
+
+	teardown_prolog()

@@ -119,3 +119,9 @@ local.cfg
 test_results/
 coverage/
 
+# Copied files for demo and test projects
+addons/prologot/demos/bin/
+addons/prologot/demos/prologot.gdextension
+tests/bin/
+tests/prologot.gdextension
+
