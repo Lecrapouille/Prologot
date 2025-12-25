@@ -142,12 +142,10 @@ def install_swi_prolog(force=False):
     system = get_system()
 
     if system == 'linux':
-        # Detect distro
         distro_cmds = {
-            '/etc/debian_version': (['sudo', 'apt-get', 'update'],
-                                   ['sudo', 'apt-get', 'install', '-y', 'swi-prolog', 'swi-prolog-nox']),
-            '/etc/fedora-release': (['sudo', 'dnf', 'install', '-y', 'pl'],),
-            '/etc/arch-release': (['sudo', 'pacman', '-S', '--noconfirm', 'swi-prolog'],),
+            '/etc/debian_version': (['sudo', 'apt-get', 'install', '-y', 'swi-prolog', 'swi-prolog-nox']),
+            '/etc/fedora-release': (['sudo', 'dnf', 'install', '-y', 'swi-prolog', 'swi-prolog-nox'],),
+            '/etc/arch-release': (['sudo', 'pacman', '-S', '--noconfirm', 'swi-prolog', 'swi-prolog-nox'],),
         }
 
         for marker, cmds in distro_cmds.items():
@@ -159,20 +157,19 @@ def install_swi_prolog(force=False):
                run_cmd(['sudo', 'apt-get', 'install', '-y', 'swi-prolog'], check=False)
 
     elif system == 'macos':
-        if not shutil.which('brew'):
+        if shutil.which('brew'):
+            return run_cmd(['brew', 'install', 'swi-prolog'])
+        else:
             Color.error("Homebrew required. Install from https://brew.sh")
             return False
-        return run_cmd(['brew', 'install', 'swi-prolog'])
 
     elif system == 'windows':
-        # Try Chocolatey installation
         if shutil.which('choco'):
             Color.info("Installing SWI-Prolog via Chocolatey...")
             return run_cmd(['choco', 'install', 'swi-prolog', '--yes'])
         else:
-            Color.warning("Chocolatey not found. Manual installation required:")
-            Color.info("https://www.swi-prolog.org/download/stable")
-            Color.info("Or install Chocolatey: https://chocolatey.org/install")
+            Color.error("Chocolatey required. Install from https://chocolatey.org/install")
+            Color.info("Manual installation: https://www.swi-prolog.org/download/stable")
             return False
 
     else:
@@ -309,7 +306,7 @@ def compile_godot_cpp(godot_version, platform_name, target, jobs, arch):
     return run_cmd(cmd, cwd=str(godot_cpp_dir), realtime=True)
 
 
-def compile_extension(platform_name, target, jobs, arch):
+def compile_extension(platform_name, target, jobs, arch, godot_version=None):
     """Compile the GDExtension."""
     scons_cmd = get_scons_cmd()
     if not scons_cmd:
@@ -317,6 +314,13 @@ def compile_extension(platform_name, target, jobs, arch):
 
     Color.header(f"Compiling extension ({platform_name}, {target})")
     cmd = scons_cmd + [f'platform={platform_name}', f'arch={arch}', f'target={target}', f'-j{jobs}']
+
+    # Pass godot_cpp_dir to SConstruct if godot_version is provided
+    if godot_version:
+        version_suffix = godot_version.replace('.', '_')
+        godot_cpp_dir = f'godot-cpp-{version_suffix}'
+        cmd.append(f'godot_cpp_dir={godot_cpp_dir}')
+
     return run_cmd(cmd, realtime=True)
 
 
@@ -388,7 +392,7 @@ def main():
 
     # Compile extension
     if not args.skip_compile:
-        if not compile_extension(platform_name, args.target, jobs, arch):
+        if not compile_extension(platform_name, args.target, jobs, arch, godot_version):
             return 1
 
     Color.success("Build completed successfully!\n")

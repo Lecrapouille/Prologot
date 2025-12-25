@@ -218,7 +218,7 @@ jobs:
         # The tests validate core functionality like queries, facts, rules,
         # and all demo examples (pathfinding, AI behavior, combat system, etc.)
         run: |
-          godot --headless --script tests/run_tests.gd
+          make tests
         timeout-minutes: 10
 
   # ============================================================================

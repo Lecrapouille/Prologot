@@ -126,8 +126,8 @@ setup-internal-projects:
 	@$(ECHO) ""
 
 # Run tests
-.PHONY: test
-test: setup-internal-projects
+.PHONY: tests
+tests: setup-internal-projects
 	@$(ECHO) "$(CYAN)▶ Running tests...$(NC)"
 	@$(ECHO) "$(YELLOW)Note: Tests require Godot to be installed$(NC)"
 	@godot --headless --path tests -s run_tests.gd
