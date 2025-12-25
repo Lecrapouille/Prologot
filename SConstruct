@@ -76,11 +76,17 @@ class SwiPrologConfig:
                 result = subprocess.run([swipl_cmd, '--dump-runtime-variables'],
                                         capture_output=True, text=True, check=True)
                 # Parse output like: PLBASE="/usr/lib/swipl"; PLLIBDIR="/usr/lib/..."; etc.
+                # On Windows: PLBASE="C:\\Program Files\\swipl"; PLLIBDIR="C:\\Program Files\\swipl\\lib"; etc.
                 paths = {}
                 for line in result.stdout.strip().split('\n'):
                     if '=' in line:
                         key, val = line.split('=', 1)
-                        paths[key] = val.strip('";')
+                        # Remove quotes, semicolons, and normalize path
+                        val = val.strip('";')
+                        # Normalize path for Windows (handles backslashes)
+                        if val:
+                            val = os.path.normpath(val)
+                        paths[key] = val
                 return paths
             except (subprocess.CalledProcessError, FileNotFoundError):
                 continue
@@ -146,42 +152,97 @@ class WindowsSwiPrologConfig(SwiPrologConfig):
         lib_dirs = []
         lib_candidates = []
 
-        # Collect potential library directories
-        if self.pllibdir:
-            lib_dirs.append(self.pllibdir)
-            lib_candidates.append(os.path.join(self.pllibdir, lib_name))
+        # Normalize paths for Windows
+        def normpath(p):
+            return os.path.normpath(p) if p else None
 
-        if self.plbase:
+        plbase = normpath(self.plbase) if self.plbase else None
+        pllibdir = normpath(self.pllibdir) if self.pllibdir else None
+
+        # Collect potential library directories
+        if pllibdir:
+            lib_dirs.append(pllibdir)
+            lib_candidates.append(os.path.join(pllibdir, lib_name))
+
+        if plbase:
             # Try lib subdirectory
-            lib_dir = os.path.join(self.plbase, 'lib')
+            lib_dir = os.path.join(plbase, 'lib')
+            lib_dir = normpath(lib_dir)
             lib_candidates.append(os.path.join(lib_dir, lib_name))
             lib_dirs.append(lib_dir)
 
             # Try lib/x86_64 or lib/x64 for 64-bit
             for arch in ['x86_64', 'x64']:
-                arch_lib_dir = os.path.join(self.plbase, 'lib', arch)
+                arch_lib_dir = os.path.join(plbase, 'lib', arch)
+                arch_lib_dir = normpath(arch_lib_dir)
                 lib_candidates.append(os.path.join(arch_lib_dir, lib_name))
                 lib_dirs.append(arch_lib_dir)
 
             # Also try bin directory (sometimes .lib files are there on Windows)
-            bin_dir = os.path.join(self.plbase, 'bin')
+            bin_dir = os.path.join(plbase, 'bin')
+            bin_dir = normpath(bin_dir)
             lib_candidates.append(os.path.join(bin_dir, lib_name))
             lib_dirs.append(bin_dir)
 
+            # Try lib/msvc or lib/msvc64 (common on Windows)
+            for msvc_dir in ['msvc', 'msvc64']:
+                msvc_lib_dir = os.path.join(plbase, 'lib', msvc_dir)
+                msvc_lib_dir = normpath(msvc_lib_dir)
+                lib_candidates.append(os.path.join(msvc_lib_dir, lib_name))
+                lib_dirs.append(msvc_lib_dir)
+
+        # Also check common installation paths (Chocolatey, etc.)
+        common_paths = [
+            r'C:\Program Files\swipl',
+            r'C:\Program Files (x86)\swipl',
+            os.path.expanduser(r'~\swipl'),
+        ]
+        for common_path in common_paths:
+            if os.path.exists(common_path):
+                common_path = normpath(common_path)
+                for subdir in ['lib', 'lib\\x64', 'lib\\x86_64', 'bin']:
+                    test_dir = os.path.join(common_path, subdir)
+                    test_dir = normpath(test_dir)
+                    if os.path.isdir(test_dir):
+                        lib_candidates.append(os.path.join(test_dir, lib_name))
+                        lib_dirs.append(test_dir)
+
         # Find the actual library file and filter existing directories
-        lib_path = next((c for c in lib_candidates if os.path.exists(c)), None)
-        existing_lib_dirs = [d for d in lib_dirs if os.path.exists(d)]
+        lib_path = None
+        for candidate in lib_candidates:
+            candidate = normpath(candidate)
+            if os.path.exists(candidate) and os.path.isfile(candidate):
+                lib_path = candidate
+                break
 
-        # Add all existing library directories to LIBPATH
-        for lib_dir in existing_lib_dirs:
-            env.Append(LIBPATH=[lib_dir])
-
-        env.Append(LIBS=['swipl'])
+        existing_lib_dirs = [normpath(d) for d in lib_dirs if os.path.exists(d) and os.path.isdir(d)]
 
         if lib_path:
+            # Use full path to library file
+            lib_path = normpath(lib_path)
+            lib_dir = os.path.dirname(lib_path)
+            # Add directory to LIBPATH
+            env.Append(LIBPATH=[lib_dir])
+            # Use library name (linker will find it via LIBPATH)
+            env.Append(LIBS=['swipl'])
             print(f"SWI-Prolog library found: {lib_path}")
-        else:
+            print(f"  Using LIBPATH: {lib_dir}")
+        elif existing_lib_dirs:
+            # Add all existing library directories to LIBPATH
+            for lib_dir in existing_lib_dirs:
+                env.Append(LIBPATH=[lib_dir])
+            env.Append(LIBS=['swipl'])
             print(f"Warning: {lib_name} not found explicitly, using LIBPATH={existing_lib_dirs}")
+            print("  The linker will search for swipl.lib in these directories.")
+        else:
+            # Error: library not found
+            print(f"Error: {lib_name} not found!")
+            print(f"  PLBASE: {plbase}")
+            print(f"  PLLIBDIR: {pllibdir}")
+            print(f"  Searched in: {lib_candidates}")
+            print("  Please ensure SWI-Prolog is installed correctly.")
+            print("  On Windows, try: choco install swi-prolog")
+            Exit(1)
 
 
 class DarwinSwiPrologConfig(SwiPrologConfig):
