@@ -69,7 +69,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: prologot-linux-x86_64-godot${{ matrix.godot-version }}
-          path: bin/
+          path: |
+            bin/
+            prologot.gdextension
           retention-days: 1
 
   # ============================================================================
@@ -129,7 +131,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: prologot-windows-x86_64-godot${{ matrix.godot-version }}
-          path: bin/
+          path: |
+            bin/
+            prologot.gdextension
           retention-days: 1
 
   # ============================================================================
@@ -167,7 +171,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: prologot-macos-arm64-godot${{ matrix.godot-version }}
-          path: bin/
+          path: |
+            bin/
+            prologot.gdextension
           retention-days: 1
 
   # ============================================================================
@@ -208,10 +214,29 @@ jobs:
       - name: Download build artifacts
         # Download the compiled Linux x86_64 extension from the build job.
         # Artifacts allow us to reuse compiled binaries without rebuilding.
+        # The artifact contains both bin/ and prologot.gdextension.
         uses: actions/download-artifact@v4
         with:
           name: prologot-linux-x86_64-godot${{ matrix.godot-version }}
-          path: bin/
+          path: artifacts
+
+      - name: Prepare test environment
+        # Move bin/ and prologot.gdextension from artifacts to project root
+        # so that make tests can find them when running setup-internal-projects.
+        # GitHub Actions extracts artifacts in a subdirectory named after the artifact.
+        run: |
+          ARTIFACT_DIR="artifacts/prologot-linux-x86_64-godot${{ matrix.godot-version }}"
+          if [ -d "$ARTIFACT_DIR" ]; then
+            cp -r "$ARTIFACT_DIR/bin" .
+            cp "$ARTIFACT_DIR/prologot.gdextension" .
+          else
+            # Fallback: try direct artifacts/ path
+            cp -r artifacts/bin . 2>/dev/null || true
+            cp artifacts/prologot.gdextension . 2>/dev/null || true
+          fi
+          # Verify files are in place
+          ls -la bin/ || (echo "Error: bin/ directory not found" && exit 1)
+          test -f prologot.gdextension || (echo "Error: prologot.gdextension not found" && exit 1)
 
       - name: Run unit tests
         # Execute the test suite using Godot in headless mode.
