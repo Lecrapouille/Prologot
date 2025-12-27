@@ -242,7 +242,7 @@ def create_gdextension_file():
     libraries = []
     for lib_file in bin_dir.glob('libprologot.*'):
         lib_name = lib_file.name
-        rel_path = f"res://bin/{lib_name}"
+        rel_path = f"bin/{lib_name}"
 
         # Parse platform/target/arch from filename
         patterns = [
@@ -275,12 +275,12 @@ def create_gdextension_file():
     else:
         Color.warning("No compiled libraries found, creating template")
         lines.extend([
-            'linux.debug.x86_64 = "res://bin/libprologot.linux.template_debug.x86_64.so"\n',
-            'linux.release.x86_64 = "res://bin/libprologot.linux.template_release.x86_64.so"\n',
-            'windows.debug.x86_64 = "res://bin/libprologot.windows.template_debug.x86_64.dll"\n',
-            'windows.release.x86_64 = "res://bin/libprologot.windows.template_release.x86_64.dll"\n',
-            'macos.debug = "res://bin/libprologot.macos.template_debug.framework"\n',
-            'macos.release = "res://bin/libprologot.macos.template_release.framework"\n',
+            'linux.debug.x86_64 = bin/libprologot.linux.template_debug.x86_64.so\n',
+            'linux.release.x86_64 = bin/libprologot.linux.template_release.x86_64.so\n',
+            'windows.debug.x86_64 = bin/libprologot.windows.template_debug.x86_64.dll\n',
+            'windows.release.x86_64 = bin/libprologot.windows.template_release.x86_64.dll\n',
+            'macos.debug = bin/libprologot.macos.template_debug.framework\n',
+            'macos.release = bin/libprologot.macos.template_release.framework\n',
         ])
 
     Path('prologot.gdextension').write_text(''.join(lines))
