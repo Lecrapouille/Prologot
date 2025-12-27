@@ -108,7 +108,7 @@ clean:
 .PHONY: setup-internal-projects
 setup-internal-projects:
 	@$(ECHO) "$(CYAN)▶ Setting up demo and test projects...$(NC)"
-	@for project in addons/prologot/demos tests; do \
+	@for project in demo tests; do \
 		rm -rf $$project/bin; \
 		cp -r bin $$project/bin 2>/dev/null || true; \
 		cp prologot.gdextension $$project/prologot.gdextension 2>/dev/null || true; \
@@ -136,7 +136,7 @@ tests: setup-internal-projects
 .PHONY: run-demo
 run-demo: setup-internal-projects
 	@$(ECHO) "$(CYAN)▶ Running demo project...$(NC)"
-	@godot --path addons/prologot/demos
+	@godot --path demo
 
 # Check dependencies
 .PHONY: check-deps

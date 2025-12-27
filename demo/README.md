@@ -2,7 +2,7 @@
 
 A demo application that demonstrates the Prologot API with interactive examples.
 
-![demos](../../../doc/pics/demos.png)
+![demos](../doc/pics/demos.png)
 
 ## Features
 
@@ -25,9 +25,9 @@ The demo is structured as follows:
 Before running the demo, check if the Godot extension file and libprologot exists:
 
 ```bash
-cd addons/prologot/demos
-ln -s ../../../bin bin
-ln -s ../../../prologot.gdextension prologot.gdextension
+cd demo
+ln -s ../bin bin
+ln -s ../prologot.gdextension prologot.gdextension
 ```
 
 Or from the project root:
@@ -47,7 +47,7 @@ make run-demo
 Or headless mode:
 
 ```bash
-godot --headless --path addons/prologot/demos
+godot --headless --path demo
 ```
 
 ## Examples

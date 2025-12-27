@@ -100,7 +100,7 @@ make tests         # Run tests
 
 #### 4. Running the Demo
 
-An interactive demo is available in `addons/prologot/demos/` that showcases the Prologot API with 6 examples. See [demos/README.md](addons/prologot/demos/README.md) for details.
+An interactive demo is available in `demo/` that showcases the Prologot API with 6 examples. See [demo/README.md](demo/README.md) for details.
 
 To use Prologot in your own project:
 
@@ -123,9 +123,8 @@ Prologot/
 │   ├── plugin.cfg                # Plugin configuration
 │   ├── plugin.gd                 # Plugin entry point
 │   ├── prologot_dock.gd          # Editor dock UI
-│   ├── prologot_singleton.gd     # Global autoload singleton
-│   └── demos/
-│       └── prologot-demos.gd     # Prolog demos
+│   └── prologot_singleton.gd     # Global autoload singleton
+├── demo/                         # Interactive demo project
 ├── bin/                          # Compiled libraries (after build)
 ├── godot-cpp/                    # Godot C++ bindings (git cloned)
 ├── prologot.gdextension          # Extension configuration
@@ -197,7 +196,7 @@ func _ready():
 
 ### Interactive Demo
 
-An interactive demo application is included in `addons/prologot/demos/` that demonstrates the Prologot API with 6 examples:
+An interactive demo application is included in `demo/` that demonstrates the Prologot API with 6 examples:
 
 - Basic queries
 - Facts and rules
@@ -214,7 +213,7 @@ make run-demo  # From project root
 
 ![demos](doc/pics/demos.png)
 
-See [addons/prologot/demos/README.md](addons/prologot/demos/README.md) for details.
+See [demo/README.md](demo/README.md) for details.
 
 ### Editor Console
 

@@ -407,11 +407,11 @@ func test_error_handling() -> void:
 # =============================================================================
 # Demo Examples Tests
 # =============================================================================
-# These tests validate the Prolog examples in addons/prologot/demos/examples/
+# These tests validate the Prolog examples in demo/examples/
 # to ensure they work correctly and serve as integration tests.
 
 ## Path to demo examples folder.
-const DEMOS_PATH := "res://../addons/prologot/demos/examples/"
+const DEMOS_PATH := "res://../demo/examples/"
 
 
 ## Test Demo 01: Basic Queries - Family Relationships

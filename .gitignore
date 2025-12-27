@@ -120,8 +120,8 @@ test_results/
 coverage/
 
 # Copied files for demo and test projects
-addons/prologot/demos/bin/
-addons/prologot/demos/prologot.gdextension
+demo/bin/
+demo/prologot.gdextension
 tests/bin/
 tests/prologot.gdextension
 
