@@ -103,6 +103,14 @@ def copy_shared_lib(lib_path: Path, bin_dir: Path, copied_files: list):
     real_lib = lib_path.resolve()
     dest = bin_dir / lib_path.name
 
+    # Remove destination if it exists to avoid permission errors (macOS specific)
+    if dest.exists():
+        try:
+            dest.unlink()
+        except Exception as e:
+            dest.chmod(0o666)
+            dest.unlink()
+
     shutil.copy2(real_lib, dest)
     copied_files.append(str(dest))
     return True
@@ -155,9 +163,24 @@ def copy_swipl_libraries_unix(paths, bin_dir, copied_files):
     plbase = paths.get("PLBASE", "")
     pllibswipl = paths.get("PLLIBSWIPL")
     if pllibswipl:
-        copy_shared_lib(Path(pllibswipl), bin_dir, copied_files)
+        lib_path = Path(pllibswipl)
+        copy_shared_lib(lib_path, bin_dir, copied_files)
+
+        # On macOS, also copy with the base name for linking
+        if sys.platform == 'darwin' and lib_path.name != 'libswipl.dylib':
+            base_dest = bin_dir / 'libswipl.dylib'
+            # Remove destination if it exists to avoid permission errors
+            if base_dest.exists():
+                try:
+                    base_dest.unlink()
+                except Exception:
+                    base_dest.chmod(0o666)
+                    base_dest.unlink()
+            shutil.copy2(lib_path.resolve(), base_dest)
+            copied_files.append(str(base_dest))
         return
 
+    # Fallback to PLLIBDIR
     print("Warning: PLLIBSWIPL not found, falling back to PLLIBDIR")
     lib_dir = Path(paths.get("PLLIBDIR", "")) or (Path(plbase) / "lib")
     patterns = ("libswipl.so*", "libswipl.dylib*")
@@ -227,6 +250,9 @@ def create_gdextension_file():
     libraries = []
 
     for lib in bin_dir.glob("libprologot.*"):
+        # Skip import libraries (.lib, .exp) and static libraries (.a) - only keep dynamic libs
+        if lib.suffix in ['.lib', '.a', '.exp']:
+            continue
         key = lib.stem.replace("libprologot.", "").replace("template_", "")
         libraries.append((key, f"bin/{lib.name}"))
 
@@ -246,7 +272,13 @@ def create_gdextension_file():
     else:
         print("No libraries found in bin/")
 
-    Path("prologot.gdextension").write_text("".join(content))
+    content_str = "".join(content)
+    print("\n" + "=" * 60)
+    print("Contenu de prologot.gdextension:")
+    print("=" * 60)
+    print(content_str)
+    print("=" * 60 + "\n")
+    Path("prologot.gdextension").write_text(content_str)
 
 
 # ============================================================================

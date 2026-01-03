@@ -58,7 +58,7 @@ jobs:
       - name: Run unit tests
         run: |
           make tests
-        timeout-minutes: 10
+        timeout-minutes: 2
 
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
@@ -75,7 +75,6 @@ jobs:
   build-windows:
     name: Build (Windows, Godot ${{ matrix.godot-version }})
     runs-on: windows-latest
-    continue-on-error: true
 
     strategy:
       matrix:
@@ -158,6 +157,55 @@ jobs:
           echo "Building Release version..."
           scons --godot-cpp=${{ matrix.godot-version }} target=template_release arch=x86_64 verbose=1
 
+      - name: Download Godot Engine
+        run: |
+          $godotVersion = "${{ matrix.godot-version }}"
+          $url = "https://github.com/godotengine/godot/releases/download/$godotVersion-stable/Godot_v$godotVersion-stable_win64.exe.zip"
+          $zipFile = "Godot_v$godotVersion-stable_win64.exe.zip"
+          $exeFile = "Godot_v$godotVersion-stable_win64.exe"
+
+          Write-Host "Downloading Godot $godotVersion for Windows..."
+          Invoke-WebRequest -Uri $url -OutFile $zipFile
+
+          Write-Host "Extracting Godot..."
+          Expand-Archive -Path $zipFile -DestinationPath . -Force
+
+          Write-Host "Moving Godot to PATH..."
+          if (Test-Path $exeFile) {
+            New-Item -ItemType Directory -Force -Path "$env:ProgramFiles\Godot" | Out-Null
+            Move-Item -Path $exeFile -Destination "$env:ProgramFiles\Godot\godot.exe" -Force
+            echo "$env:ProgramFiles\Godot" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+            Write-Host "Godot installed successfully"
+            & "$env:ProgramFiles\Godot\godot.exe" --version
+          } else {
+            Write-Error "Godot executable not found after extraction"
+          }
+        shell: pwsh
+
+      - name: Prepare test project
+        run: |
+          Write-Host "Preparing test project..."
+          if (Test-Path "tests\bin") { Remove-Item -Recurse -Force "tests\bin" }
+          if (Test-Path "tests\prologot.gdextension") { Remove-Item -Force "tests\prologot.gdextension" }
+          if (Test-Path "bin") { Copy-Item -Recurse "bin" "tests\bin" }
+          if (Test-Path "prologot.gdextension") { Copy-Item "prologot.gdextension" "tests\prologot.gdextension" }
+        shell: pwsh
+
+      - name: Run unit tests
+        run: |
+          # Add tests/bin and SWI-Prolog bin to PATH so Windows can find DLL dependencies
+          $testsBinPath = (Resolve-Path "tests\bin").Path
+          $swiBinPath = "C:\Program Files\swipl\bin"
+          $env:PATH = "$testsBinPath;$swiBinPath;$env:PATH"
+          Write-Host "Added to PATH:"
+          Write-Host "  - $testsBinPath"
+          Write-Host "  - $swiBinPath"
+          Write-Host "DLLs in tests/bin:"
+          Get-ChildItem "$testsBinPath\*.dll" | Select-Object Name
+          godot --headless --path tests -s run_tests.gd
+        timeout-minutes: 2
+        shell: pwsh
+
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -193,6 +241,18 @@ jobs:
         run: |
           make GODOT_CPP=${{ matrix.godot-version }} all
 
+      - name: Download Godot Engine
+        run: |
+          wget https://github.com/godotengine/godot/releases/download/${{ matrix.godot-version }}-stable/Godot_v${{ matrix.godot-version }}-stable_macos.universal.zip
+          unzip Godot_v${{ matrix.godot-version }}-stable_macos.universal.zip
+          chmod +x Godot.app/Contents/MacOS/Godot
+          sudo mv Godot.app/Contents/MacOS/Godot /usr/local/bin/godot
+
+      - name: Run unit tests
+        run: |
+          /usr/local/bin/godot --headless --quit --path tests -s run_tests.gd
+        timeout-minutes: 2
+
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -226,12 +286,8 @@ jobs:
           pip install gdtoolkit
 
       - name: Lint GDScript files
-        # Run gdlint on addons and tests directories.
-        # We allow this to fail without blocking the build (continue-on-error: true)
-        # to avoid breaking builds due to style issues.
         run: |
-          gdlint addons/ tests/ || true
-        continue-on-error: true
+          gdlint addons/ tests/
 
   # ============================================================================
   # Release Packaging Job
@@ -273,11 +329,11 @@ jobs:
         #   LICENSE, README.md
         run: |
           mkdir -p release/bin
-          cp -r artifacts/prologot-linux-*-godot${{ matrix.godot-version }}/* release/bin/ 2>/dev/null || true
+          cp -r artifacts/prologot-linux-*-godot${{ matrix.godot-version }}/* release/bin/ 2>/dev/null
           cp -r artifacts/prologot-windows-*-godot${{ matrix.godot-version }}/* release/bin/ 2>/dev/null || echo "Warning: Windows artifacts not available (build may have failed)"
-          cp -r artifacts/prologot-macos-*-godot${{ matrix.godot-version }}/* release/bin/ 2>/dev/null || true
+          cp -r artifacts/prologot-macos-*-godot${{ matrix.godot-version }}/* release/bin/ 2>/dev/null
           cp -r addons release/
-          cp prologot.gdextension release/ 2>/dev/null || cp artifacts/prologot-linux-*-godot${{ matrix.godot-version }}/prologot.gdextension release/ 2>/dev/null || true
+          cp prologot.gdextension release/ 2>/dev/null || cp artifacts/prologot-linux-*-godot${{ matrix.godot-version }}/prologot.gdextension release/ 2>/dev/null
           cp LICENSE release/
           cp README.md release/
 
