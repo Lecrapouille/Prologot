@@ -17,6 +17,8 @@ AddOption('--force', dest='force', action='store_true', default=False,
           help='Force re-clone of godot-cpp')
 AddOption('--skip-build', dest='skip_build', action='store_true', default=False,
           help='Skip building')
+AddOption('--gdextension', dest='gdextension', type='string', default=None,
+          metavar='PATH', help='Generate prologot.gdextension by scanning bin/ in PATH')
 
 # ============================================================================
 # Setup godot-cpp
@@ -244,41 +246,51 @@ def configure_swipl(env, paths):
 # ============================================================================
 # Create prologot.gdextension
 # ============================================================================
-def create_gdextension_file():
-    """Generate prologot.gdextension by scanning the bin/ directory."""
-    bin_dir = Path("bin")
-    libraries = []
+def create_gdextension_file(base_path=".", verbose=False):
+    """Generate prologot.gdextension by scanning bin/ directory."""
+    base_path = Path(base_path)
+    bin_dir = base_path / "bin"
 
-    for lib in bin_dir.glob("libprologot.*"):
-        # Skip import libraries (.lib, .exp) and static libraries (.a) - only keep dynamic libs
-        if lib.suffix in ['.lib', '.a', '.exp']:
-            continue
-        key = lib.stem.replace("libprologot.", "").replace("template_", "")
-        libraries.append((key, f"bin/{lib.name}"))
+    # Scan for prologot libraries and swipl dependencies
+    libraries, dependencies = [], []
+    if bin_dir.exists():
+        for lib in bin_dir.iterdir():
+            if lib.suffix in ['.lib', '.a', '.exp'] or not lib.is_file():
+                continue
+            if lib.name.startswith("libprologot"):
+                key = lib.stem.replace("libprologot.", "").replace("template_", "")
+                libraries.append((key, f"bin/{lib.name}"))
+            elif "swipl" in lib.name:
+                dependencies.append(lib.name)
 
-    content = [
-        "[configuration]\n",
-        'entry_symbol = "prologot_library_init"\n',
-        f'compatibility_minimum = "{MIN_GODOT_VERSION}"\n\n',
-        "[libraries]\n\n",
-    ]
+    # Build content
+    content = f'''[configuration]
+entry_symbol = "prologot_library_init"
+compatibility_minimum = "{MIN_GODOT_VERSION}"
+reloadable = true
 
-    if libraries:
-        content.extend(
-            f'{key} = "{path}"\n'
-            for key, path in sorted(libraries)
-        )
-        print(f"prologot.gdextension created with {len(libraries)} library(ies)")
-    else:
-        print("No libraries found in bin/")
+[libraries]
 
-    content_str = "".join(content)
-    print("\n" + "=" * 60)
-    print("Contenu de prologot.gdextension:")
-    print("=" * 60)
-    print(content_str)
-    print("=" * 60 + "\n")
-    Path("prologot.gdextension").write_text(content_str)
+'''
+    content += "".join(f'{k} = "bin/{p.split("/")[-1]}"\n' for k, p in sorted(libraries))
+
+    # Add dependencies if swipl libs found
+    if dependencies:
+        content += "\n[dependencies]\n\n"
+        for key, _ in sorted(libraries):
+            platform = key.split('.')[0]
+            dep = next((d for d in dependencies if platform in d or
+                       (platform == "windows" and d.endswith(".dll")) or
+                       (platform == "linux" and ".so" in d) or
+                       (platform == "macos" and d.endswith(".dylib"))), None)
+            if dep:
+                content += f'{key} = {{"bin/{dep}": ""}}\n'
+
+    output_path = base_path / "prologot.gdextension"
+    output_path.write_text(content)
+    if verbose:
+        print(f"prologot.gdextension: {len(libraries)} lib(s), {len(dependencies)} dep(s)")
+        print(content)
 
 
 # ============================================================================
@@ -313,6 +325,12 @@ def build_library(env, godot_cpp_dir):
 # ============================================================================
 # Main Entry Point
 # ============================================================================
+
+# Handle --gdextension option (generate .gdextension file without building)
+if GetOption('gdextension'):
+    create_gdextension_file(GetOption('gdextension'), verbose=True)
+    Exit(0)
+
 godot_cpp_dir = find_or_setup_godot_cpp()
 
 if GetOption('skip_build'):
