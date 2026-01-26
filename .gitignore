@@ -7,6 +7,7 @@
 .mono/
 godot-cpp-*/
 *.gdextension
+*.import
 
 # Godot 3 compatibility
 .project/
