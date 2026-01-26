@@ -279,18 +279,35 @@ In Prolog, variable names must start with an uppercase letter or underscore (`_`
 - `x`, `y`, `tom`, `bob` → **Atoms** (constant values).
 
 **Example:**
+
 ```gdscript
-# Correct: X is a variable
-prolog.query_all("parent", ["X", "Y"])  # X and Y are variables
+# First, add some facts with lowercase atoms (character names):
+prolog.add_fact("parent(tom, bob)")      # tom is parent of bob
+prolog.add_fact("parent(bob, alice)")    # bob is parent of alice
+prolog.add_fact("parent(tom, charlie)")  # tom is parent of charlie
 
-# Wrong: x is an atom, not a variable
-prolog.query_all("parent", ["x", "y"])  # x and y are treated as constant values!
+# Correct: Use uppercase for variables in queries
+prolog.query_all("parent", ["X", "Y"])
+# Returns: [{"X": "tom", "Y": "bob"}, {"X": "bob", "Y": "alice"}, {"X": "tom", "Y": "charlie"}]
+# X and Y are variables that will be bound to values
 
-# If you have a character named "tom", use lowercase (atom):
-prolog.add_fact("parent(tom, bob)")  # tom and bob are atoms
+# You can mix atoms and variables in queries:
+prolog.query_all("parent", ["tom", "Y"])
+# Returns: [{"Y": "bob"}, {"Y": "charlie"}]
+# Finds all children (Y) of tom
 
-# But in queries, use uppercase for variables:
-prolog.query_all("parent", ["X", "Y"])  # X and Y will be bound to values like "tom", "bob"
+prolog.query_all("parent", ["X", "bob"])
+# Returns: [{"X": "tom"}]
+# Finds the parent (X) of bob
+
+# Wrong: Using lowercase in query arguments treats them as atoms, not variables
+prolog.query_all("parent", ["x", "y"])
+# This searches for a fact "parent(x, y)" which doesn't exist!
+# x and y are treated as constant values (atoms), not variables
+
+# To check if a specific fact exists, use lowercase atoms:
+prolog.query("parent(tom, bob)")  # Returns true
+prolog.query("parent(tom, alice)")  # Returns false (tom is not directly parent of alice)
 ```
 
 #### `query(predicate: String, args: Array = []) -> bool`
