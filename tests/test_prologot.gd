@@ -26,7 +26,7 @@ var tests_total: int = 0
 
 func _ready() -> void:
 	print("=".repeat(60))
-	print("Prologot Unit Tests - Version 0.1.0")
+	print("Prologot Unit Tests")
 	print("=".repeat(60))
 
 	run_all_tests()

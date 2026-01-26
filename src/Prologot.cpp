@@ -3,7 +3,6 @@
  * Copyright (c) 2024 Lecrapouille <lecrapouille@gmail.com>
  *
  * Prologot - SWI-Prolog integration for Godot 4
- * Version 0.1.0
  *
  * This file implements the Prologot class methods.
  */

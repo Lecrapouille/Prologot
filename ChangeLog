@@ -1,0 +1,6 @@
+Version 0.2.0:
+    * Generate GitHub artifacts for Godot asset lib
+
+Version 0.1.0:
+    * Initial commit
+    * Working for Linux, not yet for MacOS and Windows

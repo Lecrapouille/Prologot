@@ -14,7 +14,7 @@ RED := \033[0;31m
 NC := \033[0m
 
 # Read Prologot GDExtension version from VERSION file
-VERSION := $(shell cat VERSION 2>/dev/null || echo "0.1.0")
+VERSION := $(shell cat VERSION 2>/dev/null || echo "0.1.1")
 
 # Godot godot-cpp tag or branch (e.g., "4.6", "godot-4.3-stable")
 # SConstruct will parse this to extract version and determine if it's a tag or branch

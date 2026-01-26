@@ -3,7 +3,6 @@
  * Copyright (c) 2024 Lecrapouille <lecrapouille@gmail.com>
  *
  * Prologot - SWI-Prolog integration for Godot 4
- * Version 0.1.0
  *
  * This file declares the module initialization functions for the Prologot
  * GDExtension. These functions are called by Godot when the extension
