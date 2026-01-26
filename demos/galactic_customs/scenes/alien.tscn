@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://b1jmu30t0wjn3"]
 
-[ext_resource type="Script" uid="uid://n5n6c7mgaq3s" path="res://scripts/alien_sprite.gd" id="1_816kv"]
+[ext_resource type="Script" path="res://scripts/alien_sprite.gd" id="1_816kv"]
 
 [node name="AlienSprite" type="Control"]
 layout_mode = 3

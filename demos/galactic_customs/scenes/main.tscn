@@ -1,7 +1,7 @@
 [gd_scene load_steps=4 format=3 uid="uid://dohsgtja7bdv1"]
 
-[ext_resource type="Script" uid="uid://bvaromx3hoeve" path="res://scripts/main.gd" id="1"]
-[ext_resource type="PackedScene" uid="uid://b1jmu30t0wjn3" path="res://scenes/alien.tscn" id="2_sugp2"]
+[ext_resource type="Script" path="res://scripts/main.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/alien.tscn" id="2_sugp2"]
 [ext_resource type="Texture2D" path="res://assets/assets-2.png" id="6_7mycd"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_1"]
