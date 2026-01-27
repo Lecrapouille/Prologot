@@ -11,7 +11,7 @@ The demo showcases these essential API methods:
 ```gdscript
 # Initialization
 prolog = Prologot.new()
-prolog.initialize()
+prolog.initialize({"home": "res://bin/swipl"})
 
 # Loading Prolog code
 prolog.consult_file("path/to/file.pl")    # Load from file
@@ -94,7 +94,7 @@ Dictionary keys use spaces for better readability in GDScript.
 | `"stack limit"` | String | "" | Prolog stack limit (e.g. "1g", "512m", "256k") |
 | `"table space"` | String | "" | Space for SLG tables (e.g. "128m") |
 | `"shared table space"` | String | "" | Space for shared SLG tables |
-| `"optimised"` | bool | false | Enable optimised compilation |
+| `"optimized"` | bool | false | Enable optimized compilation |
 
 **Behavior options:**
 
@@ -125,13 +125,16 @@ Dictionary keys use spaces for better readability in GDScript.
 # Simple initialization (default, quiet mode)
 prolog.initialize()
 
+# Simple initialization with path to SWI-Prolog installation
+prolog.initialize({"home": "res://bin/swipl"})
+
 # With welcome message
 prolog.initialize({"quiet": false})
 
 # Optimal configuration for a strategy game
 prolog.initialize({
     "quiet": true,
-    "optimised": true,
+    "optimized": true,
     "stack limit": "2g",      # 2 GB for complex AI
     "table space": "512m",    # 512 MB for memoization
     "threads": true,

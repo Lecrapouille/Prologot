@@ -34,7 +34,8 @@ func _ready() -> void:
 
 	# Initialize Prologot instance to run queries
 	prolog = Prologot.new()
-	if not prolog.initialize():
+	# res:// path is automatically resolved by Prologot to absolute path
+	if not prolog.initialize({"home": "res://bin/swipl"}):
 		push_error("Failed to initialize Prologot: " + prolog.get_last_error())
 		return
 
@@ -115,7 +116,7 @@ func load_example(index: int) -> void:
 
 	# Reset Prologot state for a clean environment
 	prolog.cleanup()
-	prolog.initialize()
+	prolog.initialize({"home": "res://bin/swipl"})
 
 ###############################################################################
 # Load the content of a Prolog file from the filesystem

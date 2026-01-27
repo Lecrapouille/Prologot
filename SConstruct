@@ -102,18 +102,14 @@ def copy_shared_lib(lib_path: Path, bin_dir: Path, copied_files: list):
     if not lib_path.exists():
         return False
 
-    real_lib = lib_path.resolve()
     dest = bin_dir / lib_path.name
 
-    # Remove destination if it exists to avoid permission errors (macOS specific)
+    # Remove destination if it exists to avoid permission errors
     if dest.exists():
-        try:
-            dest.unlink()
-        except Exception as e:
-            dest.chmod(0o666)
-            dest.unlink()
+        dest.chmod(0o666)
+        dest.unlink()
 
-    shutil.copy2(real_lib, dest)
+    shutil.copy2(lib_path.resolve(), dest)
     copied_files.append(str(dest))
     return True
 
@@ -121,76 +117,63 @@ def copy_shared_lib(lib_path: Path, bin_dir: Path, copied_files: list):
 # Copy SWI-Prolog Libraries (Windows)
 # ============================================================================
 def copy_swipl_libraries_windows(paths, bin_dir, copied_files):
-    plbase = paths.get("PLBASE", "")
+    """Copy SWI-Prolog DLL and import library on Windows."""
+    plbase = Path(paths.get("PLBASE", ""))
+    search_dirs = [plbase / sub for sub in ("bin", "lib", "lib/x64") if (plbase / sub).exists()]
 
-    search_dirs = [
-        Path(plbase) / sub
-        for sub in ("bin", "lib", "lib/x64")
-        if (Path(plbase) / sub).exists()
-    ]
-
-    dll_copied = False
-    lib_copied = False
-
-    # DLL
+    # Find and copy DLL
     for dll_name in ("libswipl.dll", "swipl.dll"):
         for d in search_dirs:
-            dll = d / dll_name
-            if dll.exists():
-                dest = bin_dir / dll_name
-                shutil.copy2(dll, dest)
-                copied_files.append(str(dest))
-                dll_copied = True
+            if (dll := d / dll_name).exists():
+                shutil.copy2(dll, bin_dir / dll_name)
+                copied_files.append(str(bin_dir / dll_name))
                 break
-        if dll_copied:
-            break
+        else:
+            continue
+        break
 
-    # Import library
+    # Find and copy import library
     for lib_name in ("swipl.lib", "libswipl.lib", "libswipl.dll.a"):
         for d in search_dirs:
-            lib = d / lib_name
-            if lib.exists():
-                dest = bin_dir / "swipl.lib"
-                shutil.copy2(lib, dest)
-                copied_files.append(str(dest))
-                lib_copied = True
-                break
-        if lib_copied:
-            break
+            if (lib := d / lib_name).exists():
+                shutil.copy2(lib, bin_dir / "swipl.lib")
+                copied_files.append(str(bin_dir / "swipl.lib"))
+                return
+        else:
+            continue
+        break
 
 # ============================================================================
 # Copy SWI-Prolog Libraries (Unix and MacOS)
 # ============================================================================
 def copy_swipl_libraries_unix(paths, bin_dir, copied_files):
-    plbase = paths.get("PLBASE", "")
-    pllibswipl = paths.get("PLLIBSWIPL")
-    if pllibswipl:
+    """Copy SWI-Prolog shared library on Unix/macOS."""
+    # Try PLLIBSWIPL first
+    if pllibswipl := paths.get("PLLIBSWIPL"):
         lib_path = Path(pllibswipl)
         copy_shared_lib(lib_path, bin_dir, copied_files)
 
-        # On macOS, also copy with the base name for linking
+        # On macOS, also copy as libswipl.dylib for linking
         if sys.platform == 'darwin' and lib_path.name != 'libswipl.dylib':
             base_dest = bin_dir / 'libswipl.dylib'
-            # Remove destination if it exists to avoid permission errors
             if base_dest.exists():
-                try:
-                    base_dest.unlink()
-                except Exception:
-                    base_dest.chmod(0o666)
-                    base_dest.unlink()
+                base_dest.chmod(0o666)
+                base_dest.unlink()
             shutil.copy2(lib_path.resolve(), base_dest)
             copied_files.append(str(base_dest))
         return
 
     # Fallback to PLLIBDIR
     print("Warning: PLLIBSWIPL not found, falling back to PLLIBDIR")
-    lib_dir = Path(paths.get("PLLIBDIR", "")) or (Path(plbase) / "lib")
-    patterns = ("libswipl.so*", "libswipl.dylib*")
-    for pattern in patterns:
+    plbase = paths.get("PLBASE", "")
+    lib_dir = Path(paths.get("PLLIBDIR") or plbase) / "lib"
+
+    for pattern in ("libswipl.so*", "libswipl.dylib*"):
         for lib in lib_dir.glob(pattern):
             if lib.is_file():
                 copy_shared_lib(lib, bin_dir, copied_files)
                 return
+
     print("Error: No SWI-Prolog shared library found")
 
 # ============================================================================
@@ -209,6 +192,54 @@ def copy_swipl_libraries(paths):
     return copied_files
 
 # ============================================================================
+# Copy SWI-Prolog Resources (boot.prc, library/, etc.)
+# ============================================================================
+def copy_swipl_resources(paths, output_dir=None):
+    """Copy SWI-Prolog runtime resources for standalone distribution.
+
+    Args:
+        paths: SWI-Prolog paths from get_swipl_paths()
+        output_dir: Target directory for swipl resources (default: bin/swipl)
+
+    Returns:
+        List of copied file paths
+    """
+    output_dir = Path(output_dir or "bin/swipl")
+    plbase = Path(paths.get("PLBASE", ""))
+
+    if not plbase.exists():
+        print(f"Warning: PLBASE directory not found: {plbase}")
+        return []
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    copied = []
+
+    # Copy boot*.prc file
+    boot_files = list(plbase.glob("boot*.prc"))
+    if boot_files:
+        boot_dest = output_dir / "boot.prc"
+        shutil.copy2(boot_files[0], boot_dest)
+        copied.append(str(boot_dest))
+        print(f"Copied {boot_files[0].name} -> {boot_dest}")
+    else:
+        print(f"Warning: No boot*.prc found in {plbase}")
+
+    # Copy directories: library/ and lib/
+    for dir_name in ("library", "lib"):
+        src = plbase / dir_name
+        if src.exists() and src.is_dir():
+            dest = output_dir / dir_name
+            if dest.exists():
+                shutil.rmtree(dest)
+            shutil.copytree(src, dest)
+            copied.append(str(dest))
+            print(f"Copied {dir_name}/ -> {dest}")
+        else:
+            print(f"Warning: {dir_name}/ not found in {plbase}")
+
+    return copied
+
+# ============================================================================
 # Setup SCons Environment for SWI-Prolog
 # ============================================================================
 def configure_swipl(env, paths):
@@ -222,10 +253,15 @@ def configure_swipl(env, paths):
 
     # Copy the necessary libraries into bin/
     copied_files = copy_swipl_libraries(paths)
-    for file in copied_files:
-        print(f"Copied {file}")
     if not copied_files:
         raise RuntimeError("Error: No SWI-Prolog libraries copied")
+    for file in copied_files:
+        print(f"Copied {file}")
+
+    # Copy SWI-Prolog resources (boot.prc, library/) for standalone distribution
+    copied_resources = copy_swipl_resources(paths)
+    if not copied_resources:
+        print("Warning: No SWI-Prolog resources copied")
 
     # Add bin/ to library search path
     bin_dir = os.path.abspath('bin')
@@ -248,75 +284,73 @@ def configure_swipl(env, paths):
 # ============================================================================
 def create_gdextension_file(base_path=".", verbose=False):
     """Generate prologot.gdextension by scanning bin/ directory."""
-    base_path = Path(base_path)
-    bin_dir = base_path / "bin"
+    bin_dir = Path(base_path) / "bin"
+    if not bin_dir.exists():
+        return
 
     # Scan for prologot libraries and swipl dependencies
-    libraries, dependencies = [], []
-    if bin_dir.exists():
-        for lib in bin_dir.iterdir():
-            if lib.suffix in ['.lib', '.a', '.exp'] or not lib.is_file():
-                continue
-            if lib.name.startswith("libprologot"):
-                key = lib.stem.replace("libprologot.", "").replace("template_", "")
-                libraries.append((key, f"bin/{lib.name}"))
-            elif "swipl" in lib.name:
-                dependencies.append(lib.name)
+    libraries = []
+    dependencies = []
+
+    for lib in bin_dir.iterdir():
+        if not lib.is_file() or lib.suffix in ('.lib', '.a', '.exp'):
+            continue
+        if lib.name.startswith("libprologot"):
+            key = lib.stem.replace("libprologot.", "").replace("template_", "")
+            libraries.append((key, lib.name))
+        elif "swipl" in lib.name:
+            dependencies.append(lib.name)
 
     # Build content
-    content = f'''[configuration]
-entry_symbol = "prologot_library_init"
-compatibility_minimum = "{MIN_GODOT_VERSION}"
-reloadable = true
+    content = [
+        "[configuration]",
+        'entry_symbol = "prologot_library_init"',
+        f'compatibility_minimum = "{MIN_GODOT_VERSION}"',
+        "reloadable = true",
+        "",
+        "[libraries]",
+        ""
+    ]
 
-[libraries]
+    content.extend(f'{key} = "bin/{name}"' for key, name in sorted(libraries))
 
-'''
-    content += "".join(f'{k} = "bin/{p.split("/")[-1]}"\n' for k, p in sorted(libraries))
-
-    # Add dependencies if swipl libs found
+    # Add dependencies
     if dependencies:
-        content += "\n[dependencies]\n\n"
+        content.extend(["", "[dependencies]", ""])
+        platform_map = {"windows": ".dll", "linux": ".so", "macos": ".dylib"}
+
         for key, _ in sorted(libraries):
             platform = key.split('.')[0]
-            dep = next((d for d in dependencies if platform in d or
-                       (platform == "windows" and d.endswith(".dll")) or
-                       (platform == "linux" and ".so" in d) or
-                       (platform == "macos" and d.endswith(".dylib"))), None)
+            suffix = platform_map.get(platform, "")
+            dep = next((d for d in dependencies if suffix and d.endswith(suffix)), None)
             if dep:
-                content += f'{key} = {{"bin/{dep}": ""}}\n'
+                content.append(f'{key} = {{"bin/{dep}": ""}}')
 
-    output_path = base_path / "prologot.gdextension"
-    output_path.write_text(content)
+    output_path = Path(base_path) / "prologot.gdextension"
+    output_path.write_text('\n'.join(content) + '\n')
+
     if verbose:
         print(f"prologot.gdextension: {len(libraries)} lib(s), {len(dependencies)} dep(s)")
-        print(content)
+        print('\n'.join(content))
 
 
 # ============================================================================
 # Build Functions
 # ============================================================================
-def get_library_name(env):
-    """Return the library name depending on the platform."""
-    if env["platform"] == "macos":
-        return f"bin/libprologot.{env['platform']}.{env['target']}.{env['arch']}"
-    else:
-        return f"bin/libprologot{env['suffix']}{env['SHLIBSUFFIX']}"
-
-def build_library(env, godot_cpp_dir):
-    """Build the library."""
+def build_library(env):
+    """Build the Prologot library."""
+    # Configure build paths
     env.Append(CPPPATH=["src/"])
+    configure_swipl(env, get_swipl_paths())
 
-    # Configure SWI-Prolog integration
-    swipl_paths = get_swipl_paths()
-    configure_swipl(env, swipl_paths)
+    # Determine library name
+    if env["platform"] == "macos":
+        lib_name = f"bin/libprologot.{env['platform']}.{env['target']}.{env['arch']}"
+    else:
+        lib_name = f"bin/libprologot{env['suffix']}{env['SHLIBSUFFIX']}"
 
-    # Compile source files
-    sources = glob("src/*.cpp")
-    lib_name = get_library_name(env)
-    library = env.SharedLibrary(lib_name, source=sources)
-
-    # Generate .gdextension after library build
+    # Build and post-process
+    library = env.SharedLibrary(lib_name, source=glob("src/*.cpp"))
     env.AddPostAction(library, lambda target, source, env: create_gdextension_file())
 
     Default(library)
@@ -325,22 +359,18 @@ def build_library(env, godot_cpp_dir):
 # ============================================================================
 # Main Entry Point
 # ============================================================================
-
-# Handle --gdextension option (generate .gdextension file without building)
 if GetOption('gdextension'):
     create_gdextension_file(GetOption('gdextension'), verbose=True)
     Exit(0)
-
-godot_cpp_dir = find_or_setup_godot_cpp()
 
 if GetOption('skip_build'):
     print("Build skipped (--skip-build)")
     Exit(0)
 
-# Load godot-cpp SCons environment
+# Setup godot-cpp and build
+godot_cpp_dir = find_or_setup_godot_cpp()
 sys.path.insert(0, godot_cpp_dir)
 env = SConscript(f"{godot_cpp_dir}/SConstruct")
 Default(None)  # Clear godot-cpp default targets
 
-# Build the library
-library = build_library(env, godot_cpp_dir)
+build_library(env)

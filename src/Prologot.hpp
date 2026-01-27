@@ -90,7 +90,7 @@ public:
      *     - "stack limit" (String): Prolog stack limit (e.g. "1g", "512m")
      *     - "table space" (String): Space for SLG tables (e.g. "128m")
      *     - "shared table space" (String): Space for shared SLG tables
-     *     - "optimised" (bool): Enable optimised compilation
+     *     - "optimized" (bool): Enable optimized compilation
      *   Behavior options:
      *     - "traditional" (bool): Traditional mode, disable v7 extensions
      *     - "threads" (bool): Allow threads (default: true)
@@ -135,10 +135,10 @@ public:
      * This method uses Prolog's built-in consult/1 predicate to load a .pl
      * file. The file is parsed and all clauses are added to the knowledge base.
      *
-     * Multiple calls to consult_file() and consult_string() accumulate clauses in the
-     * knowledge base. Each new file or code string adds its clauses to the
-     * existing knowledge base without removing previous ones. If you need to
-     * replace the knowledge base, use retract_all() to remove specific
+     * Multiple calls to consult_file() and consult_string() accumulate clauses
+     * in the knowledge base. Each new file or code string adds its clauses to
+     * the existing knowledge base without removing previous ones. If you need
+     * to replace the knowledge base, use retract_all() to remove specific
      * predicates first, or reinitialize the engine with cleanup() and
      * initialize().
      *
@@ -167,11 +167,12 @@ public:
      * (created during initialization) to parse and load multi-line Prolog code.
      * The code can contain multiple clauses, directives, and queries.
      *
-     * Multiple calls to consult_string() and consult_file() accumulate clauses in the
-     * knowledge base. Each new code string adds its clauses to the existing
-     * knowledge base without removing previous ones. If you need to replace
-     * the knowledge base, use retract_all() to remove specific predicates
-     * first, or reinitialize the engine with cleanup() and initialize().
+     * Multiple calls to consult_string() and consult_file() accumulate clauses
+     * in the knowledge base. Each new code string adds its clauses to the
+     * existing knowledge base without removing previous ones. If you need to
+     * replace the knowledge base, use retract_all() to remove specific
+     * predicates first, or reinitialize the engine with cleanup() and
+     * initialize().
      *
      * @param p_prolog_code The Prolog code to load (can be multi-line).
      * @return true if the code was loaded successfully, false otherwise.
@@ -461,15 +462,30 @@ protected:
 private:
 
     /**
-     * @brief Sets the SWI-Prolog home directory environment variable.
+     * @brief Resolves the SWI-Prolog home directory from the "home" option.
      *
-     * This static helper function sets the SWI_HOME_DIR environment variable
-     * in a platform-independent way (uses _putenv_s on Windows, setenv on
-     * Unix).
+     * Priority: 1) User-specified "home" (resolved from Godot paths), 2)
+     * Extension directory, 3) Empty (system default). Verifies boot.prc exists.
+     * Sets error message if user explicitly provided an invalid path.
      *
-     * @param p_prolog_home Path to SWI-Prolog installation directory.
+     * @param p_home_option Value of the "home" option (may be empty, res://,
+     * user://, or absolute).
+     * @return Resolved absolute path with boot.prc, or empty for system
+     * default, and error message if validation fails.
      */
-    static void set_swi_home_dir(String const& p_prolog_home);
+    std::pair<String, String> set_swi_home_dir(String const& p_home_option);
+
+    /**
+     * @brief Resolves Godot virtual paths to absolute filesystem paths.
+     *
+     * Converts res:// and user:// paths to absolute paths using
+     * ProjectSettings. Returns the path unchanged if it's already an absolute
+     * path.
+     *
+     * @param p_path The path to resolve (may be res://, user://, or absolute).
+     * @return The absolute filesystem path.
+     */
+    static String resolve_godot_path(String const& p_path);
 
     /**
      * @brief Converts a Prolog term to a Godot Variant.

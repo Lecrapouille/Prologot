@@ -257,8 +257,10 @@ func init_prolog():
 	# Create the Prolog engine instance
 	prolog = Prologot.new()
 
-	# Initialize the engine (must be done before use)
-	prolog.initialize()
+	# Initialize the engine
+	prolog.initialize({"home": "res://bin/swipl"})
+	 	push_error("Failed to initialize Prologot: " + prolog.get_last_error())
+ 	return
 
 	# Check if initialization was successful
 	if prolog.is_initialized():
@@ -314,7 +316,7 @@ func load_current_day():
 	prolog.cleanup()
 
 	# Re-initialize for a fresh state
-	prolog.initialize()
+	prolog.initialize({"home": "res://bin/swipl"})
 
 	# Load comprehensive rules from the galactic_customs.pl file
 	var rules_file_path = "res://rules/galactic_customs.pl"

@@ -62,38 +62,45 @@ The simplest way to build the project is using the **Makefile**, which directly 
 
 | Command | Description |
 |---------|-------------|
-| `make debug` | Compile the extension in debug mode. |
-| `make release` | Compile the extension in release mode for performance. |
+| `make help` | Show all available commands. |
+| `make install-swi` | Install SWI-Prolog automatically. |
+| `make check-deps` | Verify dependencies for building. |
+| `make debug` | Compile the extension in debug mode and set up demo and test projects. |
+| `make release` | Compile the extension in release mode and set up demo and test projects. |
 | `make all` | Build both debug and release versions and set up demo and test projects. |
+| `make run-demo` | Run the demo project in Godot. |
+| `make run-galactic` | Run the demo game in Godot. |
 
 **Notes:**
 
-- By default, it builds for Godot 4.5. To use another version: `make GODOT_CPP=4.4 debug` or `make GODOT_CPP=4.4 all`.
-- The `godot-cpp` library is automatically compiled when needed during the build process. You don't need to compile it separately.
+- By default, it builds for Godot 4.5. To use another version pass `GODOT_CPP=4.4` to make command.
+- By default, the build folder name is `bin`. To use another name pass `BIN=prologot_artifacts` to make command.
+- The `godot-cpp` library is automatically downloaded and compiled when needed during the build process. You don't need to compile it separately.
 - The build system uses SCons with `--godot-cpp=` option internally. You can also use SCons directly: `scons --godot-cpp=4.4 --target=template_release`.
 
 ### 3. Other Useful Commands
 
 ```bash
-make help          # Show all available commands
-make install-swi   # Install SWI-Prolog automatically (Linux/macOS)
-make check-deps    # Verify dependencies
-make clean         # Clean build artifacts
-make format        # Format C++ sources
-make update        # Update godot-cpp to a specific version (without compiling)
-make init-projects # Set up demo and test projects
-make run-demo      # Run the demo project in Godot
-make tests         # Run tests
+make clean           # Clean build compiled files and Prologot artifacts
+make format          # Format C++ sources (for developers)
+make setup-demos     # Link Godot demos to Prologot artifacts (done automatically)
+make tests           # Run tests (for developers)
 ```
 
 ## Installing Prologot in Your Project
 
 To use Prologot in your own project:
 
-1. Copy `prologot.gdextension` to your project root
-2. Copy the `bin/` folder to your project
-3. Copy `addons/prologot/` to your project's `addons/` folder
+1. Copy `addons/prologot/` to your project's `addons/` folder.
+2. Copy the `bin/` folder to your project.
+3. Copy `prologot.gdextension` to your project root. Adapt it if needed.
 4. Enable the plugin in **Project → Project Settings → Plugins**
+5. Optionally, you can move the folder `bin/swipl`  in another folder. You have to adapt, in your gdscript file, the `initialize` function and set `"home"` to your new path.
+
+```gdscript
+prolog = Prologot.new()
+prolog.initialize({"home": "res://bin/swipl"})
+```
 
 ## Verifying Installation
 

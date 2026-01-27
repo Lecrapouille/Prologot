@@ -405,44 +405,19 @@ jobs:
       - name: Prepare release folder
         run: |
           RELEASE_DIR="addons/prologot"
-          mkdir -p "$RELEASE_DIR/bin"
-          mkdir -p "$RELEASE_DIR/doc"
+          mkdir -p "$RELEASE_DIR/bin" "$RELEASE_DIR/doc"
 
-          # Copy binaries from all platforms into bin/
-          # Each platform's binaries are in separate artifact directories
+          # Copy all platform binaries (including subdirectories like swipl/)
+          for artifact in artifacts/prologot-*-godot${{ matrix.godot-version }}; do
+            if [ -d "$artifact/bin" ]; then
+              cp -r "$artifact/bin/"* "$RELEASE_DIR/bin/"
+              echo "✓ Copied: $artifact"
+            fi
+          done
 
-          # Linux binaries (.so files)
-          if ls artifacts/prologot-linux-*-godot${{ matrix.godot-version }}/bin/* 1>/dev/null 2>&1; then
-            cp artifacts/prologot-linux-*-godot${{ matrix.godot-version }}/bin/* "$RELEASE_DIR/bin/"
-            echo "✓ Linux binaries copied"
-          else
-            echo "⚠ Warning: Linux artifacts not available (build may have failed)"
-          fi
-
-          # Windows binaries (.dll files only, exclude .exp and .lib linker artifacts)
-          if ls artifacts/prologot-windows-*-godot${{ matrix.godot-version }}/bin/*.dll 1>/dev/null 2>&1; then
-            cp artifacts/prologot-windows-*-godot${{ matrix.godot-version }}/bin/*.dll "$RELEASE_DIR/bin/"
-            echo "✓ Windows binaries copied (.dll only, excluded .exp/.lib)"
-          else
-            echo "⚠ Warning: Windows artifacts not available (build may have failed)"
-          fi
-
-          # macOS binaries (.dylib files)
-          if ls artifacts/prologot-macos-*-godot${{ matrix.godot-version }}/bin/* 1>/dev/null 2>&1; then
-            cp artifacts/prologot-macos-*-godot${{ matrix.godot-version }}/bin/* "$RELEASE_DIR/bin/"
-            echo "✓ macOS binaries copied"
-          else
-            echo "⚠ Warning: macOS artifacts not available (build may have failed)"
-          fi
-
-          # Copy VERSION and LICENSE to doc/ for reference
-          cp VERSION LICENSE "$RELEASE_DIR/doc"
-          echo "✓ VERSION and LICENSE copied"
-
-          # Copy documentation (markdown files only, exclude images/logos)
-          cp doc/*.md "$RELEASE_DIR/doc/"
-          cp doc/hello_world_prologot.gd "$RELEASE_DIR/doc/"
-          echo "✓ Documentation copied"
+          # Copy documentation
+          cp VERSION LICENSE "$RELEASE_DIR/"
+          cp doc/*.md doc/hello_world_prologot.gd "$RELEASE_DIR/doc/"
 
       # Use SConstruct to generate .gdextension file based on available binaries
       # This ensures all platforms are listed correctly in a single file
@@ -468,14 +443,16 @@ jobs:
       #   - Other: prologot.zip (artifact only, kept 30 days)
       - name: Create release archive
         run: |
+          # Create temporary directory with desired structure
+          mkdir -p prologot
+          cp -r addons prologot/
+
           if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
             ZIP_NAME="prologot-${{ github.ref_name }}.zip"
           else
             ZIP_NAME="prologot.zip"
           fi
-          zip -r "$ZIP_NAME" addons/
-          echo "Created: $ZIP_NAME"
-          unzip -l "$ZIP_NAME" | head -50
+          zip -r "$ZIP_NAME" prologot/
           echo "ZIP_NAME=$ZIP_NAME" >> $GITHUB_ENV
 
       # Upload the zip file as a GitHub artifact (only for non-tag CI runs)

@@ -9,13 +9,20 @@
 
 #include "Prologot.hpp"
 #include <cstring>
+#include <string>
 #include <vector>
 #ifdef _WIN32
-#    include <cstdlib> // For _putenv_s on Windows
+#    include <cstdlib>   // For _putenv_s on Windows
+#    include <windows.h> // For GetModuleFileName
 #else
+#    include <dlfcn.h>  // For dladdr to find library path
 #    include <unistd.h> // For setenv on Unix
 #endif
+#include <godot_cpp/classes/dir_access.hpp>
+#include <godot_cpp/classes/engine.hpp>
+#include <godot_cpp/classes/file_access.hpp>
 #include <godot_cpp/classes/project_settings.hpp>
+#include <godot_cpp/classes/scene_tree.hpp>
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
 
@@ -100,16 +107,30 @@ Prologot::~Prologot()
 // Initialization and Cleanup
 // =============================================================================
 
-void Prologot::set_swi_home_dir(String const& p_prolog_home)
+String Prologot::resolve_godot_path(String const& p_path)
 {
-    if (p_prolog_home.is_empty())
-        return;
+    if (p_path.begins_with("res://") || p_path.begins_with("user://"))
+    {
+        return godot::ProjectSettings::get_singleton()->globalize_path(p_path);
+    }
+    return p_path;
+}
 
-#ifdef _WIN32
-    _putenv_s("SWI_HOME_DIR", p_prolog_home.utf8().get_data());
-#else
-    setenv("SWI_HOME_DIR", p_prolog_home.utf8().get_data(), 1);
-#endif
+std::pair<String, String>
+Prologot::set_swi_home_dir(String const& p_home_option)
+{
+    if (p_home_option.is_empty())
+        return std::make_pair("", ""); // Use system default SWI-Prolog
+
+    String path = resolve_godot_path(p_home_option);
+
+    if (!godot::FileAccess::file_exists(path + "/boot.prc"))
+    {
+        String out_error = "boot.prc not found in: " + path;
+        return std::make_pair("", out_error);
+    }
+
+    return std::make_pair(path, "");
 }
 
 bool Prologot::initialize(Dictionary const& p_options)
@@ -118,43 +139,47 @@ bool Prologot::initialize(Dictionary const& p_options)
     if (m_initialized)
         return true;
 
-    // Extract all options with defaults
-    String home = p_options.get("home", "");
+    // Extract other options
     bool quiet = p_options.get("quiet", true);
-    bool optimised = p_options.get("optimised", false);
+    bool optimized = p_options.get("optimized", false);
     bool traditional = p_options.get("traditional", false);
     bool threads = p_options.get("threads", true);
     bool packs = p_options.get("packs", true);
-
-    String on_error = p_options.get("on error", "print");
-    String on_warning = p_options.get("on warning", "print");
-
-    // Store error handling options
-    m_on_error = on_error;
-    m_on_warning = on_warning;
-
     String stack_limit = p_options.get("stack limit", "");
     String table_space = p_options.get("table space", "");
     String shared_table_space = p_options.get("shared table space", "");
-
     String init_file = p_options.get("init file", "");
     String script_file = p_options.get("script file", "");
     String toplevel = p_options.get("toplevel", "");
     Variant goal_var = p_options.get("goal", Variant());
+    m_on_error = p_options.get("on error", "print");
+    m_on_warning = p_options.get("on warning", "print");
 
-    // Set SWI-Prolog home directory if specified
-    // This allows custom SWI-Prolog installations
-    set_swi_home_dir(home);
+    // Extract and resolve home directory
+    auto [home, error] = set_swi_home_dir(p_options.get("home", ""));
+    if (!error.is_empty())
+    {
+        m_last_error = error;
+        push_error("Invalid SWI-Prolog home directory: " + error +
+                   ". I will try to use the default one.");
+    }
 
-    // Build argv dynamically with string_storage for lifecycle management
-    std::vector<String> string_storage;
+    // Build argv for PL_initialise
+    // Note: Use std::string storage to keep char* pointers valid
+    std::vector<std::string> string_storage;
     std::vector<const char*> argv_list;
     argv_list.push_back("godot");
+
+    if (!home.is_empty())
+    {
+        string_storage.push_back(("--home=" + home).utf8().get_data());
+        argv_list.push_back(string_storage.back().c_str());
+    }
 
     // Boolean options
     if (quiet)
         argv_list.push_back("--quiet");
-    if (optimised)
+    if (optimized)
         argv_list.push_back("-O");
     if (traditional)
         argv_list.push_back("--traditional");
@@ -164,50 +189,55 @@ bool Prologot::initialize(Dictionary const& p_options)
         argv_list.push_back("--no-packs");
 
     // Options with values (format --option=value)
-    if (!on_error.is_empty() && on_error != "print")
+    if (!m_on_error.is_empty() && m_on_error != "print")
     {
-        string_storage.push_back("--on-error=" + on_error);
-        argv_list.push_back(string_storage.back().utf8().get_data());
+        string_storage.push_back(
+            ("--on-error=" + m_on_error).utf8().get_data());
+        argv_list.push_back(string_storage.back().c_str());
     }
-    if (!on_warning.is_empty() && on_warning != "print")
+    if (!m_on_warning.is_empty() && m_on_warning != "print")
     {
-        string_storage.push_back("--on-warning=" + on_warning);
-        argv_list.push_back(string_storage.back().utf8().get_data());
+        string_storage.push_back(
+            ("--on-warning=" + m_on_warning).utf8().get_data());
+        argv_list.push_back(string_storage.back().c_str());
     }
     if (!stack_limit.is_empty())
     {
-        string_storage.push_back("--stack-limit=" + stack_limit);
-        argv_list.push_back(string_storage.back().utf8().get_data());
+        string_storage.push_back(
+            ("--stack-limit=" + stack_limit).utf8().get_data());
+        argv_list.push_back(string_storage.back().c_str());
     }
     if (!table_space.is_empty())
     {
-        string_storage.push_back("--table-space=" + table_space);
-        argv_list.push_back(string_storage.back().utf8().get_data());
+        string_storage.push_back(
+            ("--table-space=" + table_space).utf8().get_data());
+        argv_list.push_back(string_storage.back().c_str());
     }
     if (!shared_table_space.is_empty())
     {
-        string_storage.push_back("--shared-table-space=" + shared_table_space);
-        argv_list.push_back(string_storage.back().utf8().get_data());
+        string_storage.push_back(
+            ("--shared-table-space=" + shared_table_space).utf8().get_data());
+        argv_list.push_back(string_storage.back().c_str());
     }
 
     // Files and toplevel
     if (!init_file.is_empty())
     {
         argv_list.push_back("-f");
-        string_storage.push_back(init_file);
-        argv_list.push_back(string_storage.back().utf8().get_data());
+        string_storage.push_back(init_file.utf8().get_data());
+        argv_list.push_back(string_storage.back().c_str());
     }
     if (!script_file.is_empty())
     {
         argv_list.push_back("-l");
-        string_storage.push_back(script_file);
-        argv_list.push_back(string_storage.back().utf8().get_data());
+        string_storage.push_back(script_file.utf8().get_data());
+        argv_list.push_back(string_storage.back().c_str());
     }
     if (!toplevel.is_empty())
     {
         argv_list.push_back("-t");
-        string_storage.push_back(toplevel);
-        argv_list.push_back(string_storage.back().utf8().get_data());
+        string_storage.push_back(toplevel.utf8().get_data());
+        argv_list.push_back(string_storage.back().c_str());
     }
 
     // Goals (-g can be repeated)
@@ -217,8 +247,8 @@ bool Prologot::initialize(Dictionary const& p_options)
         if (!goal.is_empty())
         {
             argv_list.push_back("-g");
-            string_storage.push_back(goal);
-            argv_list.push_back(string_storage.back().utf8().get_data());
+            string_storage.push_back(goal.utf8().get_data());
+            argv_list.push_back(string_storage.back().c_str());
         }
     }
     else if (goal_var.get_type() == Variant::ARRAY)
@@ -228,8 +258,8 @@ bool Prologot::initialize(Dictionary const& p_options)
         {
             String goal = goals[i];
             argv_list.push_back("-g");
-            string_storage.push_back(goal);
-            argv_list.push_back(string_storage.back().utf8().get_data());
+            string_storage.push_back(goal.utf8().get_data());
+            argv_list.push_back(string_storage.back().c_str());
         }
     }
 
@@ -243,8 +273,8 @@ bool Prologot::initialize(Dictionary const& p_options)
             String key = keys[i];
             String value = flags[key];
             argv_list.push_back("-D");
-            string_storage.push_back(key + "=" + value);
-            argv_list.push_back(string_storage.back().utf8().get_data());
+            string_storage.push_back((key + "=" + value).utf8().get_data());
+            argv_list.push_back(string_storage.back().c_str());
         }
     }
 
@@ -258,8 +288,8 @@ bool Prologot::initialize(Dictionary const& p_options)
             String alias = keys[i];
             String path = paths[alias];
             argv_list.push_back("-p");
-            string_storage.push_back(alias + "=" + path);
-            argv_list.push_back(string_storage.back().utf8().get_data());
+            string_storage.push_back((alias + "=" + path).utf8().get_data());
+            argv_list.push_back(string_storage.back().c_str());
         }
     }
 
@@ -269,15 +299,14 @@ bool Prologot::initialize(Dictionary const& p_options)
         Array custom_args = p_options.get("custom args", Array());
         for (int i = 0; i < custom_args.size(); i++)
         {
-            string_storage.push_back(String(custom_args[i]));
-            argv_list.push_back(string_storage.back().utf8().get_data());
+            string_storage.push_back(String(custom_args[i]).utf8().get_data());
+            argv_list.push_back(string_storage.back().c_str());
         }
     }
 
     argv_list.push_back(nullptr);
 
-    // Initialize the Prolog engine
-    // PL_initialise() starts the Prolog runtime system
+    // Initialize Prolog engine
     if (!PL_initialise(argv_list.size() - 1, (char**)argv_list.data()))
     {
         if (!handle_prolog_exception(0, "PL_initialise"))
@@ -286,6 +315,20 @@ bool Prologot::initialize(Dictionary const& p_options)
         }
 
         return false;
+    }
+
+    // Log which SWI_HOME_DIR is being used by Prolog
+    term_t home_term = PL_new_term_ref();
+    predicate_t flag_pred = PL_predicate("current_prolog_flag", 2, "system");
+    term_t flag_args = PL_new_term_refs(2);
+    PL_put_atom_chars(flag_args + 0, "home");
+    if (PL_call_predicate(NULL, PL_Q_NORMAL, flag_pred, flag_args))
+    {
+        char* home_path;
+        if (PL_get_chars(flag_args + 1, &home_path, CVT_ATOM | CVT_STRING))
+        {
+            UtilityFunctions::print("[Prologot] SWI-Prolog HOME: ", home_path);
+        }
     }
 
     // Bootstrap helper predicates for consult_string()
@@ -332,7 +375,8 @@ bool Prologot::initialize(Dictionary const& p_options)
         // Parse the Prolog code string into a term
         if (!PL_chars_to_term(predicates[i], clause))
         {
-            m_last_error = String("Failed to parse bootstrap predicate: ") + String(predicates[i]);
+            m_last_error = String("Failed to parse bootstrap predicate: ") +
+                           String(predicates[i]);
             PL_cleanup(0); // Clean up on failure
             return false;
         }
@@ -351,18 +395,25 @@ bool Prologot::initialize(Dictionary const& p_options)
             if (ex)
             {
                 char* msg;
-                if (PL_get_chars(ex, &msg, CVT_WRITE | BUF_DISCARDABLE | REP_UTF8))
+                if (PL_get_chars(
+                        ex, &msg, CVT_WRITE | BUF_DISCARDABLE | REP_UTF8))
                 {
-                    m_last_error = String("Failed to assert bootstrap predicate: ") + String(msg);
+                    m_last_error =
+                        String("Failed to assert bootstrap predicate: ") +
+                        String(msg);
                 }
                 else
                 {
-                    m_last_error = String("Failed to assert bootstrap predicate: ") + String(predicates[i]);
+                    m_last_error =
+                        String("Failed to assert bootstrap predicate: ") +
+                        String(predicates[i]);
                 }
             }
             else
             {
-                m_last_error = String("Failed to assert bootstrap predicate: ") + String(predicates[i]);
+                m_last_error =
+                    String("Failed to assert bootstrap predicate: ") +
+                    String(predicates[i]);
             }
             PL_close_query(qid);
             PL_cleanup(0); // Clean up on failure
@@ -411,15 +462,7 @@ bool Prologot::consult_file(String const& p_filename)
 
     // Convert res:// and user:// paths to absolute filesystem paths
     // SWI-Prolog doesn't understand Godot's virtual filesystem paths
-    String filename = p_filename;
-    if (filename.begins_with("res://") || filename.begins_with("user://"))
-    {
-        ProjectSettings* project_settings = ProjectSettings::get_singleton();
-        if (project_settings)
-        {
-            filename = project_settings->globalize_path(p_filename);
-        }
-    }
+    String filename = resolve_godot_path(p_filename);
 
     // Get a handle to Prolog's built-in consult/1 predicate
     // "user" module is the default module for user-defined predicates
@@ -1384,7 +1427,18 @@ void Prologot::push_error(String const& p_message, String const& p_type)
     else if (option == "halt")
     {
         godot::UtilityFunctions::push_error("Prologot: " + p_message);
-        // Note: We can't actually halt execution in Godot, but we log the error
+
+        // Quit the application
+        Engine* engine = Engine::get_singleton();
+        if (engine)
+        {
+            SceneTree* scene_tree =
+                Object::cast_to<SceneTree>(engine->get_main_loop());
+            if (scene_tree)
+            {
+                scene_tree->quit(1);
+            }
+        }
     }
     // "status" option: only store in m_last_error, don't print
 }
@@ -1395,7 +1449,9 @@ bool Prologot::handle_prolog_exception(qid_t p_qid, String const& p_context)
     if (exception)
     {
         char* exception_str;
-        if (PL_get_chars(exception, &exception_str, CVT_WRITE | CVT_EXCEPTION | BUF_DISCARDABLE))
+        if (PL_get_chars(exception,
+                         &exception_str,
+                         CVT_WRITE | CVT_EXCEPTION | BUF_DISCARDABLE))
         {
             String error_msg =
                 p_context + String(" error: ") + String(exception_str);
