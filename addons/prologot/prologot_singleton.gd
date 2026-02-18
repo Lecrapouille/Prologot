@@ -30,7 +30,7 @@ func _ready() -> void:
 	# The GDExtension must be properly configured in the project
 	if not ClassDB.class_exists("Prologot"):
 		engine = null
-		push_error("Prologot: GDExtension not loaded. Make sure prologot.gdextension is in your project root.")
+		push_error("Prologot: GDExtension not loaded. Make sure bin/prologot.gdextension exists in your project.")
 		return
 
 	# Create a new instance of the Prologot engine

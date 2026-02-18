@@ -15,11 +15,11 @@ Common issues and their solutions.
   - `libprologot.so` (Linux), `libprologot.dylib` (macOS), or `libprologot.dll` (Windows)
   - `libswipl.so`, `libswipl.dylib`, or `libswipl.dll` (SWI-Prolog runtime library)
   - `swipl/` folder containing SWI-Prolog resources (`boot.prc`, `library/`)
-- Verify that the `prologot.gdextension` file in your project root points to the correct library path.
+- Verify that `bin/prologot.gdextension` points to the correct library paths.
 - If you are running Godot in headless mode (`--headless`), make sure the `.godot` folder exists in your project directory. If it does not, either launch your project once in the regular Godot editor or manually create the `.godot/extension_list.cfg` file with the following content:
 
 ```txt
-res://prologot.gdextension
+res://bin/prologot.gdextension
 ```
 
 ---
@@ -30,7 +30,7 @@ res://prologot.gdextension
 
 **Solution:**
 
-1. Make sure `prologot.gdextension` is in your project root
+1. Make sure `bin/prologot.gdextension` exists in your project
 2. Make sure the `bin/` folder is in your project root
 3. Make sure `addons/prologot/` is in your project
 4. Restart Godot

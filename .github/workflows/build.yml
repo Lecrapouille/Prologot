@@ -80,9 +80,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: prologot-linux-x86_64-godot${{ matrix.godot-version }}
-          path: |
-            bin/
-            prologot.gdextension
+          path: bin/
           retention-days: 1
 
   # ============================================================================
@@ -215,9 +213,7 @@ jobs:
         run: |
           Write-Host "Preparing test project..."
           if (Test-Path "tests\bin") { Remove-Item -Recurse -Force "tests\bin" }
-          if (Test-Path "tests\prologot.gdextension") { Remove-Item -Force "tests\prologot.gdextension" }
           if (Test-Path "bin") { Copy-Item -Recurse "bin" "tests\bin" }
-          if (Test-Path "prologot.gdextension") { Copy-Item "prologot.gdextension" "tests\prologot.gdextension" }
         shell: pwsh
 
       # Run tests with DLL paths configured for Windows. Add tests/bin and SWI-Prolog bin to PATH so Windows can find DLL dependencies
@@ -241,9 +237,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: prologot-windows-x86_64-godot${{ matrix.godot-version }}
-          path: |
-            bin/
-            prologot.gdextension
+          path: bin/
           retention-days: 1
 
   # ============================================================================
@@ -301,9 +295,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: prologot-macos-arm64-godot${{ matrix.godot-version }}
-          path: |
-            bin/
-            prologot.gdextension
+          path: bin/
           retention-days: 1
 
   # ============================================================================
@@ -349,9 +341,8 @@ jobs:
   #
   # Package structure:
   #   addons/prologot/
-  #     bin/                  - Compiled libraries (.so, .dll, .dylib)
+  #     bin/                  - Compiled libraries + prologot.gdextension
   #     doc/                  - Documentation (markdown + example script)
-  #     prologot.gdextension  - Godot extension configuration (all platforms)
   #     plugin.cfg            - Godot plugin configuration
   #     plugin.gd             - Plugin entry point
   #     *.gd                  - Other GDScript files
@@ -399,18 +390,16 @@ jobs:
         with:
           path: artifacts
 
-      # Prepare release folder. Organize all files into the final release structure
-      # Note: Godot plugin files (plugin.cfg, plugin.gd, etc.) are already
-      # in addons/prologot/ from the checkout - no need to copy them.
+      # Prepare release folder
       - name: Prepare release folder
         run: |
           RELEASE_DIR="addons/prologot"
           mkdir -p "$RELEASE_DIR/bin" "$RELEASE_DIR/doc"
 
-          # Copy all platform binaries (including subdirectories like swipl/)
+          # Copy platform binaries (exclude swipl/ - users must use their system SWI-Prolog)
           for artifact in artifacts/prologot-*-godot${{ matrix.godot-version }}; do
             if [ -d "$artifact/bin" ]; then
-              cp -r "$artifact/bin/"* "$RELEASE_DIR/bin/"
+              find "$artifact/bin" -maxdepth 1 -type f \( -name "*.so*" -o -name "*.dll" -o -name "*.dylib" \) -exec cp {} "$RELEASE_DIR/bin/" \;
               echo "✓ Copied: $artifact"
             fi
           done

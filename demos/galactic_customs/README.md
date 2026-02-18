@@ -57,8 +57,7 @@ res://
 ├── assets/
 │   ├── assets-1.png         # Alien sprite sheet
 │   └── assets-2.png         # UI assets
-├── project.godot            # Godot project configuration
-└── prologot.gdextension     # Prologot extension configuration
+└── project.godot            # Godot project configuration
 ```
 
 ### Setup Steps
