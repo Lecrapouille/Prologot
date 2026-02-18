@@ -227,6 +227,9 @@ def copy_swipl_resources(plbase, output_dir=None):
     boot_files = list(plbase.glob("boot*.prc"))
     if boot_files:
         boot_dest = output_dir / "boot.prc"
+        if boot_dest.exists():
+            boot_dest.chmod(0o666)
+            boot_dest.unlink()
         shutil.copy2(boot_files[0], boot_dest)
         copied.append(str(boot_dest))
         print(f"Copied {boot_files[0].name} -> {boot_dest}")
@@ -234,12 +237,16 @@ def copy_swipl_resources(plbase, output_dir=None):
         print(f"Warning: No boot*.prc found in {plbase}")
 
     # Copy directories: library/ and lib/
+    def _rm_readonly(_func, path, _exc):
+        Path(path).chmod(0o666)
+        _func(path)
+
     for dir_name in ("library", "lib"):
         src = plbase / dir_name
         if src.exists() and src.is_dir():
             dest = output_dir / dir_name
             if dest.exists():
-                shutil.rmtree(dest)
+                shutil.rmtree(dest, onerror=_rm_readonly)
             shutil.copytree(src, dest)
             copied.append(str(dest))
             print(f"Copied {dir_name}/ -> {dest}")
