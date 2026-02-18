@@ -14,6 +14,8 @@ godot-cpp-*/
 .export/
 
 # --- Build outputs ---
+*/*/bin
+*/bin
 bin/
 build/
 dist/
