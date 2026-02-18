@@ -90,9 +90,9 @@ jobs:
   # Marked as continue-on-error since Windows builds are less stable.
   # ============================================================================
   build-windows:
-    name: Build (Windows, Godot ${{ matrix.godot-version }})
+    name: Build & Test (Windows, Godot ${{ matrix.godot-version }})
     runs-on: windows-latest
-    continue-on-error: true # Allow Windows build to fail without blocking release
+    continue-on-error: true
 
     strategy:
       matrix:
@@ -100,139 +100,45 @@ jobs:
       fail-fast: false
 
     steps:
-      # Clone the repository and its submodules
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      # Set up Python. Python is required for SCons build system
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      # Install SCons (build system used by Godot and therefore for this project)
-      - name: Install SCons
+      - name: Install dependencies
         run: |
           python -m pip install scons
-
-      # Install SWI-Prolog via Chocolatey (Windows package manager for CI)
-      - name: Install SWI-Prolog via Chocolatey
-        run: |
           choco install swi-prolog --yes --no-progress
+          Add-Content $env:GITHUB_PATH "C:\Program Files\swipl\bin"
         shell: pwsh
 
-      # Configure SWI-Prolog environment. Set up environment variables needed by SCons to find SWI-Prolog
-      - name: Configure SWI-Prolog environment
+      - name: Build extension
         run: |
-          # Find the SWI-Prolog install directory
-          $swiPath = "C:\Program Files\swipl"
-          if (Test-Path $swiPath) {
-            # Add to PATH for current process and GH Actions job steps
-            $env:PATH = "$swiPath\bin;$env:PATH"
-            echo "$swiPath\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          scons --godot-cpp=${{ matrix.godot-version }} target=template_debug arch=x86_64
+          scons --godot-cpp=${{ matrix.godot-version }} target=template_release arch=x86_64
 
-            # Set environment variables for SCons to locate SWI-Prolog
-            echo "PLBASE=$swiPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-            echo "PLLIBDIR=$swiPath\lib" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-
-            # Verify swipl is available
-            Write-Host "SWI-Prolog installation verified:"
-            swipl --version
-            Write-Host "PLBASE: $swiPath"
-            Write-Host "PLLIBDIR: $swiPath\lib"
-
-            # Diagnostics: List important directories and files for debugging
-            Write-Host "`n=== Diagnostic: Files in $swiPath\bin ==="
-            Get-ChildItem "$swiPath\bin" -File | Select-Object Name, Length | Format-Table
-
-            Write-Host "`n=== Diagnostic: Files in $swiPath\lib ==="
-            if (Test-Path "$swiPath\lib") {
-              Get-ChildItem "$swiPath\lib" -File -ErrorAction SilentlyContinue | Select-Object Name, Length | Format-Table
-            } else {
-              Write-Host "Directory $swiPath\lib does not exist"
-            }
-
-            Write-Host "`n=== Diagnostic: Search for *.lib, *.dll.a, and *.a files ==="
-            Get-ChildItem "$swiPath" -Recurse -Include "*.lib","*.dll.a","*.a" -ErrorAction SilentlyContinue | Select-Object FullName, Length | Format-Table
-          } else {
-            Write-Error "SWI-Prolog not found at $swiPath"
-          }
-        shell: pwsh
-
-      # Build extension (Debug)
-      - name: Build extension (Debug)
-        env:
-          PYTHONIOENCODING: utf-8
-          PLBASE: ${{ env.PLBASE }}
-          PLLIBDIR: ${{ env.PLLIBDIR }}
-        run: |
-          echo "Building Debug version..."
-          scons --godot-cpp=${{ matrix.godot-version }} target=template_debug arch=x86_64 verbose=1
-
-      # Build extension (Release)
-      - name: Build extension (Release)
-        env:
-          PYTHONIOENCODING: utf-8
-          PLBASE: ${{ env.PLBASE }}
-          PLLIBDIR: ${{ env.PLLIBDIR }}
-        run: |
-          echo "Building Release version..."
-          scons --godot-cpp=${{ matrix.godot-version }} target=template_release arch=x86_64 verbose=1
-
-      # Download Godot Engine for Windows for testing
       - name: Download Godot Engine
         run: |
-          $godotVersion = "${{ matrix.godot-version }}"
-          $url = "https://github.com/godotengine/godot/releases/download/$godotVersion-stable/Godot_v$godotVersion-stable_win64.exe.zip"
-          $zipFile = "Godot_v$godotVersion-stable_win64.exe.zip"
-          $exeFile = "Godot_v$godotVersion-stable_win64.exe"
-
-          Write-Host "Downloading Godot $godotVersion for Windows..."
-          Invoke-WebRequest -Uri $url -OutFile $zipFile
-
-          Write-Host "Extracting Godot..."
-          Expand-Archive -Path $zipFile -DestinationPath . -Force
-
-          Write-Host "Moving Godot to PATH..."
-          if (Test-Path $exeFile) {
-            New-Item -ItemType Directory -Force -Path "$env:ProgramFiles\Godot" | Out-Null
-            Move-Item -Path $exeFile -Destination "$env:ProgramFiles\Godot\godot.exe" -Force
-            echo "$env:ProgramFiles\Godot" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-            Write-Host "Godot installed successfully"
-            & "$env:ProgramFiles\Godot\godot.exe" --version
-          } else {
-            Write-Error "Godot executable not found after extraction"
-          }
+          $v = "${{ matrix.godot-version }}"
+          Invoke-WebRequest "https://github.com/godotengine/godot/releases/download/$v-stable/Godot_v$v-stable_win64.exe.zip" -OutFile godot.zip
+          Expand-Archive godot.zip -DestinationPath .
+          Rename-Item "Godot_v$v-stable_win64.exe" godot.exe
+          Add-Content $env:GITHUB_PATH (Get-Location).Path
         shell: pwsh
 
-      # Prepare test project. Copy built binaries to the test project directory
-      - name: Prepare test project
-        # Copy built binaries to the test project directory
-        run: |
-          Write-Host "Preparing test project..."
-          if (Test-Path "tests\bin") { Remove-Item -Recurse -Force "tests\bin" }
-          if (Test-Path "bin") { Copy-Item -Recurse "bin" "tests\bin" }
-        shell: pwsh
-
-      # Run tests with DLL paths configured for Windows. Add tests/bin and SWI-Prolog bin to PATH so Windows can find DLL dependencies
       - name: Run unit tests
         run: |
-          # Add tests/bin and SWI-Prolog bin to PATH so Windows can find DLL dependencies
-          $testsBinPath = (Resolve-Path "tests\bin").Path
-          $swiBinPath = "C:\Program Files\swipl\bin"
-          $env:PATH = "$testsBinPath;$swiBinPath;$env:PATH"
-          Write-Host "Added to PATH:"
-          Write-Host "  - $testsBinPath"
-          Write-Host "  - $swiBinPath"
-          Write-Host "DLLs in tests/bin:"
-          Get-ChildItem "$testsBinPath\*.dll" | Select-Object Name
+          Copy-Item -Recurse bin tests\bin
+          $env:PATH = "$(Resolve-Path tests\bin);C:\Program Files\swipl\bin;$env:PATH"
           godot --headless --path tests -s run_tests.gd
         timeout-minutes: 2
         shell: pwsh
 
-      # Upload compiled binaries for use by the packaging job. Windows binaries (.dll files)
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
