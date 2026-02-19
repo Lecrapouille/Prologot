@@ -17,6 +17,11 @@ var engine = null
 ## Allows users to quickly switch between different Prolog knowledge bases.
 var knowledge_bases: Dictionary = {}
 
+# Auto-detect embedded SWI-Prolog home based on OS
+static func _swipl_home() -> String:
+	var _os_map := {"Linux": "linux", "Windows": "windows", "macOS": "macos"}
+	return "res://bin/" + _os_map.get(OS.get_name(), OS.get_name().to_lower()) + "/swipl"
+
 ###############################################################################
 ## Initialize the Prologot singleton.
 ##
@@ -36,9 +41,12 @@ func _ready() -> void:
 	# Create a new instance of the Prologot engine
 	engine = ClassDB.instantiate("Prologot")
 
-	# Attempt to initialize the underlying Prolog engine
-	# If initialization fails, log an error and set engine to null
-	if not engine.initialize():
+	var swipl_home := _swipl_home()
+	var options := {}
+	if DirAccess.dir_exists_absolute(swipl_home):
+		options["home"] = swipl_home
+
+	if not engine.initialize(options):
 		engine = null
 		push_error("Prologot: Failed to initialize Prolog engine")
 

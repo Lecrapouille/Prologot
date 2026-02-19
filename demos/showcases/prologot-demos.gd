@@ -11,6 +11,11 @@ extends Node2D
 # Main Prologot instance to execute Prolog queries
 var prolog: Prologot
 
+# Auto-detect embedded SWI-Prolog home based on OS
+static func _swipl_home() -> String:
+	var _os_map := {"Linux": "linux", "Windows": "windows", "macOS": "macos"}
+	return "res://bin/" + _os_map.get(OS.get_name(), OS.get_name().to_lower()) + "/swipl"
+
 # References to UI elements
 @onready var title_label = $CanvasLayer/MarginContainer/VBoxContainer/HeaderPanel/MarginContainer/HBoxContainer/TitleLabel
 @onready var counter_label = $CanvasLayer/MarginContainer/VBoxContainer/HeaderPanel/MarginContainer/HBoxContainer/CounterLabel
@@ -35,7 +40,7 @@ func _ready() -> void:
 	# Initialize Prologot instance to run queries
 	prolog = Prologot.new()
 	# res:// path is automatically resolved by Prologot to absolute path
-	if not prolog.initialize({"home": "res://bin/swipl"}):
+	if not prolog.initialize({"home": _swipl_home()}):
 		push_error("Failed to initialize Prologot: " + prolog.get_last_error())
 		return
 
@@ -116,7 +121,7 @@ func load_example(index: int) -> void:
 
 	# Reset Prologot state for a clean environment
 	prolog.cleanup()
-	prolog.initialize({"home": "res://bin/swipl"})
+	prolog.initialize({"home": _swipl_home()})
 
 ###############################################################################
 # Load the content of a Prolog file from the filesystem

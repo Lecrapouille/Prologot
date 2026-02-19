@@ -94,11 +94,11 @@ To use Prologot in your own project:
 1. Copy `addons/prologot/` to your project's `addons/` folder.
 2. Copy the `bin/` folder to your project (it contains the compiled libraries and `prologot.gdextension`).
 3. Enable the plugin in **Project → Project Settings → Plugins**
-5. Optionally, you can move the folder `bin/swipl`  in another folder. You have to adapt, in your gdscript file, the `initialize` function and set `"home"` to your new path.
+5. Optionally, you can move the `swipl/` folder (located in `bin/<os>/swipl/`) to another location. You have to adapt, in your gdscript file, the `initialize` function and set `"home"` to your new path.
 
 ```gdscript
 prolog = Prologot.new()
-prolog.initialize({"home": "res://bin/swipl"})
+prolog.initialize({"home": "res://bin/linux/swipl"})
 ```
 
 ## Verifying Installation

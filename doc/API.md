@@ -11,7 +11,7 @@ The demo showcases these essential API methods:
 ```gdscript
 # Initialization
 prolog = Prologot.new()
-prolog.initialize({"home": "res://bin/swipl"})
+prolog.initialize({"home": "linux/swipl"})
 
 # Loading Prolog code
 prolog.consult_file("path/to/file.pl")    # Load from file
@@ -126,7 +126,7 @@ Dictionary keys use spaces for better readability in GDScript.
 prolog.initialize()
 
 # Simple initialization with path to SWI-Prolog installation
-prolog.initialize({"home": "res://bin/swipl"})
+prolog.initialize({"home": "res://bin/linux/swipl"})
 
 # With welcome message
 prolog.initialize({"quiet": false})

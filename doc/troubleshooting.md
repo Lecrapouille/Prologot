@@ -11,7 +11,7 @@ Common issues and their solutions.
 **Solution:**
 
 - Prologot users do not need to install SWI-Prolog separately on their operating system.
-- Make sure you have copied the `bin` folder in your Godot project. It should contain:
+- Make sure you have copied the `bin` folder in your Godot project. It should contain per-OS subdirectories (`linux/`, `windows/`, `macos/`), each with:
   - `libprologot.so` (Linux), `libprologot.dylib` (macOS), or `libprologot.dll` (Windows)
   - `libswipl.so`, `libswipl.dylib`, or `libswipl.dll` (SWI-Prolog runtime library)
   - `swipl/` folder containing SWI-Prolog resources (`boot.prc`, `library/`)
@@ -134,6 +134,11 @@ Prologot will try to load the
 3. If you used Godot Asset Library, ignore previous lines.
 4. Pass the `swipl` folder path to the `initialize` function. For example:
 ```gdscript
+# Auto-detect embedded SWI-Prolog home based on OS
+static func _swipl_home() -> String:
+	var _os_map := {"Linux": "linux", "Windows": "windows", "macOS": "macos"}
+	return "res://bin/" + _os_map.get(OS.get_name(), OS.get_name().to_lower()) + "/swipl"
+
 prolog = Prologot.new()
-prolog.initialize({"home": "res://bin/swipl"})
+prolog.initialize({"home": _swipl_home()})
 ```

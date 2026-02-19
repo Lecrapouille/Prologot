@@ -1,5 +1,10 @@
 extends Node2D
 
+# Auto-detect embedded SWI-Prolog home based on OS
+static func _swipl_home() -> String:
+	var _os_map := {"Linux": "linux", "Windows": "windows", "macOS": "macos"}
+	return "res://bin/" + _os_map.get(OS.get_name(), OS.get_name().to_lower()) + "/swipl"
+
 # =============================================================================
 # UI References
 # =============================================================================
@@ -258,7 +263,7 @@ func init_prolog():
 	prolog = Prologot.new()
 
 	# Initialize the engine
-	prolog.initialize({"home": "res://bin/swipl"})
+	prolog.initialize({"home": _swipl_home()})
 	 	push_error("Failed to initialize Prologot: " + prolog.get_last_error())
  	return
 
@@ -316,7 +321,7 @@ func load_current_day():
 	prolog.cleanup()
 
 	# Re-initialize for a fresh state
-	prolog.initialize({"home": "res://bin/swipl"})
+	prolog.initialize({"home": _swipl_home()})
 
 	# Load comprehensive rules from the galactic_customs.pl file
 	var rules_file_path = "res://rules/galactic_customs.pl"

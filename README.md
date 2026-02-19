@@ -75,7 +75,11 @@ Prologot/
 │       └── prologot-demos.tscn   # Scene file (UI layout)
 ├── doc/                          # Documentation
 │   └── hello_world_prologot.gd   # Hello World example
-├── bin/                          # Compiled libraries + prologot.gdextension (after build)
+├── bin/                          # Build output (after build)
+│   ├── linux/                    # Linux libs + swipl/
+│   ├── windows/                  # Windows libs + swipl/
+│   ├── macos/                    # macOS libs + swipl/
+│   └── prologot.gdextension     # GDExtension configuration
 ├── godot-cpp-*/                  # Godot C++ bindings (git cloned automatically by SConstruct)
 ├── SConstruct                    # SCons build system (handles everything: setup, compile, generate .gdextension)
 └── Makefile                      # Convenience commands to SCons

@@ -7,6 +7,7 @@ from glob import glob
 from pathlib import Path
 
 MIN_GODOT_VERSION = "4.2"
+PLATFORM_NAMES = {'win32': 'windows', 'darwin': 'macos', 'linux': 'linux'}
 
 # ============================================================================
 # SCons Options
@@ -191,8 +192,9 @@ def copy_swipl_libraries_unix(swipl_lib, bin_dir, copied_files):
 # Copy SWI-Prolog Libraries (Windows, MacOS and Unix)
 # ============================================================================
 def copy_swipl_libraries(swipl, plbase):
-    """Copy the necessary SWI-Prolog libraries into the bin/ directory."""
-    bin_dir = Path("bin")
+    """Copy the necessary SWI-Prolog libraries into the bin/<platform>/ directory."""
+    platform_name = PLATFORM_NAMES.get(sys.platform, sys.platform)
+    bin_dir = Path("bin") / platform_name
     bin_dir.mkdir(parents=True, exist_ok=True)
 
     copied_files = []
@@ -214,7 +216,10 @@ def copy_swipl_libraries(swipl, plbase):
 # ============================================================================
 def copy_swipl_resources(plbase, output_dir=None):
     """Copy SWI-Prolog runtime resources (boot.prc, library/, lib/)."""
-    output_dir = Path(output_dir or "bin/swipl")
+    if not output_dir:
+        platform_name = PLATFORM_NAMES.get(sys.platform, sys.platform)
+        output_dir = Path("bin") / platform_name / "swipl"
+    output_dir = Path(output_dir)
 
     if not plbase.exists():
         print(f"Warning: PLBASE directory not found: {plbase}")
@@ -264,7 +269,8 @@ def configure_swipl(env, plbase):
     if include_dir.exists():
         env.Append(CPPPATH=[str(include_dir)])
 
-    env.Append(LIBPATH=[os.path.abspath('bin')])
+    platform_name = PLATFORM_NAMES.get(sys.platform, sys.platform)
+    env.Append(LIBPATH=[os.path.abspath(f'bin/{platform_name}')])
     env.Append(LIBS=['swipl'])
     if sys.platform == 'darwin':
         env.Append(LINKFLAGS=['-Wl,-rpath,@loader_path'])
@@ -275,25 +281,28 @@ def configure_swipl(env, plbase):
 # Create prologot.gdextension
 # ============================================================================
 def create_gdextension_file(base_path=".", verbose=False):
-    """Generate prologot.gdextension by scanning bin/ directory."""
+    """Generate prologot.gdextension by scanning bin/<platform>/ subdirectories."""
     bin_dir = Path(base_path) / "bin"
     if not bin_dir.exists():
         return
 
-    # Scan for prologot libraries and swipl dependencies
+    known_platforms = set(PLATFORM_NAMES.values())
     libraries = []
     dependencies = []
 
-    for lib in bin_dir.iterdir():
-        if not lib.is_file() or lib.suffix in ('.lib', '.a', '.exp'):
+    for platform_dir in sorted(bin_dir.iterdir()):
+        if not platform_dir.is_dir() or platform_dir.name not in known_platforms:
             continue
-        if lib.name.startswith("libprologot"):
-            key = lib.stem.replace("libprologot.", "").replace("template_", "")
-            libraries.append((key, lib.name))
-        elif "swipl" in lib.name:
-            dependencies.append(lib.name)
+        platform = platform_dir.name
+        for lib in platform_dir.iterdir():
+            if not lib.is_file() or lib.suffix in ('.lib', '.a', '.exp'):
+                continue
+            if lib.name.startswith("libprologot"):
+                key = lib.stem.replace("libprologot.", "").replace("template_", "")
+                libraries.append((key, f"{platform}/{lib.name}"))
+            elif "swipl" in lib.name:
+                dependencies.append((platform, lib.name))
 
-    # Build content
     content = [
         "[configuration]",
         'entry_symbol = "prologot_library_init"',
@@ -304,21 +313,17 @@ def create_gdextension_file(base_path=".", verbose=False):
         ""
     ]
 
-    content.extend(f'{key} = "{name}"' for key, name in sorted(libraries))
+    content.extend(f'{key} = "{path}"' for key, path in sorted(libraries))
 
-    # Add dependencies
     if dependencies:
         content.extend(["", "[dependencies]", ""])
-        platform_map = {"windows": ".dll", "linux": ".so", "macos": ".dylib"}
-
-        for key, _ in sorted(libraries):
-            platform = key.split('.')[0]
-            suffix = platform_map.get(platform, "")
-            dep = next((d for d in dependencies if suffix and d.endswith(suffix)), None)
+        for key, lib_path in sorted(libraries):
+            platform = lib_path.split('/')[0]
+            dep = next((f"{p}/{n}" for p, n in dependencies if p == platform), None)
             if dep:
                 content.append(f'{key} = {{"{dep}": ""}}')
 
-    output_path = Path(base_path) / "bin" / "prologot.gdextension"
+    output_path = bin_dir / "prologot.gdextension"
     output_path.write_text('\n'.join(content) + '\n')
 
     if verbose:
@@ -331,11 +336,13 @@ def create_gdextension_file(base_path=".", verbose=False):
 # ============================================================================
 def build_library(env):
     """Build the Prologot library."""
-    # Determine library name
+    platform_name = PLATFORM_NAMES.get(sys.platform, sys.platform)
+    platform_dir = f"bin/{platform_name}"
+
     if env["platform"] == "macos":
-        lib_name = f"bin/libprologot.{env['platform']}.{env['target']}.{env['arch']}"
+        lib_name = f"{platform_dir}/libprologot.{env['platform']}.{env['target']}.{env['arch']}"
     else:
-        lib_name = f"bin/libprologot{env['suffix']}{env['SHLIBSUFFIX']}"
+        lib_name = f"{platform_dir}/libprologot{env['suffix']}{env['SHLIBSUFFIX']}"
 
     # Build and post-process
     library = env.SharedLibrary(lib_name, source=glob("src/*.cpp"))

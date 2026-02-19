@@ -151,9 +151,9 @@ release: check-deps
 .PHONY: clean
 clean:
 	@$(ECHO) "$(YELLOW)▶ Cleaning...$(NC)"
-	@rm -fr $(BIN) .sconsign.dblite src/*.os godot-cpp-* .scons_cache prologot.gdextension
+	@rm -fr $(BIN) .sconsign.dblite src/*.os godot-cpp-* .scons_cache
 	@for project in demos/showcases demos/galactic_customs tests; do \
-		rm -rf $$project/$(BIN) $$project/prologot.gdextension; \
+		rm -rf $$project/$(BIN); \
 	done
 	@$(ECHO) "$(GREEN)✓ Clean completed$(NC)"
 	@$(ECHO) "$(YELLOW)Note: .godot/ directories are preserved for faster project loading$(NC)"
@@ -167,13 +167,11 @@ setup-demos:
 		exit 1; \
 	fi
 	@for project in demos/showcases demos/galactic_customs; do \
-		rm -rf $$project/$(BIN) $$project/prologot.gdextension; \
+		rm -rf $$project/$(BIN); \
 		[ -d $(BIN) ] && ln -sf ../../$(BIN) $$project/$(BIN) || true; \
-		[ -f prologot.gdextension ] && ln -sf ../../prologot.gdextension $$project/prologot.gdextension || true; \
 	done
-	@rm -rf tests/$(BIN) tests/prologot.gdextension; \
-	[ -d $(BIN) ] && ln -sf ../$(BIN) tests/$(BIN) || true; \
-	[ -f prologot.gdextension ] && ln -sf ../prologot.gdextension tests/prologot.gdextension || true
+	@rm -rf tests/$(BIN); \
+	[ -d $(BIN) ] && ln -sf ../$(BIN) tests/$(BIN) || true
 	@$(ECHO) "$(YELLOW)▶ Initializing Godot projects (creating .godot cache)...$(NC)"
 	@for project in demos/showcases demos/galactic_customs tests; do \
 		if [ -f $$project/project.godot ] && [ ! -d $$project/.godot ]; then \
