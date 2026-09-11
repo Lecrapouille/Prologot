@@ -30,7 +30,7 @@ sudo apt-get install swi-prolog swi-prolog-nox pkg-config
 pip install scons
 
 # Clone and build
-git clone https://github.com/yourusername/Prologot.git
+git clone https://github.com/Lecrapouille/Prologot.git
 cd Prologot
 make GODOT_CPP=4.5 all
 ```
