@@ -20,18 +20,20 @@ func _ready():
 		grandparent(X, Z) :- parent(X, Y), parent(Y, Z).
 	""")
 
-	# Execute a query
-	if prolog.query("grandparent(tom, ann)"):
+	# High-level API: structured terms (no Prolog source parsing)
+	if prolog.solve("grandparent", ["tom", "ann"]):
 		print("Tom is Ann's grandparent!")
 
-	# Get all solutions (legacy format)
-	var results = prolog.query_all("parent(X, Y)")
-	print("Parent relationships: ", results)
-
-	# Get all solutions with variable extraction (new format)
-	var results_dict = prolog.query_all("parent", ["X", "Y"])
+	var results_dict = prolog.solve_all("parent", ["X", "Y"])
 	for result in results_dict:
 		print("Parent: ", result["X"], " -> ", result["Y"])
+
+	# Low-level API: Prolog source text (conjunctions, operators, REPL)
+	if prolog.query_text("parent(tom, X), parent(X, ann)"):
+		print("Tom is Ann's grandparent via a conjunction")
+
+	var results = prolog.query_text_all("parent(X, Y)")
+	print("Parent relationships: ", results)
 
 func _exit_tree():
 	# Clean up the Prolog engine

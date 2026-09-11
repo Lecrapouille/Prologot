@@ -15,7 +15,8 @@ Prologot uses modern, intuitive method names to make it easier for non-Prologist
 | `add_fact()`          | `assert/1` or `assertz/1`               | Add a fact to the knowledge base               |
 | `retract_fact()`       | `retract/1`                             | Remove a fact from the knowledge base          |
 | `retract_all()`       | `retractall/1`                          | Remove all facts matching a pattern            |
-| `query_all()`  (with custom syntax)   | `findall/3` | Returns all solutions. Arguments differ from traditional Prolog. See explanations below. |
+| `solve()` / `solve_all()` / `solve_one()` | term construction + `call/1` | High-level API: functor + Godot values, no source parsing |
+| `query_text()` / `query_text_all()` / `query_text_one()` | `call/1` + `findall/3` on a source string | Low-level API: parse Prolog text |
 
 - Modern names are more intuitive for developers coming from other languages (Python, JavaScript, etc.).
 - Names follow conventions from the Godot/GDScript ecosystem.
@@ -24,8 +25,8 @@ Prologot uses modern, intuitive method names to make it easier for non-Prologist
 
 - **Variable naming**: In Prolog, variables must start with uppercase or underscore. Lowercase names are atoms (constants). This is important when naming game entities - use lowercase for character names (atoms) but uppercase for query variables.
 - **No trailing periods in queries**: Prologot automatically ignores trailing periods from query strings, facts, and functors. This makes the API more forgiving.
-- **Variable extraction**: `query_all` returns an array of dictionaries, which is a convenient way to maps variable names to their values. There are two query syntaxes with different return formats:
-  - Legacy format `query_all("parent(X, Y)")` returns compound terms: `[{"functor": "parent", "args": ["tom", "bob"]}, ...]`.
-  - Extraction format `query_all("parent", ["X", "Y"])` returns variable bindings: `[{"X": "tom", "Y": "bob"}, ...]`.
-- **Why two syntaxes?** The legacy format (`query_all("parent(X, Y)")`) passes the entire query as a string, so Prologot cannot know which variables you want to extract. It would require parsing the string to identify variable names, which is complex, fragile, and error-prone (handling nested parentheses, spaces, complex terms, etc.). The new format (`query_all("parent", ["X", "Y"])`) explicitly provides the variable names, making extraction straightforward and reliable. This design choice prioritizes correctness and maintainability over convenience.
+- **Two query APIs**: use different names on purpose.
+  - High-level `solve_all("parent", ["X", "Y"])` builds a Prolog term from Godot values and returns variable bindings: `[{"X": "tom", "Y": "bob"}, ...]`.
+  - Low-level `query_text_all("parent(X, Y)")` parses a Prolog source string and returns compound terms: `[{"functor": "parent", "args": ["tom", "bob"]}, ...]`.
+- **Why two names?** `solve()` never parses Prolog text: a source string such as `"parent(tom, X)"` is rejected. `query_text()` is the escape hatch for conjunctions, operators, and the editor console. Keeping the names distinct makes the architecture obvious.
 - **Knowledge base accumulation**: Multiple calls to `consult_file()` and `consult_string()` accumulate clauses. Use `retract_all()` to remove specific predicates if needed.

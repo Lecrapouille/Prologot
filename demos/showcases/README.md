@@ -67,8 +67,8 @@ Each `.pl` file contains standalone Prolog code that can be loaded and executed 
 
 Simple parent-child relationships demonstrating:
 
-- `prolog.query()` - Simple yes/no queries
-- `prolog.query_all()` - Get all solutions
+- `prolog.query_text()` - Simple yes/no queries from Prolog source
+- `prolog.query_text_all()` - Get all solutions from Prolog source
 
 ### 2. Facts and Rules
 

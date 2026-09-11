@@ -17,15 +17,16 @@ prolog.initialize({"home": "linux/swipl"})
 prolog.consult_file("path/to/file.pl")    # Load from file
 prolog.consult_string("fact(data).")      # Load from string
 
-# Queries (recommended syntax)
-prolog.query("parent", ["tom", "bob"])    # Returns bool
-prolog.query_one("parent", ["X", "Y"])    # Returns first solution
-prolog.query_all("parent", ["X", "Y"])    # Returns all solutions [{"X": value1, "Y": value2}, ...]
+# High-level API: structured terms (no Prolog source parsing)
+prolog.solve("parent", ["tom", "child"])           # Returns bool
+prolog.solve_one("parent", ["tom", "X"])           # Returns {"X": "bob"}
+prolog.solve_all("parent", ["X", "Y"])             # Returns [{"X": "tom", "Y": "bob"}, ...]
+prolog.solve({"functor": "parent", "args": ["tom", "child"]})
 
-# Queries (legacy syntax)
-prolog.query("parent(tom, bob)")          # Returns bool
-prolog.query_one("parent(X, Y)")          # Returns first solution
-prolog.query_all("parent(X, Y)")          # Returns all solutions [{"functor": "name", "args": [value1 value2]}, ...]
+# Low-level API: Prolog source text
+prolog.query_text("parent(tom, X)")                # Returns bool
+prolog.query_text_one("parent(tom, X)")            # Returns {"functor": "parent", "args": ["tom", "bob"]}
+prolog.query_text_all("parent(X, Y)")              # Returns [{"functor": "parent", "args": [...]}, ...]
 
 # Dynamic facts
 prolog.add_fact("new_fact(value)")        # Add fact
@@ -274,6 +275,15 @@ prolog.consult_file("res://rules/game_rules.pl")
 
 ### Query Execution
 
+Prologot exposes two distinct APIs on purpose:
+
+| Layer | Methods | Input | Typical use |
+|-------|---------|-------|-------------|
+| High-level | `solve` / `solve_one` / `solve_all` | Functor + Godot values, or a compound Dictionary | Game code |
+| Low-level | `query_text` / `query_text_one` / `query_text_all` | Prolog source string | Conjunctions, operators, editor console |
+
+`solve()` builds a SWI-Prolog term from Variants. It does **not** parse Prolog text: passing `"parent(tom, X)"` to `solve()` is an error — use `query_text()` instead.
+
 ⚠️ **Important: Prolog Variable Naming**
 
 In Prolog, variable names must start with an uppercase letter or underscore (`_`). Lowercase names are atoms (constants), not variables. **This is crucial when naming characters or entities in your game!**
@@ -289,121 +299,113 @@ prolog.add_fact("parent(tom, bob)")      # tom is parent of bob
 prolog.add_fact("parent(bob, alice)")    # bob is parent of alice
 prolog.add_fact("parent(tom, charlie)")  # tom is parent of charlie
 
-# Correct: Use uppercase for variables in queries
-prolog.query_all("parent", ["X", "Y"])
+# High-level: uppercase strings are variables
+prolog.solve_all("parent", ["X", "Y"])
 # Returns: [{"X": "tom", "Y": "bob"}, {"X": "bob", "Y": "alice"}, {"X": "tom", "Y": "charlie"}]
-# X and Y are variables that will be bound to values
 
-# You can mix atoms and variables in queries:
-prolog.query_all("parent", ["tom", "Y"])
+prolog.solve_all("parent", ["tom", "Y"])
 # Returns: [{"Y": "bob"}, {"Y": "charlie"}]
-# Finds all children (Y) of tom
 
-prolog.query_all("parent", ["X", "bob"])
-# Returns: [{"X": "tom"}]
-# Finds the parent (X) of bob
+# Wrong: lowercase arguments are atoms, not variables
+prolog.solve_all("parent", ["x", "y"])
+# Searches for the fact parent(x, y), which does not exist
 
-# Wrong: Using lowercase in query arguments treats them as atoms, not variables
-prolog.query_all("parent", ["x", "y"])
-# This searches for a fact "parent(x, y)" which doesn't exist!
-# x and y are treated as constant values (atoms), not variables
-
-# To check if a specific fact exists, use lowercase atoms:
-prolog.query("parent(tom, bob)")  # Returns true
-prolog.query("parent(tom, alice)")  # Returns false (tom is not directly parent of alice)
+# Ground check with solve() or with Prolog source via query_text()
+prolog.solve("parent", ["tom", "bob"])     # true
+prolog.query_text("parent(tom, alice)")    # false
 ```
 
-#### `query(predicate: String, args: Array = []) -> bool`
+#### `solve(goal: Variant, args: Array = []) -> bool`
 
-Executes a Prolog query and checks if it succeeds.
+Solves a structured Prolog goal and returns whether it succeeds.
 
-This method executes a query and returns `true` if at least one solution exists. It does not collect or return the solutions themselves.
-
-**Note:** including a trailing period (`.`) in the query string. If a period is present, it will be ignored. For example, `"parent(tom, bob)."` will be treated as `"parent(tom, bob)"`.
+The goal is constructed as a Prolog term (no source parsing). Strings that start with an uppercase letter or `_` become variables. Repeated names share the same variable; `_` is always fresh.
 
 **Parameters:**
 
-- `predicate` (String): The Prolog predicate name (e.g., "parent") or full goal (e.g., "member(X, [1,2,3])").
-- `args` (Array, optional): Optional array of variable names (e.g., ["X", "Y"]) or values. If empty, `predicate` is treated as a full goal.
+- `goal` (String or Dictionary): Functor name (e.g., `"parent"`), or a compound term `{"functor": "parent", "args": [...]}`.
+- `args` (Array, optional): Arguments when `goal` is a functor name. Ignored for a Dictionary goal.
 
-**Returns:** `true` if the query succeeds (has at least one solution), `false` otherwise.
+**Returns:** `true` if at least one solution exists, `false` otherwise.
 
 **Example:**
 
 ```gdscript
-# Check if a fact exists (legacy format)
-prolog.query("parent(tom, bob)")  # Returns true
-# Note: "parent(tom, bob)." also works (period is removed automatically)
-
-# Check if a predicate has solutions (new format)
-prolog.query("parent", ["tom", "X"])  # Returns true if tom has children
+prolog.solve("parent", ["tom", "child"])
+prolog.solve({"functor": "parent", "args": ["tom", "child"]})
 ```
 
-#### `query_all(predicate: String, args: Array = []) -> Array`
+#### `solve_all(goal: Variant, args: Array = []) -> Array`
 
-Executes a Prolog query and returns all solutions.
-
-This method uses Prolog's findall/3 to collect all solutions.
-
-**Note:** Do not include a trailing period ('.') in the query string. If a period is present, it will be automatically removed.
+Solves a structured Prolog goal and returns all solutions.
 
 **Return format:**
 
-- If `args` contains variable names (e.g., `["X", "Y"]`): Array of Dictionary entries mapping variable names to their values (e.g., `[{"X": value1, "Y": value2}, ...]`).
-- Otherwise: Array of Variants representing solutions, where each solution may be:
-  - a String (for atoms),
-  - a Dictionary (for compound terms, e.g., `{"functor": "name", "args": [...]}`),
-  - or an Array (for Prolog lists).
-- Anonymous variables ("_") appear as `null` in the results.
-
-**Parameters:**
-
-- `predicate` (String): The Prolog predicate name (e.g., "parent") or full goal.
-- `args` (Array, optional): Optional array of variable names (e.g., ["X", "Y"]) or values. If empty, `predicate` is treated as a full goal.
-
-**Returns:** Array of solutions. Empty array if no solutions.
+- If the goal has named variables: Array of Dictionaries mapping those names to values (e.g., `[{"X": "bob"}, ...]`). Anonymous `_` is omitted.
+- Otherwise: Array of Variants for each matching term (atom, list, or `{"functor": name, "args": [...]}`).
 
 **Example:**
 
 ```gdscript
-# Get all solutions (legacy format)
-var results = prolog.query_all("parent(X, Y)")
-# Returns: [{"functor": "parent", "args": ["tom", "bob"]}, ...]
-
-# Get all solutions with variable extraction (new format)
-var results = prolog.query_all("parent", ["X", "Y"])
+var results = prolog.solve_all("parent", ["X", "Y"])
 # Returns: [{"X": "tom", "Y": "bob"}, {"X": "tom", "Y": "liz"}, ...]
 
-# Query with values
-var children = prolog.query_all("parent", ["tom", "X"])
+var children = prolog.solve_all("parent", ["tom", "X"])
 # Returns: [{"X": "bob"}, {"X": "liz"}]
 ```
 
-#### `query_one(predicate: String, args: Array = []) -> Variant`
+#### `solve_one(goal: Variant, args: Array = []) -> Variant`
 
-Executes a Prolog query and returns the first solution.
-
-This method executes a query and returns only the first solution found. Returns a null Variant if no solution is found.
-
-**Note:** Do not include a trailing period ('.') in the query string. If a period is present, it will be automatically removed.
-
-**Parameters:**
-
-- `predicate` (String): The Prolog predicate name (e.g., "parent") or full goal.
-- `args` (Array, optional): Optional array of variable names (e.g., ["X", "Y"]) or values. If empty, `predicate` is treated as a full goal.
-
-**Returns:** The solution as Variant (or Dictionary if variables specified), or null Variant if no solution.
+Solves a structured Prolog goal and returns the first solution, or `null` if none.
 
 **Example:**
 
 ```gdscript
-# Get first solution (legacy format)
-var result = prolog.query_one("parent(tom, X)")
-# Returns: {"functor": "parent", "args": ["tom", "bob"]}
+var result = prolog.solve_one("parent", ["tom", "X"])
+# Returns: {"X": "bob"} or null
+```
 
-# Get first solution with variable extraction (new format)
-var result = prolog.query_one("parent", ["tom", "X"])
-# Returns: {"X": "bob"} or null if no solution
+#### `query_text(goal: String) -> bool`
+
+Parses a Prolog source string and returns whether it succeeds.
+
+This is the low-level API. Use it for conjunctions, operators, or any goal already written as Prolog text. A trailing period (`.`) is ignored if present.
+
+**Parameters:**
+
+- `goal` (String): Prolog goal source (e.g., `"parent(tom, X)"`).
+
+**Returns:** `true` if at least one solution exists, `false` otherwise.
+
+**Example:**
+
+```gdscript
+prolog.query_text("parent(tom, bob)")
+prolog.query_text("parent(tom, X), parent(X, Y)")
+```
+
+#### `query_text_all(goal: String) -> Array`
+
+Parses a Prolog source string and returns all solutions as converted Prolog terms.
+
+Variable names in the source are not extracted. Each solution is an atom, a list, or a compound Dictionary `{"functor": name, "args": [...]}`. Use `solve_all()` when you need named bindings.
+
+**Example:**
+
+```gdscript
+var results = prolog.query_text_all("parent(X, Y)")
+# Returns: [{"functor": "parent", "args": ["tom", "bob"]}, ...]
+```
+
+#### `query_text_one(goal: String) -> Variant`
+
+Parses a Prolog source string and returns the first solution, or `null` if none.
+
+**Example:**
+
+```gdscript
+var result = prolog.query_text_one("parent(tom, X)")
+# Returns: {"functor": "parent", "args": ["tom", "bob"]}
 ```
 
 ---
@@ -565,7 +567,7 @@ prolog.predicate_exists("member", 2)  # Returns true (built-in)
 
 Lists all currently defined predicates.
 
-This method uses Prolog's current_predicate/1 to query for all predicates currently in the knowledge base. Returns an Array of results from `query_all()`.
+This method uses Prolog's current_predicate/1 to query for all predicates currently in the knowledge base. Returns an Array of results from `query_text_all()`.
 
 **Returns:** Array of Dictionary objects describing each predicate.
 

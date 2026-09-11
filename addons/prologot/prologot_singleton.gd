@@ -65,36 +65,70 @@ func _exit_tree() -> void:
 	engine = null
 
 ###############################################################################
-## Execute a Prolog query and return true if it succeeds.
+## High-level solve: build a structured goal from a functor and arguments.
 ##
-## This is a simple boolean query - useful for checking if a fact is true
-## or if a goal can be satisfied. For queries with variables, use query_all()
-## or query_one() instead.
+## Strings starting with an uppercase letter or '_' are Prolog variables.
+## Prefer this over query_text() from game code.
 ##
-## @param goal: The Prolog query as a string (e.g., "parent(tom, bob)")
-## @return: true if the query succeeds, false otherwise
+## @param goal: Functor name (String) or compound Dictionary
+## @param args: Arguments when goal is a functor name
+## @return: true if the goal succeeds, false otherwise
 ###############################################################################
-func query(goal: String) -> bool:
+func solve(goal, args: Array = []) -> bool:
 	if not engine:
 		push_error("Prologot: Engine not initialized")
 		return false
-	return engine.query(goal)
+	return engine.solve(goal, args)
 
 ###############################################################################
-## Execute a Prolog query and return all solutions as Array of Variants.
-##
-## This method collects all possible solutions to a query with variables.
-## Each solution is returned as a Variant (which may be a Dictionary for compound
-## terms, an Array for lists, or a basic type for atoms/numbers).
-##
-## @param goal: The Prolog query as a string (e.g., "parent(tom, X)")
-## @return: An array of all solutions found, or an empty array if none
+## High-level solve: return all variable bindings.
 ###############################################################################
-func query_all(goal: String) -> Array:
+func solve_all(goal, args: Array = []) -> Array:
 	if not engine:
 		push_error("Prologot: Engine not initialized")
 		return []
-	return engine.query_all(goal)
+	return engine.solve_all(goal, args)
+
+###############################################################################
+## High-level solve: return the first solution (null if none).
+###############################################################################
+func solve_one(goal, args: Array = []) -> Variant:
+	if not engine:
+		push_error("Prologot: Engine not initialized")
+		return null
+	return engine.solve_one(goal, args)
+
+###############################################################################
+## Low-level query: parse and execute a Prolog source string.
+##
+## Use this for conjunctions, operators, or goals already written as text.
+##
+## @param goal: The Prolog query as a string (e.g., "parent(tom, X)")
+## @return: true if the query succeeds, false otherwise
+###############################################################################
+func query_text(goal: String) -> bool:
+	if not engine:
+		push_error("Prologot: Engine not initialized")
+		return false
+	return engine.query_text(goal)
+
+###############################################################################
+## Low-level query: return all solutions as converted Prolog terms.
+###############################################################################
+func query_text_all(goal: String) -> Array:
+	if not engine:
+		push_error("Prologot: Engine not initialized")
+		return []
+	return engine.query_text_all(goal)
+
+###############################################################################
+## Low-level query: return the first solution (null if none).
+###############################################################################
+func query_text_one(goal: String) -> Variant:
+	if not engine:
+		push_error("Prologot: Engine not initialized")
+		return null
+	return engine.query_text_one(goal)
 
 ###############################################################################
 ## Get the last error message from Prolog.
@@ -108,22 +142,6 @@ func get_last_error() -> String:
 	if not engine:
 		return "Engine not initialized"
 	return engine.get_last_error()
-
-###############################################################################
-## Execute a Prolog query and return the first solution (null if none).
-##
-## This is a convenience method that returns only the first solution to a query.
-## More efficient than query_all() if you only need one result. Useful when you
-## know there should be exactly one solution or you only care about the first one.
-##
-## @param goal: The Prolog query as a string (e.g., "game_state(level, X)")
-## @return: The first solution as a Variant, or null if no solution exists
-###############################################################################
-func query_one(goal: String) -> Variant:
-	if not engine:
-		push_error("Prologot: Engine not initialized")
-		return null
-	return engine.query_one(goal)
 
 ###############################################################################
 ## Load a Prolog file from the given path (supports res:// paths).

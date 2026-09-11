@@ -16,6 +16,9 @@
 #include <godot_cpp/variant/dictionary.hpp>
 #include <godot_cpp/variant/string.hpp>
 #include <godot_cpp/variant/variant.hpp>
+#include <map>
+#include <string>
+#include <vector>
 
 using namespace godot;
 
@@ -192,102 +195,108 @@ public:
     bool consult_string(String const& p_prolog_code);
 
     // =========================================================================
-    // Query Execution
+    // High-level solving (structured terms, no Prolog source parsing)
     // =========================================================================
 
     /**
-     * @brief Executes a Prolog query and checks if it succeeds.
+     * @brief Solves a structured Prolog goal and returns whether it succeeds.
      *
-     * This method executes a query and returns true if at least one solution
-     * exists. It does not collect or return the solutions themselves.
+     * This is the high-level API: the goal is built from Godot values and
+     * sent to SWI-Prolog as a term. It does not parse Prolog source text.
+     * Strings that start with an uppercase letter or '_' are variables.
      *
-     * Note: Do not include a trailing period ('.') in the query string. If a
-     * period is present, it will be automatically removed. For example,
-     * "parent(tom, bob)." will be treated as "parent(tom, bob)".
-     *
-     * @param p_predicate The Prolog predicate name (e.g., "parent") or full
-     * goal (e.g., "member(X, [1,2,3])").
-     * @param p_args Optional array of variable names (e.g., ["X", "Y"]) or
-     * values. If empty, p_predicate is treated as a full goal.
-     * @return true if the query succeeds (has at least one solution), false
-     * otherwise.
+     * @param p_goal Functor name (String), or a compound term Dictionary
+     * {"functor": name, "args": [...]}.
+     * @param p_args Arguments when p_goal is a functor name. Ignored when
+     * p_goal is a Dictionary.
+     * @return true if at least one solution exists, false otherwise.
      *
      * @example
-     * # Check if a fact exists (legacy format)
-     * prolog.query("parent(tom, bob)")  # Returns true
-     * # Note: "parent(tom, bob)." also works (period is removed automatically)
-     *
-     * # Check if a predicate has solutions (new format)
-     * prolog.query("parent", ["tom", "X"])  # Returns true if tom has children
+     * prolog.solve("parent", ["tom", "child"])
+     * prolog.solve({"functor": "parent", "args": ["tom", "child"]})
      */
-    bool query(String const& p_predicate, Array const& p_args = Array());
+    bool solve(Variant const& p_goal, Array const& p_args = Array());
 
     /**
-     * @brief Executes a Prolog query and returns all solutions.
+     * @brief Solves a structured Prolog goal and returns all solutions.
      *
-     * This method uses Prolog's findall/3 to collect all solutions.
+     * Variable arguments (uppercase or '_') are collected into Dictionaries
+     * mapping variable names to bound values. Anonymous "_" is omitted.
+     * If the goal has no named variables, each solution is the whole term.
      *
-     * Note: Do not include a trailing period ('.') in the query string. If a
-     * period is present, it will be automatically removed.
-     *
-     * Return format:
-     * - If p_args contains variable names: Array of Dictionary entries
-     *   (e.g., {"X": value1, "Y": value2}).
-     * - Otherwise: Array of Variants representing solutions, where each
-     * solution may be:
-     *     - a String (for atoms),
-     *     - a Dictionary (for compound terms, e.g., {"functor": "name", "args":
-     * [...]}),
-     *     - or an Array (for Prolog lists).
-     * - Anonymous variables ("_") appear as null in the results.
-     *
-     * @param p_predicate The Prolog predicate name (e.g., "parent") or full
-     * goal.
-     * @param p_args Optional array of variable names (e.g., ["X", "Y"]) or
-     * values. If empty, p_predicate is treated as a full goal.
-     * @return Array of solutions. Empty array if no solutions.
+     * @param p_goal Functor name (String), or a compound term Dictionary.
+     * @param p_args Arguments when p_goal is a functor name.
+     * @return Array of solutions. Empty array if none.
      *
      * @example
-     * # Get all solutions (legacy format)
-     * var results = prolog.query_all("parent(X, Y)")
-     * # Returns: [{"functor": "parent", "args": ["tom", "bob"]}, ...]
-     *
-     * # Get all solutions with variable extraction (new format)
-     * var results = prolog.query_all("parent", ["X", "Y"])
-     * # Returns: [{"X": "tom", "Y": "bob"}, {"X": "tom", "Y": "liz"}, ...]
-     *
-     * # Query with values
-     * var children = prolog.query_all("parent", ["tom", "X"])
+     * prolog.solve_all("parent", ["tom", "X"])
      * # Returns: [{"X": "bob"}, {"X": "liz"}]
      */
-    Array query_all(String const& p_predicate, Array const& p_args = Array());
+    Array solve_all(Variant const& p_goal, Array const& p_args = Array());
 
     /**
-     * @brief Executes a Prolog query and returns the first solution.
+     * @brief Solves a structured Prolog goal and returns the first solution.
      *
-     * This method executes a query and returns only the first solution found.
-     * Returns a null Variant if no solution is found.
-     *
-     * Note: Do not include a trailing period ('.') in the query string. If a
-     * period is present, it will be automatically removed.
-     *
-     * @param p_predicate The Prolog predicate name (e.g., "parent") or full
-     * goal.
-     * @param p_args Optional array of variable names (e.g., ["X", "Y"]) or
-     * values. If empty, p_predicate is treated as a full goal.
-     * @return The solution as Variant (or Dictionary if variables specified),
-     * or null Variant if no solution.
+     * @param p_goal Functor name (String), or a compound term Dictionary.
+     * @param p_args Arguments when p_goal is a functor name.
+     * @return Bindings Dictionary if the goal has named variables, otherwise
+     * the whole term. Null Variant if no solution.
      *
      * @example
-     * # Get first solution (legacy format)
-     * var result = prolog.query_one("parent(tom, X)")
-     * # Returns: {"functor": "parent", "args": ["tom", "bob"]}
-     *
-     * # Get first solution with variable extraction (new format)
-     * var result = prolog.query_one("parent", ["tom", "X"])
-     * # Returns: {"X": "bob"} or null if no solution
+     * prolog.solve_one("parent", ["tom", "X"])
+     * # Returns: {"X": "bob"} or null
      */
-    Variant query_one(String const& p_predicate, Array const& p_args = Array());
+    Variant solve_one(Variant const& p_goal, Array const& p_args = Array());
+
+    // =========================================================================
+    // Low-level queries (Prolog source text)
+    // =========================================================================
+
+    /**
+     * @brief Executes a Prolog source goal and returns whether it succeeds.
+     *
+     * This is the low-level API: the string is parsed by SWI-Prolog
+     * (`PL_chars_to_term`). Use it for conjunctions, operators, or any
+     * goal that is already written as Prolog text.
+     *
+     * A trailing period ('.') is ignored if present.
+     *
+     * @param p_goal Prolog goal source (e.g., "parent(tom, X)").
+     * @return true if at least one solution exists, false otherwise.
+     *
+     * @example
+     * prolog.query_text("parent(tom, bob)")
+     * prolog.query_text("parent(tom, X), parent(X, Y)")
+     */
+    bool query_text(String const& p_goal);
+
+    /**
+     * @brief Executes a Prolog source goal and returns all solutions.
+     *
+     * Solutions are converted as Prolog terms (atoms, lists, or compound
+     * Dictionaries {"functor": name, "args": [...]}). Variable names in the
+     * source string are not extracted; use solve_all() for named bindings.
+     *
+     * @param p_goal Prolog goal source (e.g., "parent(tom, X)").
+     * @return Array of solutions. Empty array if none.
+     *
+     * @example
+     * prolog.query_text_all("parent(X, Y)")
+     * # Returns: [{"functor": "parent", "args": ["tom", "bob"]}, ...]
+     */
+    Array query_text_all(String const& p_goal);
+
+    /**
+     * @brief Executes a Prolog source goal and returns the first solution.
+     *
+     * @param p_goal Prolog goal source (e.g., "parent(tom, X)").
+     * @return The solution as a Variant, or null if none.
+     *
+     * @example
+     * prolog.query_text_one("parent(tom, X)")
+     * # Returns: {"functor": "parent", "args": ["tom", "bob"]}
+     */
+    Variant query_text_one(String const& p_goal);
 
     /**
      * @brief Gets the last error message from Prolog.
@@ -436,7 +445,7 @@ public:
      *
      * This method uses Prolog's current_predicate/1 to query for all predicates
      * currently in the knowledge base. Returns an Array of results from
-     * query_all().
+     * query_text_all().
      *
      * @return Array of Dictionary objects describing each predicate.
      *
@@ -521,28 +530,40 @@ private:
     term_t array_to_prolog_list(Array const& p_arr);
 
     /**
-     * @brief Helper to construct a Prolog query from predicate name and
-     * arguments.
+     * @brief Returns true if p_name is a Prolog variable name.
      *
-     * If p_args is empty, returns p_predicate as-is (assumed to be a full
-     * goal). Otherwise, constructs a query like "predicate(arg1, arg2, ...)".
-     *
-     * @param p_predicate The predicate name.
-     * @param p_args Array of variable names or values.
-     * @return The constructed query string.
+     * Variable names start with an uppercase letter or '_'.
      */
-    String build_query(String const& p_predicate, Array const& p_args);
+    static bool is_variable_name(String const& p_name);
 
     /**
-     * @brief Helper to extract variable bindings from a Prolog term.
+     * @brief Converts a solve() argument to a Prolog term.
      *
-     * Extracts the values of specified variables from a query result term.
-     *
-     * @param p_term The Prolog term containing the solution.
-     * @param p_variables Array of variable names to extract.
-     * @return Dictionary mapping variable names to their values.
+     * Uppercase / '_' strings become (shared) variables. Compound
+     * Dictionaries and Arrays are converted recursively so nested
+     * variables stay variables.
      */
-    Dictionary extract_variables(term_t p_term, Array const& p_variables);
+    term_t solve_arg_to_term(Variant const& p_arg,
+                             std::map<std::string, term_t>& p_named_vars,
+                             Array& p_var_names,
+                             std::vector<term_t>& p_var_terms);
+
+    /**
+     * @brief Builds a Prolog goal term from a structured solve() call.
+     *
+     * Rejects Prolog source strings (use query_text() instead).
+     */
+    bool build_solve_goal(Variant const& p_goal,
+                          Array const& p_args,
+                          term_t p_out_goal,
+                          Array& p_var_names,
+                          std::vector<term_t>& p_var_terms);
+
+    /**
+     * @brief Reads named variable terms into a Dictionary of bindings.
+     */
+    Dictionary bindings_from_vars(Array const& p_var_names,
+                                  std::vector<term_t> const& p_var_terms);
 
     /**
      * @brief Helper to push error messages respecting error handling options.

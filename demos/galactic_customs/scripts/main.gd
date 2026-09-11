@@ -67,7 +67,7 @@ var aliens_processed: int = 0
 #   threat_level(X, critical) :- has_tentacles(X), has_cargo(X, C), banned_substance(C).
 #   "X has critical threat if X has tentacles AND banned cargo"
 #
-# The game queries these predicates using query(), call_predicate(), etc.
+# The game queries these predicates using solve(), call_predicate(), etc.
 # =============================================================================
 
 # Alien database with all possible passengers
@@ -471,14 +471,14 @@ func add_alien_facts():
 		log_message("  Added: has_cargo(%s, %s)" % [alien_name, cargo_item])
 
 # =============================================================================
-# PROLOGOT TUTORIAL #6: QUERY - BOOLEAN QUERY
+# PROLOGOT TUTORIAL #6: SOLVE - STRUCTURED BOOLEAN GOAL
 # -----------------------------------------------------------------------------
-# query("predicate(name)") returns true or false if proven.
+# solve("predicate", [args]) builds a Prolog term from Godot values.
 # Used here to determine if the alien is dangerous.
 # =============================================================================
 func check_alien_status():
 	var alien_name = current_alien.name.to_lower()
-	var is_dangerous = prolog.query("dangerous(%s)" % alien_name)
+	var is_dangerous = prolog.solve("dangerous", [alien_name])
 
 	if is_dangerous:
 		set_alien_color(Color.RED)
@@ -504,22 +504,22 @@ func check_advanced_rules():
 	var alien_name = current_alien.name.to_lower()
 
 	# Check if suspect (from galactic_customs.pl)
-	if prolog.query("suspect(%s)" % alien_name):
+	if prolog.solve("suspect", [alien_name]):
 		log_message("  [WARNING] Alien is SUSPECT (banned cargo or outer planet without visa)")
 
 	# Check threat level (from galactic_customs.pl)
 	var threat_levels = ["critical", "high", "medium", "low"]
 	for level in threat_levels:
-		if prolog.query("threat_level(%s, %s)" % [alien_name, level]):
+		if prolog.solve("threat_level", [alien_name, level]):
 			log_message("  [THREAT] Threat level: %s" % level.to_upper())
 			break
 
 	# Check quarantine requirement (from galactic_customs.pl)
-	if prolog.query("requires_quarantine(%s)" % alien_name):
+	if prolog.solve("requires_quarantine", [alien_name]):
 		log_message("  [QUARANTINE] Quarantine required (Europa origin or gaseous species)")
 
 	# Check criminal record (from galactic_customs.pl)
-	if prolog.query("has_record(%s)" % alien_name):
+	if prolog.solve("has_record", [alien_name]):
 		log_message("  [CRIMINAL] Has criminal record!")
 
 # =============================================================================
@@ -547,21 +547,21 @@ func check_taxes():
 			log_message("  [TAX] Amount: %s credits" % str(tax))
 
 # =============================================================================
-# PROLOGOT TUTORIAL #8: QUERY_ALL - ALL SOLUTIONS
+# PROLOGOT TUTORIAL #8: SOLVE_ALL - ALL SOLUTIONS
 # -----------------------------------------------------------------------------
-# query_all("has_cargo(name, C)") returns all matching cargo items.
+# solve_all("has_cargo", [name, "C"]) returns all matching cargo items.
 # Each result is a dictionary of variable bindings.
 # Used here to count cargo items.
 # =============================================================================
 func list_cargo():
 	var alien_name = current_alien.name.to_lower()
-	var all_cargo = prolog.query_all("has_cargo(%s, C)" % alien_name)
+	var all_cargo = prolog.solve_all("has_cargo", [alien_name, "C"])
 	log_message("  [CARGO] Items detected: %d" % all_cargo.size())
 
 # =============================================================================
 # PROLOGOT TUTORIAL #9: CALL_PREDICATE - CHECK A PREDICATE
 # -----------------------------------------------------------------------------
-# call_predicate(name, [args]) is like query() but more flexible.
+# call_predicate(name, [args]) is like solve() for a ground goal.
 # Returns true/false depending on Prolog rules.
 # Used to verify if the alien is authorized. Result determines
 # whether the player's choice is correct.
@@ -573,7 +573,7 @@ func make_decision(is_approve: bool):
 
 	var alien_name = current_alien.name.to_lower()
 	var is_authorized = prolog.call_predicate("authorize", [alien_name])
-	var is_dangerous = prolog.query("dangerous(%s)" % alien_name)
+	var is_dangerous = prolog.solve("dangerous", [alien_name])
 
 	if is_approve:
 		handle_approval(is_authorized)

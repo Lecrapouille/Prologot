@@ -22,8 +22,8 @@ This game demonstrates key features of the Prologot API:
 5. ✅ `consult_string()` - Loads daily laws dynamically
 
 ### Queries
-6. ✅ `query()` - Checks if an alien is dangerous
-7. ✅ `query_all()` - Lists all cargo items of an alien
+6. ✅ `solve()` - Checks if an alien is dangerous
+7. ✅ `solve_all()` - Lists all cargo items of an alien
 
 ### Dynamic Facts
 8. ✅ `add_fact()` - Adds scanned alien characteristics
@@ -115,9 +115,9 @@ res://
 
 2. scan_alien()
    ├─> add_fact() - Adds visa, tentacles, cargo, etc.
-   ├─> query() - Checks danger level
+   ├─> solve() - Checks danger level
    ├─> call_function() - Calculates tax
-   └─> query_all() - Lists all cargo
+   └─> solve_all() - Lists all cargo
 
 3. make_decision(approve/arrest)
    └─> call_predicate("authorize", [name]) - Legal decision?
@@ -148,7 +148,7 @@ The game uses a two-tier rule system:
 
 To test each feature:
 
-1. **Scan** an alien → Tests `add_fact()`, `query()`, `query_all()`
+1. **Scan** an alien → Tests `add_fact()`, `solve()`, `solve_all()`
 2. **Approve/Arrest** → Tests `call_predicate()`
 3. **Observe console** → Shows all Prolog operations
 4. **Process 5 aliens** → Tests day advancement and `consult_string()`

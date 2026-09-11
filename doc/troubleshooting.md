@@ -74,10 +74,10 @@ In Prolog, **variable names must start with an uppercase letter or underscore**.
 
 ```gdscript
 # Wrong: x and y are atoms, not variables!
-prolog.query_all("parent", ["x", "y"])  # Will search for atoms named "x" and "y"
+prolog.solve_all("parent", ["x", "y"])  # Will search for atoms named "x" and "y"
 
 # Correct: X and Y are variables
-prolog.query_all("parent", ["X", "Y"])  # Will bind X and Y to actual values
+prolog.solve_all("parent", ["X", "Y"])  # Will bind X and Y to actual values
 ```
 
 **For character/entity names:** Use lowercase (atoms) when defining facts, but uppercase (variables) when querying:
@@ -88,7 +88,7 @@ prolog.add_fact("parent(tom, bob)")
 prolog.add_fact("parent(bob, ann)")
 
 # Query with uppercase (variables)
-var results = prolog.query_all("parent", ["X", "Y"])
+var results = prolog.solve_all("parent", ["X", "Y"])
 # Returns: [{"X": "tom", "Y": "bob"}, {"X": "bob", "Y": "ann"}]
 ```
 
@@ -110,7 +110,7 @@ var results = prolog.query_all("parent", ["X", "Y"])
        "table space": "128m",  # Limit table space
        "optimized": true       # Enable optimizations
 ```
-3. Consider using `query_one()` instead of `query_all()` if you only need the first solution.
+3. Consider using `solve_one()` instead of `solve_all()` if you only need the first solution.
 4. Use `retract_all()` to clean up unused facts.
 
 ---

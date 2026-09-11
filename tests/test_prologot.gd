@@ -60,6 +60,7 @@ func run_all_tests() -> void:
 	test_euclidean_distance()
 	test_tracking_with_distance()
 	test_error_handling()
+	test_solve_and_query_text()
 
 	# Demo examples tests
 	test_demo_01_basic_queries()
@@ -190,24 +191,24 @@ func test_basic_queries() -> void:
 	assert_true(load_result, "Load basic facts")
 
 	# Test simple query - true
-	assert_true(prolog.query("animal(dog)"), "Query animal(dog) succeeds")
+	assert_true(prolog.query_text("animal(dog)"), "Query animal(dog) succeeds")
 
 	# Test simple query - false
-	assert_false(prolog.query("animal(fish)"), "Query animal(fish) fails")
+	assert_false(prolog.query_text("animal(fish)"), "Query animal(fish) fails")
 
-	# Test query_all - returns Array of Variants
-	var animals := prolog.query_all("animal(X)")
-	assert_true(animals.size() >= 3, "query_all returns multiple results")
+	# Test query_text_all - returns Array of Variants
+	var animals := prolog.query_text_all("animal(X)")
+	assert_true(animals.size() >= 3, "query_text_all returns multiple results")
 	print("    Animals found: ", animals)
 
-	# Test query_one - returns Variant or null
-	var one_animal: Variant = prolog.query_one("animal(X)")
-	assert_true(one_animal != null, "query_one returns a result")
+	# Test query_text_one - returns Variant or null
+	var one_animal: Variant = prolog.query_text_one("animal(X)")
+	assert_true(one_animal != null, "query_text_one returns a result")
 	print("    First animal: ", one_animal)
 
-	# Test query_one with no solution
-	var no_result: Variant = prolog.query_one("animal(unicorn)")
-	assert_true(no_result == null, "query_one returns null when no solution")
+	# Test query_text_one with no solution
+	var no_result: Variant = prolog.query_text_one("animal(unicorn)")
+	assert_true(no_result == null, "query_text_one returns null when no solution")
 
 	teardown_prolog()
 
@@ -231,8 +232,8 @@ func test_fact_management() -> void:
 	assert_true(consult_result, "consult_string succeeds")
 
 	# Verify facts loaded
-	assert_true(prolog.query("likes(mary, food)"), "Fact likes(mary, food) exists")
-	assert_true(prolog.query("likes(mary, wine)"), "Fact likes(mary, wine) exists")
+	assert_true(prolog.query_text("likes(mary, food)"), "Fact likes(mary, food) exists")
+	assert_true(prolog.query_text("likes(mary, wine)"), "Fact likes(mary, wine) exists")
 
 	teardown_prolog()
 
@@ -260,13 +261,13 @@ func test_rules() -> void:
 	""")
 
 	# Test rule evaluation
-	assert_true(prolog.query("grandparent(tom, ann)"), "Grandparent rule works")
-	assert_true(prolog.query("grandparent(tom, pat)"), "Grandparent rule - second grandchild")
-	assert_false(prolog.query("grandparent(bob, ann)"), "Non-grandparent correctly fails")
+	assert_true(prolog.query_text("grandparent(tom, ann)"), "Grandparent rule works")
+	assert_true(prolog.query_text("grandparent(tom, pat)"), "Grandparent rule - second grandchild")
+	assert_false(prolog.query_text("grandparent(bob, ann)"), "Non-grandparent correctly fails")
 
 	# Test sibling rule
-	assert_true(prolog.query("sibling(bob, liz)"), "Sibling rule works")
-	assert_true(prolog.query("sibling(ann, pat)"), "Sibling rule - second pair")
+	assert_true(prolog.query_text("sibling(bob, liz)"), "Sibling rule works")
+	assert_true(prolog.query_text("sibling(ann, pat)"), "Sibling rule - second pair")
 
 	teardown_prolog()
 
@@ -287,24 +288,24 @@ func test_dynamic_assertions() -> void:
 	assert_true(assert_result, "assert_fact succeeds")
 
 	# Verify fact exists
-	assert_true(prolog.query("score(player1, 100)"), "Asserted fact exists")
+	assert_true(prolog.query_text("score(player1, 100)"), "Asserted fact exists")
 
 	# Test retract_fact
 	var retract_result := prolog.retract_fact("score(player1, 100)")
 	assert_true(retract_result, "retract_fact succeeds")
 
 	# Verify fact removed
-	assert_false(prolog.query("score(player1, 100)"), "Retracted fact no longer exists")
+	assert_false(prolog.query_text("score(player1, 100)"), "Retracted fact no longer exists")
 
 	# Test retract_all
 	prolog.add_fact("temp(a)")
 	prolog.add_fact("temp(b)")
 	prolog.add_fact("temp(c)")
 
-	assert_true(prolog.query("temp(_)"), "Multiple temp facts exist")
+	assert_true(prolog.query_text("temp(_)"), "Multiple temp facts exist")
 
 	prolog.retract_all("temp(_)")
-	assert_false(prolog.query("temp(_)"), "All temp facts removed")
+	assert_false(prolog.query_text("temp(_)"), "All temp facts removed")
 
 	teardown_prolog()
 
@@ -331,12 +332,12 @@ func test_complex_queries() -> void:
 	""")
 
 	# Test computed queries
-	assert_true(prolog.query("weak(goblin)"), "Goblin is weak")
-	assert_false(prolog.query("weak(dragon)"), "Dragon is not weak")
-	assert_true(prolog.query("strong(dragon)"), "Dragon is strong")
+	assert_true(prolog.query_text("weak(goblin)"), "Goblin is weak")
+	assert_false(prolog.query_text("weak(dragon)"), "Dragon is not weak")
+	assert_true(prolog.query_text("strong(dragon)"), "Dragon is strong")
 
-	# Test query_all with complex results
-	var weak_enemies := prolog.query_all("weak(X)")
+	# Test query_text_all with complex results
+	var weak_enemies := prolog.query_text_all("weak(X)")
 	assert_true(weak_enemies.size() >= 1, "At least one weak enemy found")
 
 	teardown_prolog()
@@ -355,35 +356,35 @@ func test_type_conversion() -> void:
 
 	# Test integer handling
 	prolog.add_fact("number_test(42)")
-	assert_true(prolog.query("number_test(42)"), "Integer fact works")
+	assert_true(prolog.query_text("number_test(42)"), "Integer fact works")
 
 	# Test negative integer handling
 	prolog.add_fact("negative_test(-15)")
-	assert_true(prolog.query("negative_test(-15)"), "Negative integer fact works")
+	assert_true(prolog.query_text("negative_test(-15)"), "Negative integer fact works")
 
 	# Test floating point handling
 	prolog.add_fact("float_test(3.14)")
-	assert_true(prolog.query("float_test(3.14)"), "Float fact works")
+	assert_true(prolog.query_text("float_test(3.14)"), "Float fact works")
 
 	# Test multiple numeric arguments
 	prolog.add_fact("coords(10, 20, 30)")
-	assert_true(prolog.query("coords(10, 20, 30)"), "Multiple numeric arguments work")
+	assert_true(prolog.query_text("coords(10, 20, 30)"), "Multiple numeric arguments work")
 
 	# Test mixed arguments (atoms and numbers)
 	prolog.add_fact("player_data(alice, 100, 25.5)")
-	assert_true(prolog.query("player_data(alice, 100, 25.5)"), "Mixed atom and numeric arguments work")
+	assert_true(prolog.query_text("player_data(alice, 100, 25.5)"), "Mixed atom and numeric arguments work")
 
 	# Test large numbers
 	prolog.add_fact("large_number(999999)")
-	assert_true(prolog.query("large_number(999999)"), "Large number fact works")
+	assert_true(prolog.query_text("large_number(999999)"), "Large number fact works")
 
 	# Test zero
 	prolog.add_fact("zero_test(0)")
-	assert_true(prolog.query("zero_test(0)"), "Zero value fact works")
+	assert_true(prolog.query_text("zero_test(0)"), "Zero value fact works")
 
 	# Test string/atom handling
 	prolog.add_fact("name_test(hello)")
-	assert_true(prolog.query("name_test(hello)"), "Atom fact works")
+	assert_true(prolog.query_text("name_test(hello)"), "Atom fact works")
 
 	# Test call_predicate with arguments
 	prolog.consult_string("""
@@ -429,7 +430,7 @@ func test_euclidean_distance() -> void:
 	""")
 
 	# Test 1: Calculate distance zone_1 to zone_2 (3-4-5 triangle, result = 5)
-	var result1: Variant = prolog.query_one("distance(zone_1, zone_2, D)")
+	var result1: Variant = prolog.query_text_one("distance(zone_1, zone_2, D)")
 	assert_true(result1 != null, "Distance query returns a result")
 	print("    Distance zone_1 to zone_2: ", result1)
 
@@ -440,26 +441,26 @@ func test_euclidean_distance() -> void:
 
 	# Test 3: Direct query with exact value won't work due to float precision
 	# This should fail because calculated sqrt(25) may not exactly equal 5
-	var exact_match := prolog.query("distance(zone_1, zone_2, 5)")
+	var exact_match := prolog.query_text("distance(zone_1, zone_2, 5)")
 	print("    Exact match (distance = 5): ", exact_match, " (may be false due to float precision)")
 
 	# Test 4: Query with tolerance using Prolog comparison
-	var tolerance_check := prolog.query("distance(zone_1, zone_2, D), D >= 4.99, D =< 5.01")
+	var tolerance_check := prolog.query_text("distance(zone_1, zone_2, D), D >= 4.99, D =< 5.01")
 	assert_true(tolerance_check, "Distance within tolerance range [4.99, 5.01]")
 
 	# Test 5: Distance from origin to point_a (should be 10)
-	var result2: Variant = prolog.query_one("distance(origin, point_a, D)")
+	var result2: Variant = prolog.query_text_one("distance(origin, point_a, D)")
 	assert_true(result2 != null, "Distance origin to point_a calculated")
 	print("    Distance origin to point_a: ", result2)
 
 	# Test 6: Distance from point to itself (should be 0)
-	var result3: Variant = prolog.query_one("distance(zone_1, zone_1, D)")
+	var result3: Variant = prolog.query_text_one("distance(zone_1, zone_1, D)")
 	if result3 is Dictionary and result3.has("D"):
 		var dist_to_self = result3["D"]
 		assert_true(abs(dist_to_self) < 0.001, "Distance from point to itself is 0")
 
 	# Test 7: 3D distance test
-	var result4: Variant = prolog.query_one("distance(zone_1, zone_3, D)")
+	var result4: Variant = prolog.query_text_one("distance(zone_1, zone_3, D)")
 	assert_true(result4 != null, "3D distance calculated")
 	print("    Distance zone_1 to zone_3 (3D): ", result4)
 
@@ -493,7 +494,7 @@ func test_tracking_with_distance() -> void:
 	assert_true(prolog.add_fact("distance(zone_1, zone_2, 3)"), "Add fact: distance(zone_1, zone_2, 3)")
 
 	# Test 1: can_track should succeed (distance 3 < 5)
-	var can_track_result := prolog.query("can_track(alien_1, guard_1)")
+	var can_track_result := prolog.query_text("can_track(alien_1, guard_1)")
 	assert_true(can_track_result, "can_track(alien_1, guard_1) succeeds (distance 3 < 5)")
 
 	# Test 2: Add a target too far away
@@ -501,7 +502,7 @@ func test_tracking_with_distance() -> void:
 	assert_true(prolog.add_fact("distance(zone_1, zone_3, 10)"), "Add fact: distance(zone_1, zone_3, 10)")
 
 	# Test 3: can_track should fail (distance 10 >= 5)
-	var cannot_track_result := prolog.query("can_track(alien_1, guard_2)")
+	var cannot_track_result := prolog.query_text("can_track(alien_1, guard_2)")
 	assert_false(cannot_track_result, "can_track(alien_1, guard_2) fails (distance 10 >= 5)")
 
 	# Test 4: Add another alien and guard at same location (distance 0 < 5)
@@ -509,19 +510,19 @@ func test_tracking_with_distance() -> void:
 	assert_true(prolog.add_fact("at(guard_3, zone_1)"), "Add fact: at(guard_3, zone_1)")
 	assert_true(prolog.add_fact("distance(zone_1, zone_1, 0)"), "Add fact: distance(zone_1, zone_1, 0)")
 
-	var same_location_result := prolog.query("can_track(alien_2, guard_3)")
+	var same_location_result := prolog.query_text("can_track(alien_2, guard_3)")
 	assert_true(same_location_result, "can_track(alien_2, guard_3) succeeds (same location, distance 0 < 5)")
 
 	# Test 5: Edge case - distance exactly 5 should fail (< 5, not <= 5)
 	assert_true(prolog.add_fact("at(guard_4, zone_4)"), "Add fact: at(guard_4, zone_4)")
 	assert_true(prolog.add_fact("distance(zone_1, zone_4, 5)"), "Add fact: distance(zone_1, zone_4, 5)")
 
-	var exact_boundary_result := prolog.query("can_track(alien_1, guard_4)")
+	var exact_boundary_result := prolog.query_text("can_track(alien_1, guard_4)")
 	assert_false(exact_boundary_result, "can_track(alien_1, guard_4) fails (distance 5 is not < 5)")
 
 	# Test 6: Verify facts exist
-	assert_true(prolog.query("at(alien_1, zone_1)"), "Fact at(alien_1, zone_1) exists")
-	assert_true(prolog.query("distance(zone_1, zone_2, 3)"), "Fact distance(zone_1, zone_2, 3) exists")
+	assert_true(prolog.query_text("at(alien_1, zone_1)"), "Fact at(alien_1, zone_1) exists")
+	assert_true(prolog.query_text("distance(zone_1, zone_2, 3)"), "Fact distance(zone_1, zone_2, 3) exists")
 
 	teardown_prolog()
 
@@ -538,11 +539,11 @@ func test_error_handling() -> void:
 		return
 
 	# Test query with syntax error (should not crash)
-	var bad_query := prolog.query("this is not valid prolog")
+	var bad_query := prolog.query_text("this is not valid prolog")
 	assert_false(bad_query, "Invalid query returns false")
 
 	# Test empty query
-	var empty_query := prolog.query("")
+	var empty_query := prolog.query_text("")
 	assert_false(empty_query, "Empty query returns false")
 
 	# Test retract non-existent fact
@@ -554,6 +555,60 @@ func test_error_handling() -> void:
 	assert_false(bad_code, "Invalid code returns false")
 	assert_true(prolog.get_last_error().length() > 0, "get_last_error returns error message")
 	print("    Last error: ", prolog.get_last_error())
+
+	teardown_prolog()
+
+
+# =============================================================================
+# Test: solve() (structured) vs query_text() (Prolog source)
+# =============================================================================
+
+func test_solve_and_query_text() -> void:
+	print("\n[Test Suite: solve / query_text API]")
+
+	if not setup_prolog():
+		print("  ✗ SKIP: Could not initialize Prolog")
+		return
+
+	assert_true(prolog.consult_string("""
+		parent(tom, bob).
+		parent(tom, liz).
+		parent(bob, ann).
+	"""), "Load family facts")
+
+	# High-level structured API
+	assert_true(prolog.solve("parent", ["tom", "bob"]), "solve parent(tom, bob) succeeds")
+	assert_false(prolog.solve("parent", ["bob", "tom"]), "solve parent(bob, tom) fails")
+
+	var children := prolog.solve_all("parent", ["tom", "X"])
+	assert_equal(children.size(), 2, "solve_all returns both children of tom")
+	assert_true(children[0]["X"] == "bob" or children[1]["X"] == "bob", "solve_all binds X to bob")
+	assert_true(children[0]["X"] == "liz" or children[1]["X"] == "liz", "solve_all binds X to liz")
+
+	var first_child: Variant = prolog.solve_one("parent", ["tom", "X"])
+	assert_true(first_child != null and first_child.has("X"), "solve_one returns {X: ...}")
+
+	# Compound Dictionary form: solve(parent(tom, child))
+	assert_true(
+		prolog.solve({"functor": "parent", "args": ["tom", "bob"]}),
+		"solve compound Dictionary succeeds"
+	)
+
+	var dict_children := prolog.solve_all({"functor": "parent", "args": ["tom", "X"]})
+	assert_equal(dict_children.size(), 2, "solve_all from Dictionary extracts X")
+
+	# Low-level Prolog source API
+	assert_true(prolog.query_text("parent(tom, bob)"), "query_text parent(tom, bob) succeeds")
+	assert_true(prolog.query_text("parent(tom, X), parent(X, Y)"), "query_text accepts conjunctions")
+
+	var text_results := prolog.query_text_all("parent(tom, X)")
+	assert_equal(text_results.size(), 2, "query_text_all returns compound terms")
+	assert_true(text_results[0] is Dictionary, "query_text_all item is a compound Dictionary")
+	assert_equal(text_results[0]["functor"], "parent", "query_text_all keeps functor name")
+
+	# solve() must reject Prolog source strings
+	assert_false(prolog.solve("parent(tom, bob)"), "solve rejects a Prolog source string")
+	assert_true(prolog.get_last_error().length() > 0, "solve source-string error is reported")
 
 	teardown_prolog()
 
@@ -586,23 +641,23 @@ func test_demo_01_basic_queries() -> void:
 	assert_true(consult_result, "Load 01_basic_queries.pl")
 
 	# Test parent facts
-	assert_true(prolog.query("parent(tom, bob)"), "parent(tom, bob) exists")
-	assert_true(prolog.query("parent(tom, liz)"), "parent(tom, liz) exists")
-	assert_true(prolog.query("parent(bob, ann)"), "parent(bob, ann) exists")
-	assert_true(prolog.query("parent(bob, pat)"), "parent(bob, pat) exists")
-	assert_true(prolog.query("parent(pat, jim)"), "parent(pat, jim) exists")
+	assert_true(prolog.query_text("parent(tom, bob)"), "parent(tom, bob) exists")
+	assert_true(prolog.query_text("parent(tom, liz)"), "parent(tom, liz) exists")
+	assert_true(prolog.query_text("parent(bob, ann)"), "parent(bob, ann) exists")
+	assert_true(prolog.query_text("parent(bob, pat)"), "parent(bob, pat) exists")
+	assert_true(prolog.query_text("parent(pat, jim)"), "parent(pat, jim) exists")
 
 	# Test non-existing relationships
-	assert_false(prolog.query("parent(bob, tom)"), "parent(bob, tom) should not exist")
-	assert_false(prolog.query("parent(jim, pat)"), "parent(jim, pat) should not exist")
+	assert_false(prolog.query_text("parent(bob, tom)"), "parent(bob, tom) should not exist")
+	assert_false(prolog.query_text("parent(jim, pat)"), "parent(jim, pat) should not exist")
 
 	# Query all children of tom
-	var tom_children := prolog.query_all("parent(tom, X)")
+	var tom_children := prolog.query_text_all("parent(tom, X)")
 	assert_equal(tom_children.size(), 2, "Tom has 2 children")
 	print("    Tom's children: ", tom_children)
 
 	# Query all children of bob
-	var bob_children := prolog.query_all("parent(bob, X)")
+	var bob_children := prolog.query_text_all("parent(bob, X)")
 	assert_equal(bob_children.size(), 2, "Bob has 2 children")
 
 	teardown_prolog()
@@ -625,24 +680,24 @@ func test_demo_02_facts_and_rules() -> void:
 	assert_true(consult_result, "Load 02_facts_and_rules.pl")
 
 	# Test grandparent rule
-	assert_true(prolog.query("grandparent(tom, ann)"), "Tom is grandparent of Ann")
-	assert_true(prolog.query("grandparent(tom, pat)"), "Tom is grandparent of Pat")
-	assert_true(prolog.query("grandparent(bob, jim)"), "Bob is grandparent of Jim")
-	assert_false(prolog.query("grandparent(tom, bob)"), "Tom is NOT grandparent of Bob")
+	assert_true(prolog.query_text("grandparent(tom, ann)"), "Tom is grandparent of Ann")
+	assert_true(prolog.query_text("grandparent(tom, pat)"), "Tom is grandparent of Pat")
+	assert_true(prolog.query_text("grandparent(bob, jim)"), "Bob is grandparent of Jim")
+	assert_false(prolog.query_text("grandparent(tom, bob)"), "Tom is NOT grandparent of Bob")
 
 	# Test sibling rule
-	assert_true(prolog.query("sibling(bob, liz)"), "Bob and Liz are siblings")
-	assert_true(prolog.query("sibling(ann, pat)"), "Ann and Pat are siblings")
-	assert_false(prolog.query("sibling(bob, bob)"), "Bob is not sibling of himself")
+	assert_true(prolog.query_text("sibling(bob, liz)"), "Bob and Liz are siblings")
+	assert_true(prolog.query_text("sibling(ann, pat)"), "Ann and Pat are siblings")
+	assert_false(prolog.query_text("sibling(bob, bob)"), "Bob is not sibling of himself")
 
 	# Test ancestor rule (recursive)
-	assert_true(prolog.query("ancestor(tom, bob)"), "Tom is ancestor of Bob")
-	assert_true(prolog.query("ancestor(tom, ann)"), "Tom is ancestor of Ann")
-	assert_true(prolog.query("ancestor(tom, jim)"), "Tom is ancestor of Jim (via bob->pat)")
-	assert_true(prolog.query("ancestor(bob, jim)"), "Bob is ancestor of Jim")
+	assert_true(prolog.query_text("ancestor(tom, bob)"), "Tom is ancestor of Bob")
+	assert_true(prolog.query_text("ancestor(tom, ann)"), "Tom is ancestor of Ann")
+	assert_true(prolog.query_text("ancestor(tom, jim)"), "Tom is ancestor of Jim (via bob->pat)")
+	assert_true(prolog.query_text("ancestor(bob, jim)"), "Bob is ancestor of Jim")
 
 	# Query all grandchildren of tom
-	var tom_grandchildren := prolog.query_all("grandparent(tom, X)")
+	var tom_grandchildren := prolog.query_text_all("grandparent(tom, X)")
 	assert_true(tom_grandchildren.size() >= 2, "Tom has at least 2 grandchildren")
 	print("    Tom's grandchildren: ", tom_grandchildren)
 
@@ -666,7 +721,7 @@ func test_demo_03_dynamic_assertions() -> void:
 	assert_true(consult_result, "Load 03_dynamic_assertions.pl")
 
 	# Initially no game_state facts
-	assert_false(prolog.query("game_state(_, _)"), "No game_state facts initially")
+	assert_false(prolog.query_text("game_state(_, _)"), "No game_state facts initially")
 
 	# Add game states dynamically
 	assert_true(prolog.add_fact("game_state(player_health, 100)"), "Assert player_health")
@@ -674,23 +729,23 @@ func test_demo_03_dynamic_assertions() -> void:
 	assert_true(prolog.add_fact("game_state(level, 1)"), "Assert level")
 
 	# Verify states exist
-	assert_true(prolog.query("game_state(player_health, 100)"), "player_health is 100")
-	assert_true(prolog.query("game_state(player_score, 0)"), "player_score is 0")
-	assert_true(prolog.query("game_state(level, 1)"), "level is 1")
+	assert_true(prolog.query_text("game_state(player_health, 100)"), "player_health is 100")
+	assert_true(prolog.query_text("game_state(player_score, 0)"), "player_score is 0")
+	assert_true(prolog.query_text("game_state(level, 1)"), "level is 1")
 
 	# Update a state (retract and reassert)
 	assert_true(prolog.retract_fact("game_state(player_score, 0)"), "Retract old score")
 	assert_true(prolog.add_fact("game_state(player_score, 100)"), "Assert new score")
-	assert_true(prolog.query("game_state(player_score, 100)"), "player_score updated to 100")
+	assert_true(prolog.query_text("game_state(player_score, 100)"), "player_score updated to 100")
 
 	# Query all game states
-	var all_states := prolog.query_all("game_state(Key, Value)")
+	var all_states := prolog.query_text_all("game_state(Key, Value)")
 	assert_equal(all_states.size(), 3, "3 game states exist")
 	print("    Game states: ", all_states)
 
 	# Retract all game states
 	prolog.retract_all("game_state(_, _)")
-	assert_false(prolog.query("game_state(_, _)"), "All game_state facts removed")
+	assert_false(prolog.query_text("game_state(_, _)"), "All game_state facts removed")
 
 	teardown_prolog()
 
@@ -712,33 +767,33 @@ func test_demo_04_complex_queries() -> void:
 	assert_true(consult_result, "Load 04_complex_queries.pl")
 
 	# Test enemy facts
-	assert_true(prolog.query("enemy(goblin, 10, 5, 2)"), "Goblin stats exist")
-	assert_true(prolog.query("enemy(orc, 25, 12, 5)"), "Orc stats exist")
-	assert_true(prolog.query("enemy(dragon, 100, 30, 15)"), "Dragon stats exist")
+	assert_true(prolog.query_text("enemy(goblin, 10, 5, 2)"), "Goblin stats exist")
+	assert_true(prolog.query_text("enemy(orc, 25, 12, 5)"), "Orc stats exist")
+	assert_true(prolog.query_text("enemy(dragon, 100, 30, 15)"), "Dragon stats exist")
 
 	# Test weapon facts
-	assert_true(prolog.query("weapon(sword, 10)"), "Sword damage is 10")
-	assert_true(prolog.query("weapon(axe, 15)"), "Axe damage is 15")
-	assert_true(prolog.query("weapon(bow, 8)"), "Bow damage is 8")
+	assert_true(prolog.query_text("weapon(sword, 10)"), "Sword damage is 10")
+	assert_true(prolog.query_text("weapon(axe, 15)"), "Axe damage is 15")
+	assert_true(prolog.query_text("weapon(bow, 8)"), "Bow damage is 8")
 
 	# Test damage calculation: damage = weapon_dmg - defense
 	# Sword (10) vs Goblin (def 2) = 8 damage
-	assert_true(prolog.query("damage(sword, goblin, 8)"), "Sword deals 8 damage to goblin")
+	assert_true(prolog.query_text("damage(sword, goblin, 8)"), "Sword deals 8 damage to goblin")
 	# Axe (15) vs Orc (def 5) = 10 damage
-	assert_true(prolog.query("damage(axe, orc, 10)"), "Axe deals 10 damage to orc")
+	assert_true(prolog.query_text("damage(axe, orc, 10)"), "Axe deals 10 damage to orc")
 	# Bow (8) vs Dragon (def 15) = -7 damage (negative, ineffective)
-	assert_true(prolog.query("damage(bow, dragon, -7)"), "Bow deals -7 damage to dragon")
+	assert_true(prolog.query_text("damage(bow, dragon, -7)"), "Bow deals -7 damage to dragon")
 
 	# Test one_shot_kill: axe (15) vs goblin (10 HP, 2 def) = 13 dmg >= 10 HP
-	assert_true(prolog.query("one_shot_kill(axe, goblin)"), "Axe can one-shot goblin")
+	assert_true(prolog.query_text("one_shot_kill(axe, goblin)"), "Axe can one-shot goblin")
 	# Sword (10) vs goblin (10 HP, 2 def) = 8 dmg < 10 HP
-	assert_false(prolog.query("one_shot_kill(sword, goblin)"), "Sword cannot one-shot goblin")
+	assert_false(prolog.query_text("one_shot_kill(sword, goblin)"), "Sword cannot one-shot goblin")
 	# No weapon can one-shot dragon
-	assert_false(prolog.query("one_shot_kill(sword, dragon)"), "Sword cannot one-shot dragon")
-	assert_false(prolog.query("one_shot_kill(axe, dragon)"), "Axe cannot one-shot dragon")
+	assert_false(prolog.query_text("one_shot_kill(sword, dragon)"), "Sword cannot one-shot dragon")
+	assert_false(prolog.query_text("one_shot_kill(axe, dragon)"), "Axe cannot one-shot dragon")
 
 	# Query all enemies (anonymous variables are displayed as "null")
-	var all_enemies := prolog.query_all("enemy(Name, _, _, _)")
+	var all_enemies := prolog.query_text_all("enemy(Name, _, _, _)")
 	assert_equal(all_enemies.size(), 3, "3 enemy types exist")
 	print("    Enemies: ", all_enemies)
 
@@ -762,28 +817,28 @@ func test_demo_05_pathfinding() -> void:
 	assert_true(consult_result, "Load 05_pathfinding.pl")
 
 	# Test edge facts
-	assert_true(prolog.query("edge(a, b, 1)"), "Edge a->b exists with cost 1")
-	assert_true(prolog.query("edge(b, c, 2)"), "Edge b->c exists with cost 2")
-	assert_true(prolog.query("edge(e, f, 1)"), "Edge e->f exists with cost 1")
+	assert_true(prolog.query_text("edge(a, b, 1)"), "Edge a->b exists with cost 1")
+	assert_true(prolog.query_text("edge(b, c, 2)"), "Edge b->c exists with cost 2")
+	assert_true(prolog.query_text("edge(e, f, 1)"), "Edge e->f exists with cost 1")
 
 	# Test bidirectional connected predicate
-	assert_true(prolog.query("connected(a, b, 1)"), "a connected to b")
-	assert_true(prolog.query("connected(b, a, 1)"), "b connected to a (bidirectional)")
+	assert_true(prolog.query_text("connected(a, b, 1)"), "a connected to b")
+	assert_true(prolog.query_text("connected(b, a, 1)"), "b connected to a (bidirectional)")
 
 	# Test path finding - simple path a to b
-	assert_true(prolog.query("path(a, b, _, _)"), "Path from a to b exists")
+	assert_true(prolog.query_text("path(a, b, _, _)"), "Path from a to b exists")
 
 	# Test path finding - longer path a to f
-	assert_true(prolog.query("path(a, f, _, _)"), "Path from a to f exists")
+	assert_true(prolog.query_text("path(a, f, _, _)"), "Path from a to f exists")
 
 	# Query a specific path with cost
-	var path_result: Variant = prolog.query_one("path(a, f, Path, Cost)")
+	var path_result: Variant = prolog.query_text_one("path(a, f, Path, Cost)")
 	assert_true(path_result != null, "Found path from a to f")
 	print("    Path a->f: ", path_result)
 
 	# Test that cycle detection works (no infinite loops)
 	# Just verify the query completes without hanging
-	var paths := prolog.query_all("path(a, e, Path, Cost)")
+	var paths := prolog.query_text_all("path(a, e, Path, Cost)")
 	assert_true(paths.size() >= 1, "At least one path from a to e")
 	print("    Paths a->e: ", paths)
 
@@ -807,31 +862,31 @@ func test_demo_06_ai_behavior() -> void:
 	assert_true(consult_result, "Load 06_ai_behavior.pl")
 
 	# Test state facts
-	assert_true(prolog.query("state(patrol)"), "patrol state exists")
-	assert_true(prolog.query("state(chase)"), "chase state exists")
-	assert_true(prolog.query("state(attack)"), "attack state exists")
-	assert_true(prolog.query("state(flee)"), "flee state exists")
+	assert_true(prolog.query_text("state(patrol)"), "patrol state exists")
+	assert_true(prolog.query_text("state(chase)"), "chase state exists")
+	assert_true(prolog.query_text("state(attack)"), "attack state exists")
+	assert_true(prolog.query_text("state(flee)"), "flee state exists")
 
 	# Test should_* predicates
-	assert_true(prolog.query("should_chase(5)"), "should_chase at distance 5")
-	assert_false(prolog.query("should_chase(15)"), "should NOT chase at distance 15")
-	assert_true(prolog.query("should_attack(2)"), "should_attack at distance 2")
-	assert_false(prolog.query("should_attack(5)"), "should NOT attack at distance 5")
-	assert_true(prolog.query("should_flee(10)"), "should_flee at health 10")
-	assert_false(prolog.query("should_flee(50)"), "should NOT flee at health 50")
+	assert_true(prolog.query_text("should_chase(5)"), "should_chase at distance 5")
+	assert_false(prolog.query_text("should_chase(15)"), "should NOT chase at distance 15")
+	assert_true(prolog.query_text("should_attack(2)"), "should_attack at distance 2")
+	assert_false(prolog.query_text("should_attack(5)"), "should NOT attack at distance 5")
+	assert_true(prolog.query_text("should_flee(10)"), "should_flee at health 10")
+	assert_false(prolog.query_text("should_flee(50)"), "should NOT flee at health 50")
 
 	# Test decide_action - priority: flee > attack > chase > patrol
 	# Low health -> flee (regardless of distance)
-	assert_true(prolog.query("decide_action(flee, 10, 2)"), "Flee when health=10")
+	assert_true(prolog.query_text("decide_action(flee, 10, 2)"), "Flee when health=10")
 	# Good health, close distance -> attack
-	assert_true(prolog.query("decide_action(attack, 100, 2)"), "Attack when close")
+	assert_true(prolog.query_text("decide_action(attack, 100, 2)"), "Attack when close")
 	# Good health, medium distance -> chase
-	assert_true(prolog.query("decide_action(chase, 100, 5)"), "Chase when medium distance")
+	assert_true(prolog.query_text("decide_action(chase, 100, 5)"), "Chase when medium distance")
 	# Good health, far distance -> patrol
-	assert_true(prolog.query("decide_action(patrol, 100, 20)"), "Patrol when far")
+	assert_true(prolog.query_text("decide_action(patrol, 100, 20)"), "Patrol when far")
 
 	# Query all states
-	var all_states := prolog.query_all("state(S)")
+	var all_states := prolog.query_text_all("state(S)")
 	assert_equal(all_states.size(), 4, "4 AI states exist")
 	print("    AI states: ", all_states)
 

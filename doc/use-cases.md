@@ -27,18 +27,17 @@ func _ready():
     grandparent(X, Z) :- parent(X, Y), parent(Y, Z).
   """)
 
-  # Execute a query
-  if prolog.query("grandparent(tom, ann)"):
+  # High-level: structured terms
+  if prolog.solve("grandparent", ["tom", "ann"]):
     print("Tom is Ann's grandparent!")
 
-  # Get all solutions (legacy format)
-  var results = prolog.query_all("parent(X, Y)")
-  print("Parent relationships: ", results)
-
- # Get all solutions with variable extraction (new format)
-  var results_dict = prolog.query_all("parent", ["X", "Y"])
+  var results_dict = prolog.solve_all("parent", ["X", "Y"])
   for result in results_dict:
     print("Parent: ", result["X"], " -> ", result["Y"])
+
+  # Low-level: Prolog source text
+  var results = prolog.query_text_all("parent(X, Y)")
+  print("Parent relationships: ", results)
 
 func _exit_tree():
   if prolog:
@@ -62,12 +61,10 @@ func _ready():
     weak_enemy(Name) :- enemy(Name, HP, _), HP < 50.
   """)
 
-  # Query (legacy format)
-  if PrologotEngine.query("weak_enemy(goblin)"):
+  if PrologotEngine.solve("weak_enemy", ["goblin"]):
     print("Goblin is a weak enemy")
 
-  # Get results with variable extraction (new format)
-  var enemies_dict = PrologotEngine.query_all("enemy", ["Name", "HP", "Threat"])
+  var enemies_dict = PrologotEngine.solve_all("enemy", ["Name", "HP", "Threat"])
   for enemy in enemies_dict:
     print("Enemy: ", enemy["Name"], " HP: ", enemy["HP"], " Threat: ", enemy["Threat"])
 ```
@@ -123,7 +120,7 @@ PrologotEngine.add_fact("has_item(wood, 2)")
 PrologotEngine.add_fact("has_item(herb, 3)")
 
 # Check if we can craft items
-if PrologotEngine.query("can_craft(iron_sword)"):
+if PrologotEngine.solve("can_craft", ["iron_sword"]):
     craft_item("iron_sword")
     # Remove used items
     PrologotEngine.retract_fact("has_item(iron, 5)")
@@ -140,7 +137,7 @@ Use Prolog for pathfinding algorithms:
 PrologotEngine.consult_file("res://ai/pathfinding.pl")
 
 # Find all paths from point A to point B
-var paths = PrologotEngine.query_all("path", ["a", "f", "Path", "Cost"])
+var paths = PrologotEngine.solve_all("path", ["a", "f", "Path", "Cost"])
 for path_info in paths:
     print("Path: ", path_info["Path"], " Cost: ", path_info["Cost"])
 ```
@@ -163,7 +160,7 @@ PrologotEngine.consult_string("""
 """)
 
 # Query current state transitions
-var next_states = PrologotEngine.query_all("transition", ["idle", "X"])
+var next_states = PrologotEngine.solve_all("transition", ["idle", "X"])
 ```
 
 ## Knowledge Base Management
@@ -179,7 +176,7 @@ PrologotEngine.add_fact("player_location(zone_1)")
 PrologotEngine.add_fact("enemy_spotted(goblin, zone_2)")
 
 # Query the knowledge base
-var enemies = PrologotEngine.query_all("enemy_spotted", ["Type", "Location"])
+var enemies = PrologotEngine.solve_all("enemy_spotted", ["Type", "Location"])
 
 # Update facts
 PrologotEngine.retract_fact("player_location(zone_1)")
