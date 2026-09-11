@@ -67,6 +67,7 @@ func run_all_tests() -> void:
 	test_prolog_variable()
 	test_prolog_predicate()
 	test_prolog_goal_composition()
+	test_prolog_solution()
 
 	# Demo examples tests
 	test_demo_01_basic_queries()
@@ -817,6 +818,29 @@ func test_prolog_goal_composition() -> void:
 	var not_goal := left.negated()
 	assert_equal(not_goal.get_functor(), "\\+", "negated uses \\+/1")
 	assert_equal(not_goal.get_arity(), 1, "negated wraps one goal")
+
+	teardown_prolog()
+
+
+func test_prolog_solution() -> void:
+	print("\n[Test Suite: PrologSolution]")
+
+	if not setup_prolog():
+		print("  ✗ SKIP: Could not initialize Prolog")
+		return
+
+	var child := prolog.variable("Child")
+	var unused := prolog.variable("Unused")
+	var solution: PrologSolution = ClassDB.instantiate("PrologSolution")
+	solution.put(child, "bob")
+
+	assert_true(solution.has(child), "has() is true for a bound variable")
+	assert_false(solution.has(unused), "has() is false for an unbound variable")
+	assert_equal(solution.get(child), "bob", "get() returns the bound value")
+	assert_true(solution.get(unused) == null, "get() on a missing variable is null")
+	assert_true(solution.get_bindings().has(child), "bindings is keyed by the variable object")
+	assert_equal(solution.get_bindings()[child], "bob", "bindings[variable] returns the value")
+	assert_equal(solution.values(), ["bob"], "values() lists bound values")
 
 	teardown_prolog()
 
