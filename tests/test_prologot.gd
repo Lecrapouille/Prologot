@@ -73,6 +73,8 @@ func run_all_tests() -> void:
 	test_assert_fact_goal()
 	test_prolog_object()
 	test_query_text_named()
+	test_expose_godot_members()
+	test_prolog_knowledge_and_node()
 
 	# Demo examples tests
 	test_demo_01_basic_queries()
@@ -988,6 +990,93 @@ func test_query_text_named() -> void:
 	assert_true(bad.is_empty(), "parse error returns no solutions")
 	assert_true(prolog.get_last_error().length() > 0, "parse error is stored")
 
+	teardown_prolog()
+
+
+func test_expose_godot_members() -> void:
+	print("\n[Test Suite: expose_property / expose_method]")
+
+	if not setup_prolog():
+		print("  ✗ SKIP: Could not initialize Prolog")
+		return
+
+	var node := Node.new()
+	node.name = "Player"
+
+	assert_true(prolog.expose_property("Node", "name", "node_name"), "expose Node.name as node_name/2")
+	var name_var := prolog.variable()
+	var named: PrologSolution = prolog.solve_one(prolog.predicate("node_name", 2).bind(node, name_var))
+	assert_true(named != null, "node_name/2 returns a solution")
+	assert_equal(named.get(name_var), "Player", "reads Node.name")
+	assert_true(prolog.succeeds(prolog.predicate("node_name", 2).bind(node, "Player")), "ground name matches")
+	assert_false(prolog.succeeds(prolog.predicate("node_name", 2).bind(node, "Enemy")), "ground name mismatch fails")
+
+	assert_true(prolog.expose_method("Object", "get_class", "godot_class"), "expose Object.get_class")
+	var class_var := prolog.variable()
+	var typed: PrologSolution = prolog.solve_one(prolog.predicate("godot_class", 2).bind(node, class_var))
+	assert_true(typed != null, "godot_class/2 returns a solution")
+	assert_equal(typed.get(class_var), "Node", "get_class is Node")
+
+	var sprite := Node2D.new()
+	sprite.position = Vector2(3, 4)
+	assert_true(prolog.expose_property("Node2D", "position", "node2d_position"), "expose Node2D.position")
+	var pos_var := prolog.variable()
+	var placed: PrologSolution = prolog.solve_one(prolog.predicate("node2d_position", 2).bind(sprite, pos_var))
+	assert_true(placed != null, "node2d_position/2 returns a solution")
+	var pos: Variant = placed.get(pos_var)
+	assert_true(pos is Array and pos.size() == 2, "Vector2 becomes a 2-element list")
+	assert_true(is_equal_approx(float(pos[0]), 3.0) and is_equal_approx(float(pos[1]), 4.0), "position is [3, 4]")
+	assert_false(
+		prolog.succeeds(prolog.predicate("node2d_position", 2).bind(node, prolog.anonymous())),
+		"Node is rejected by the Node2D class filter"
+	)
+
+	var pack := Resource.new()
+	pack.resource_name = "loot"
+	assert_true(prolog.expose_property("Resource", "resource_name", "res_name"), "expose Resource.resource_name")
+	assert_true(prolog.succeeds(prolog.predicate("res_name", 2).bind(pack, "loot")), "reads a Resource property")
+
+	assert_false(prolog.expose_property("Node", "name", "name"), "refuse reserved predicate name/2")
+	assert_false(prolog.expose_property("Node", "name", "NodeName"), "refuse non-lowercase functor")
+
+	var exposed: Array = prolog.list_exposed()
+	assert_true(exposed.size() >= 4, "list_exposed() lists the wrappers")
+	assert_true(prolog.unexpose("node_name", 2), "unexpose node_name/2")
+	assert_false(prolog.succeeds(prolog.predicate("node_name", 2).bind(node, "Player")), "wrapper is gone")
+
+	node.free()
+	sprite.free()
+	teardown_prolog()
+
+
+func test_prolog_knowledge_and_node() -> void:
+	print("\n[Test Suite: PrologKnowledge / PrologotNode]")
+
+	var kb_script = load("res://addons/prologot/prolog_knowledge.gd")
+	var node_script = load("res://addons/prologot/prologot_node.gd")
+	if kb_script == null or node_script == null:
+		print("  ✗ SKIP: addons/prologot not linked into the tests project")
+		return
+
+	if not setup_prolog():
+		print("  ✗ SKIP: Could not initialize Prolog")
+		return
+
+	var kb = kb_script.new()
+	kb.code = "parent(tom, bob)."
+	assert_true(kb.load_into(prolog), "PrologKnowledge.load_into() consults inline code")
+	assert_true(prolog.succeeds(prolog.predicate("parent", 2).bind("tom", "bob")), "resource clauses are queryable")
+
+	var host = node_script.new()
+	host.auto_start = false
+	host.set_engine(prolog)
+	var extra = kb_script.new()
+	extra.code = "parent(bob, ann)."
+	host.knowledge = extra
+	assert_true(host.start(), "PrologotNode.start() loads its knowledge")
+	assert_true(host.succeeds(host.predicate("parent", 2).bind("bob", "ann")), "node forwards solve API")
+
+	host.free()
 	teardown_prolog()
 
 
