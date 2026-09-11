@@ -36,6 +36,10 @@ public:
     String as_text() const;
     Ref<PrologTerm> to_term() const;
 
+    Ref<PrologGoal> conjunction(Ref<PrologGoal> const& p_other) const;
+    Ref<PrologGoal> disjunction(Ref<PrologGoal> const& p_other) const;
+    Ref<PrologGoal> negated() const;
+
 protected:
 
     static void _bind_methods();

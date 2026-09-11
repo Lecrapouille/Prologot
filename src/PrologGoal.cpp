@@ -15,6 +15,11 @@ void PrologGoal::_bind_methods()
     ClassDB::bind_method(D_METHOD("get_arity"), &PrologGoal::get_arity);
     ClassDB::bind_method(D_METHOD("as_text"), &PrologGoal::as_text);
     ClassDB::bind_method(D_METHOD("to_term"), &PrologGoal::to_term);
+    ClassDB::bind_method(D_METHOD("conjunction", "other"),
+                         &PrologGoal::conjunction);
+    ClassDB::bind_method(D_METHOD("disjunction", "other"),
+                         &PrologGoal::disjunction);
+    ClassDB::bind_method(D_METHOD("negated"), &PrologGoal::negated);
 }
 
 Ref<PrologGoal> PrologGoal::from_compound(String const& p_functor,
@@ -57,4 +62,31 @@ String PrologGoal::as_text() const
 Ref<PrologTerm> PrologGoal::to_term() const
 {
     return PrologTerm::make_compound(m_functor, m_args);
+}
+
+Ref<PrologGoal> PrologGoal::conjunction(Ref<PrologGoal> const& p_other) const
+{
+    if (p_other.is_null())
+        return Ref<PrologGoal>();
+    Array args;
+    args.push_back(Ref<PrologGoal>(const_cast<PrologGoal*>(this)));
+    args.push_back(p_other);
+    return from_compound(",", args);
+}
+
+Ref<PrologGoal> PrologGoal::disjunction(Ref<PrologGoal> const& p_other) const
+{
+    if (p_other.is_null())
+        return Ref<PrologGoal>();
+    Array args;
+    args.push_back(Ref<PrologGoal>(const_cast<PrologGoal*>(this)));
+    args.push_back(p_other);
+    return from_compound(";", args);
+}
+
+Ref<PrologGoal> PrologGoal::negated() const
+{
+    Array args;
+    args.push_back(Ref<PrologGoal>(const_cast<PrologGoal*>(this)));
+    return from_compound("\\+", args);
 }

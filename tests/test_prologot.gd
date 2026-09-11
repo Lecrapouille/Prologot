@@ -66,6 +66,7 @@ func run_all_tests() -> void:
 	test_prolog_term_factories()
 	test_prolog_variable()
 	test_prolog_predicate()
+	test_prolog_goal_composition()
 
 	# Demo examples tests
 	test_demo_01_basic_queries()
@@ -788,6 +789,34 @@ func test_prolog_predicate() -> void:
 
 	var via_array := parent.bindv(["tom", child])
 	assert_true(via_array != null and via_array.get_functor() == "parent", "bindv() accepts an Array")
+
+	teardown_prolog()
+
+
+func test_prolog_goal_composition() -> void:
+	print("\n[Test Suite: PrologGoal composition]")
+
+	if not setup_prolog():
+		print("  ✗ SKIP: Could not initialize Prolog")
+		return
+
+	var parent := prolog.predicate("parent", 2)
+	var child := prolog.variable("Child")
+	var grand := prolog.variable("Grand")
+	var left := parent.bind("tom", child)
+	var right := parent.bind(child, grand)
+
+	var both := left.conjunction(right)
+	assert_true(both != null, "conjunction() builds a goal")
+	assert_equal(both.get_functor(), ",", "conjunction uses ','/2")
+	assert_equal(both.get_arity(), 2, "conjunction has two goals")
+
+	var either := left.disjunction(right)
+	assert_equal(either.get_functor(), ";", "disjunction uses ';'/2")
+
+	var not_goal := left.negated()
+	assert_equal(not_goal.get_functor(), "\\+", "negated uses \\+/1")
+	assert_equal(not_goal.get_arity(), 1, "negated wraps one goal")
 
 	teardown_prolog()
 
