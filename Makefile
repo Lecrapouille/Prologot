@@ -27,6 +27,11 @@ BIN ?= bin
 # Detect architecture
 UNAME_M := $(shell uname -m)
 
+# SCons compile parallelism (make -jN does not reach scons by itself)
+JOBS ?= $(shell nproc 2>/dev/null || echo 4)
+
+SCONS := scons --godot-cpp=$(GODOT_CPP) arch=$(UNAME_M) -j$(JOBS)
+
 # Default target
 .PHONY: help
 help:
@@ -56,9 +61,11 @@ help:
 	@$(ECHO) ""
 	@$(ECHO) "$(GREEN)Configuration:$(NC)"
 	@$(ECHO) "  $(YELLOW)GODOT_CPP$(NC)          - Godot godot-cpp ref (default: $(GODOT_CPP))"
+	@$(ECHO) "  $(YELLOW)JOBS$(NC)               - SCons -j (default: $(JOBS))"
 	@$(ECHO) ""
 	@$(ECHO) "$(GREEN)Examples:"
 	@$(ECHO) "  $(YELLOW)make GODOT_CPP=4.5 all"
+	@$(ECHO) "  $(YELLOW)make GODOT_CPP=4.5 JOBS=16 all"
 	@$(ECHO) "  $(YELLOW)make GODOT_CPP=4.3.1 debug"
 	@$(ECHO) "  $(YELLOW)make run-galactic"
 	@$(ECHO) "$(NC)"
@@ -124,27 +131,28 @@ check-deps:
 	@$(ECHO) "$(GREEN)✓ All dependencies present$(NC)"
 
 
-# Build both debug and release + setup projects
+# Build debug then release. Do not depend on the debug/release targets:
+# `make -j` would launch two scons that race on bin/linux/swipl/.
 .PHONY: all
-all: check-deps debug release setup-demos
-	@$(ECHO) "$(CYAN)▶ Building release version...$(NC)"
-	@scons --godot-cpp=$(GODOT_CPP) target=template_release arch=$(UNAME_M)
+all: check-deps
 	@$(ECHO) "$(CYAN)▶ Building debug version...$(NC)"
-	@scons --godot-cpp=$(GODOT_CPP) target=template_debug arch=$(UNAME_M)
+	@$(SCONS) target=template_debug
+	@$(ECHO) "$(CYAN)▶ Building release version...$(NC)"
+	@$(SCONS) target=template_release
 	@$(MAKE) setup-demos
 
 # Debug build
 .PHONY: debug
 debug: check-deps
 	@$(ECHO) "$(CYAN)▶ Building debug version...$(NC)"
-	@scons --godot-cpp=$(GODOT_CPP) target=template_debug arch=$(UNAME_M)
+	@$(SCONS) target=template_debug
 	@$(MAKE) setup-demos
 
 # Release build
 .PHONY: release
 release: check-deps
 	@$(ECHO) "$(CYAN)▶ Building release version...$(NC)"
-	@scons --godot-cpp=$(GODOT_CPP) target=template_release arch=$(UNAME_M)
+	@$(SCONS) target=template_release
 	@$(MAKE) setup-demos
 
 # Clean build artifacts
@@ -172,6 +180,8 @@ setup-demos:
 	done
 	@rm -rf tests/$(BIN); \
 	[ -d $(BIN) ] && ln -sf ../$(BIN) tests/$(BIN) || true
+	@rm -rf tests/addons; \
+	[ -d addons ] && ln -sfn ../addons tests/addons || true
 	@$(ECHO) "$(YELLOW)▶ Initializing Godot projects (creating .godot cache)...$(NC)"
 	@for project in demos/showcases demos/galactic_customs tests; do \
 		if [ -f $$project/project.godot ] && [ ! -d $$project/.godot ]; then \

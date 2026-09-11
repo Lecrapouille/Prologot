@@ -232,27 +232,56 @@ def copy_swipl_resources(plbase, output_dir=None):
     boot_files = list(plbase.glob("boot*.prc"))
     if boot_files:
         boot_dest = output_dir / "boot.prc"
-        if boot_dest.exists():
-            boot_dest.chmod(0o666)
-            boot_dest.unlink()
+        try:
+            if boot_dest.exists():
+                boot_dest.chmod(0o666)
+                boot_dest.unlink()
+        except FileNotFoundError:
+            pass
         shutil.copy2(boot_files[0], boot_dest)
         copied.append(str(boot_dest))
         print(f"Copied {boot_files[0].name} -> {boot_dest}")
     else:
         print(f"Warning: No boot*.prc found in {plbase}")
 
+    # SWI-Prolog 9+ refuses a home without ABI (and uses swipl.home as marker).
+    for name in ("ABI", "swipl.home", "swipl.rc"):
+        src = plbase / name
+        if src.is_file():
+            dest = output_dir / name
+            shutil.copy2(src, dest)
+            copied.append(str(dest))
+            print(f"Copied {name} -> {dest}")
+
     # Copy directories: library/ and lib/
     def _rm_readonly(_func, path, _exc):
-        Path(path).chmod(0o666)
-        _func(path)
+        try:
+            Path(path).chmod(0o666)
+            _func(path)
+        except FileNotFoundError:
+            pass
+
+    def _rmtree(path):
+        try:
+            if Path(path).exists():
+                shutil.rmtree(path, onerror=_rm_readonly)
+        except FileNotFoundError:
+            pass
 
     for dir_name in ("library", "lib"):
         src = plbase / dir_name
         if src.exists() and src.is_dir():
             dest = output_dir / dir_name
-            if dest.exists():
-                shutil.rmtree(dest, onerror=_rm_readonly)
-            shutil.copytree(src, dest)
+            tmp = output_dir / f".{dir_name}.{os.getpid()}"
+            _rmtree(tmp)
+            shutil.copytree(src, tmp)
+            _rmtree(dest)
+            try:
+                tmp.rename(dest)
+            except OSError:
+                _rmtree(tmp)
+                if not dest.exists():
+                    raise
             copied.append(str(dest))
             print(f"Copied {dir_name}/ -> {dest}")
         else:
@@ -362,9 +391,33 @@ if GetOption('skip_build'):
     print("Build skipped (--skip-build)")
     Exit(0)
 
+def compiler_has_static_libstdcxx():
+    """True if g++ can resolve libstdc++.a (needed for -static-libstdc++)."""
+    try:
+        out = subprocess.check_output(
+            ["g++", "-print-file-name=libstdc++.a"],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+    except (OSError, subprocess.CalledProcessError):
+        return False
+    return bool(out) and out != "libstdc++.a" and Path(out).is_file()
+
+
 # Setup godot-cpp
 godot_cpp_dir = find_or_setup_godot_cpp()
 sys.path.insert(0, godot_cpp_dir)
+
+# godot-cpp Linux defaults to -static-libstdc++. Fedora ships that archive
+# in libstdc++-static, which is not installed by default.
+if sys.platform != "win32" and not compiler_has_static_libstdcxx():
+    if "use_static_cpp" not in ARGUMENTS:
+        ARGUMENTS["use_static_cpp"] = "no"
+        print(
+            "libstdc++.a not found: linking libstdc++ dynamically "
+            "(dnf install libstdc++-static for portable static binaries)."
+        )
+
 env = SConscript(f"{godot_cpp_dir}/SConstruct")
 Default(None)  # Clear godot-cpp default targets
 

@@ -25,11 +25,15 @@ You can see **[Use Cases](doc/use-cases.md)** for basic examples and quick start
 - **Getting Started**: Follow the **[Installation Guide](doc/installation.md)** to set everything up. The quick way to compile:
 
 ```bash
-# Install dependencies (Linux example)
-sudo apt-get install swi-prolog swi-prolog-nox pkg-config
-pip install scons
+# Fedora
+sudo dnf install gcc-c++ make python3-scons pkgconf pl pl-devel
+# Optional: portable static link of libstdc++
+# sudo dnf install libstdc++-static
 
-# Clone and build
+# Debian / Ubuntu
+# sudo apt-get install g++ make pkg-config swi-prolog swi-prolog-nox
+# pip install scons
+
 git clone https://github.com/Lecrapouille/Prologot.git
 cd Prologot
 make GODOT_CPP=4.5 all
@@ -67,7 +71,9 @@ Prologot/
 │   ├── plugin.cfg                # Plugin configuration
 │   ├── plugin.gd                 # Plugin entry point
 │   ├── prologot_dock.gd          # Editor dock UI
-│   └── prologot_singleton.gd     # Global autoload singleton
+│   ├── prologot_singleton.gd     # Global autoload singleton
+│   ├── prologot_node.gd          # Scene-tree Node (PrologotNode)
+│   └── prolog_knowledge.gd       # Inspectable Resource (PrologKnowledge)
 ├── demos/                        # Demo projects
 │   └── showcases/                # Interactive demo project
 │       ├── examples/             # Prolog example files (.pl)
