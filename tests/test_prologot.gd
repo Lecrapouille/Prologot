@@ -63,6 +63,7 @@ func run_all_tests() -> void:
 	test_solve_and_query_text()
 	test_lists_atoms_and_variants()
 	test_consult_file_standalone()
+	test_prolog_term_factories()
 
 	# Demo examples tests
 	test_demo_01_basic_queries()
@@ -689,6 +690,50 @@ func test_consult_file_standalone() -> void:
 	var missing := prolog.consult_file("res://fixtures/does_not_exist.pl")
 	assert_false(missing, "consult_file of a missing file returns false")
 	assert_true(prolog.get_last_error().length() > 0, "Missing file sets get_last_error()")
+
+	teardown_prolog()
+
+
+func test_prolog_term_factories() -> void:
+	print("\n[Test Suite: PrologTerm factories]")
+
+	if not setup_prolog():
+		print("  ✗ SKIP: Could not initialize Prolog")
+		return
+
+	var tom := prolog.atom("tom")
+	assert_true(tom != null and tom.is_atom(), "atom() creates an atom term")
+	assert_equal(tom.get_kind(), "atom", "atom kind name")
+	assert_equal(tom.get_atom(), "tom", "atom value")
+	assert_equal(tom.as_text(), "tom", "atom as_text")
+
+	var n := prolog.integer(42)
+	assert_true(n.is_integer(), "integer() creates an integer term")
+	assert_equal(n.get_integer(), 42, "integer value")
+
+	var pi := prolog.real(3.14)
+	assert_true(pi.is_float(), "real() creates a float term")
+	assert_true(abs(pi.get_real() - 3.14) < 0.0001, "real value")
+
+	var hello := prolog.string("hello")
+	assert_true(hello.is_string(), "string() creates a Prolog string term")
+	assert_equal(hello.get_string(), "hello", "string value")
+	assert_equal(hello.as_text(), "\"hello\"", "string as_text quotes the value")
+
+	var empty := prolog.nil()
+	assert_true(empty.is_nil(), "nil() creates []")
+	assert_equal(empty.as_text(), "[]", "nil as_text")
+
+	var items := prolog.list([1, "bob"])
+	assert_true(items.is_list(), "list() creates a list term")
+	assert_equal(items.get_args().size(), 2, "list arity")
+	assert_equal(prolog.list([]).is_nil(), true, "empty list() is nil")
+
+	var parent := prolog.compound("parent", ["tom", "bob"])
+	assert_true(parent.is_compound(), "compound() creates a compound term")
+	assert_equal(parent.get_functor(), "parent", "compound functor")
+	assert_equal(parent.get_args(), ["tom", "bob"], "compound args")
+	assert_equal(parent.as_text(), "parent(tom, bob)", "compound as_text")
 
 	teardown_prolog()
 

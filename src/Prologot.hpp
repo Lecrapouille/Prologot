@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include "PrologTerm.hpp"
 #include <SWI-Prolog.h>
 #include <godot_cpp/classes/ref_counted.hpp>
 #include <godot_cpp/variant/array.hpp>
@@ -193,6 +194,18 @@ public:
      * # All clauses from both code strings and the file are now available
      */
     bool consult_string(String const& p_prolog_code);
+
+    // =========================================================================
+    // Structured term factories
+    // =========================================================================
+
+    Ref<PrologTerm> atom(String const& p_name);
+    Ref<PrologTerm> integer(int64_t p_value);
+    Ref<PrologTerm> real(double p_value);
+    Ref<PrologTerm> string(String const& p_value);
+    Ref<PrologTerm> nil();
+    Ref<PrologTerm> list(Array const& p_items);
+    Ref<PrologTerm> compound(String const& p_functor, Array const& p_args);
 
     // =========================================================================
     // High-level solving (structured terms, no Prolog source parsing)

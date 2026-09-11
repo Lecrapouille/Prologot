@@ -52,6 +52,15 @@ void Prologot::_bind_methods()
     ClassDB::bind_method(D_METHOD("consult_string", "prolog_code"),
                          &Prologot::consult_string);
 
+    ClassDB::bind_method(D_METHOD("atom", "name"), &Prologot::atom);
+    ClassDB::bind_method(D_METHOD("integer", "value"), &Prologot::integer);
+    ClassDB::bind_method(D_METHOD("real", "value"), &Prologot::real);
+    ClassDB::bind_method(D_METHOD("string", "value"), &Prologot::string);
+    ClassDB::bind_method(D_METHOD("nil"), &Prologot::nil);
+    ClassDB::bind_method(D_METHOD("list", "items"), &Prologot::list);
+    ClassDB::bind_method(D_METHOD("compound", "functor", "args"),
+                         &Prologot::compound);
+
     // High-level structured solving
     ClassDB::bind_method(D_METHOD("solve", "goal", "args"),
                          &Prologot::solve,
@@ -548,6 +557,45 @@ bool Prologot::consult_string(String const& p_prolog_code)
 
     PL_close_query(qid);
     return result != 0;
+}
+
+// =============================================================================
+// Structured term factories
+// =============================================================================
+
+Ref<PrologTerm> Prologot::atom(String const& p_name)
+{
+    return PrologTerm::make_atom(p_name);
+}
+
+Ref<PrologTerm> Prologot::integer(int64_t p_value)
+{
+    return PrologTerm::make_integer(p_value);
+}
+
+Ref<PrologTerm> Prologot::real(double p_value)
+{
+    return PrologTerm::make_real(p_value);
+}
+
+Ref<PrologTerm> Prologot::string(String const& p_value)
+{
+    return PrologTerm::make_string(p_value);
+}
+
+Ref<PrologTerm> Prologot::nil()
+{
+    return PrologTerm::make_nil();
+}
+
+Ref<PrologTerm> Prologot::list(Array const& p_items)
+{
+    return PrologTerm::make_list(p_items);
+}
+
+Ref<PrologTerm> Prologot::compound(String const& p_functor, Array const& p_args)
+{
+    return PrologTerm::make_compound(p_functor, p_args);
 }
 
 // =============================================================================
