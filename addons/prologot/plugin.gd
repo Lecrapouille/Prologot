@@ -52,6 +52,20 @@ func _enter_tree() -> void:
 	# Add the dock to the right-bottom dock slot in the editor
 	add_control_to_dock(DOCK_SLOT_RIGHT_BL, dock)
 
+	var base := get_editor_interface().get_base_control()
+	add_custom_type(
+		"PrologotNode",
+		"Node",
+		preload("res://addons/prologot/prologot_node.gd"),
+		base.get_theme_icon("Node", "EditorIcons")
+	)
+	add_custom_type(
+		"PrologKnowledge",
+		"Resource",
+		preload("res://addons/prologot/prolog_knowledge.gd"),
+		base.get_theme_icon("Resource", "EditorIcons")
+	)
+
 	print("Prologot: Plugin enabled")
 
 
@@ -73,6 +87,9 @@ func _exit_tree() -> void:
 	if dock:
 		remove_control_from_docks(dock)
 		dock.queue_free()
+
+	remove_custom_type("PrologotNode")
+	remove_custom_type("PrologKnowledge")
 
 	# Remove the autoload singleton registration
 	# This prevents the singleton from being available in future editor sessions

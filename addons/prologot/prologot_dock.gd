@@ -21,6 +21,9 @@ var result_output: TextEdit
 ## Displays all predicates currently available in the Prolog knowledge base.
 var predicates_list: ItemList
 
+## Wrappers installed with expose_property / expose_method.
+var exposed_list: ItemList
+
 ## Text area for entering Prolog code.
 ## Allows users to write Prolog code directly in the editor and load it.
 var code_input: TextEdit
@@ -73,6 +76,9 @@ func _build_ui() -> void:
 	# Predicates list section
 	add_child(HSeparator.new())
 	_build_predicates_section()
+
+	add_child(HSeparator.new())
+	_build_exposed_section()
 
 ###############################################################################
 ## Builds the query input section.
@@ -198,6 +204,17 @@ func _build_predicates_section() -> void:
 	refresh_btn.text = "Refresh"
 	refresh_btn.pressed.connect(_on_refresh_predicates)
 	add_child(refresh_btn)
+
+
+func _build_exposed_section() -> void:
+	var exposed_label := Label.new()
+	exposed_label.text = "Exposed Godot members:"
+	add_child(exposed_label)
+
+	exposed_list = ItemList.new()
+	exposed_list.custom_minimum_size.y = 60
+	exposed_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	add_child(exposed_list)
 
 ###############################################################################
 ## Event handler for query submission.
@@ -442,6 +459,24 @@ func _on_refresh_predicates() -> void:
 	var preds = engine.list_predicates()
 	for pred in preds:
 		predicates_list.add_item(str(pred))
+
+	_refresh_exposed()
+
+
+func _refresh_exposed() -> void:
+	if exposed_list == null:
+		return
+	exposed_list.clear()
+	if engine == null or not engine.has_method("list_exposed"):
+		return
+	for item in engine.list_exposed():
+		var kind := str(item.get("kind", "?"))
+		var cls := str(item.get("class", ""))
+		var member := str(item.get("member", ""))
+		var pred := str(item.get("predicate", ""))
+		var arity := int(item.get("arity", 0))
+		var owner := cls if not cls.is_empty() else "*"
+		exposed_list.add_item("%s %s.%s → %s/%d" % [kind, owner, member, pred, arity])
 
 ###############################################################################
 ## Creates a basic syntax highlighter for Prolog code.

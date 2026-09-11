@@ -206,6 +206,29 @@ func retract_all(pattern) -> bool:
 		return false
 	return engine.retract_all(pattern)
 
+func expose_property(godot_class: String, property: String, pred: String = "") -> bool:
+	if not engine:
+		push_error("Prologot: Engine not initialized")
+		return false
+	return engine.expose_property(godot_class, property, pred)
+
+func expose_method(godot_class: String, method: String, pred: String = "") -> bool:
+	if not engine:
+		push_error("Prologot: Engine not initialized")
+		return false
+	return engine.expose_method(godot_class, method, pred)
+
+func unexpose(pred: String, arity: int) -> bool:
+	if not engine:
+		push_error("Prologot: Engine not initialized")
+		return false
+	return engine.unexpose(pred, arity)
+
+func list_exposed() -> Array:
+	if not engine:
+		return []
+	return engine.list_exposed()
+
 ###############################################################################
 ## Call a Prolog predicate with the given arguments.
 ##
