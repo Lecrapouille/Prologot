@@ -10,6 +10,8 @@
 
 #pragma once
 
+#include "PrologGoal.hpp"
+#include "PrologPredicate.hpp"
 #include "PrologTerm.hpp"
 #include "PrologVariable.hpp"
 #include <SWI-Prolog.h>
@@ -209,6 +211,7 @@ public:
     Ref<PrologTerm> compound(String const& p_functor, Array const& p_args);
     Ref<PrologVariable> variable(String const& p_name = String());
     Ref<PrologVariable> anonymous();
+    Ref<PrologPredicate> predicate(String const& p_name, int p_arity);
 
     // =========================================================================
     // High-level solving (structured terms, no Prolog source parsing)

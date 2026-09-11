@@ -65,6 +65,7 @@ func run_all_tests() -> void:
 	test_consult_file_standalone()
 	test_prolog_term_factories()
 	test_prolog_variable()
+	test_prolog_predicate()
 
 	# Demo examples tests
 	test_demo_01_basic_queries()
@@ -758,6 +759,35 @@ func test_prolog_variable() -> void:
 	assert_true(anon.is_anonymous(), "anonymous() is anonymous")
 	assert_false(named.is_anonymous(), "a named variable is not anonymous")
 	assert_true(child != named, "different variable objects are not equal")
+
+	teardown_prolog()
+
+
+func test_prolog_predicate() -> void:
+	print("\n[Test Suite: PrologPredicate]")
+
+	if not setup_prolog():
+		print("  ✗ SKIP: Could not initialize Prolog")
+		return
+
+	var parent := prolog.predicate("parent", 2)
+	assert_true(parent != null, "predicate() creates a PrologPredicate")
+	assert_equal(parent.get_name(), "parent", "predicate name")
+	assert_equal(parent.get_arity(), 2, "predicate arity")
+	assert_equal(parent.as_text(), "parent/2", "predicate debug text")
+
+	var child := prolog.variable("Child")
+	var goal := parent.bind("tom", child)
+	assert_true(goal != null, "bind() with matching arity returns a goal")
+	assert_equal(goal.get_functor(), "parent", "bound goal functor")
+	assert_equal(goal.get_arity(), 2, "bound goal arity")
+	assert_true(goal.get_args()[1] == child, "bind() keeps the variable object")
+
+	var bad := parent.bind("tom")
+	assert_true(bad == null, "bind() rejects the wrong arity")
+
+	var via_array := parent.bindv(["tom", child])
+	assert_true(via_array != null and via_array.get_functor() == "parent", "bindv() accepts an Array")
 
 	teardown_prolog()
 

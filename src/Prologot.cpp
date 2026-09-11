@@ -64,6 +64,8 @@ void Prologot::_bind_methods()
                          &Prologot::variable,
                          DEFVAL(String()));
     ClassDB::bind_method(D_METHOD("anonymous"), &Prologot::anonymous);
+    ClassDB::bind_method(D_METHOD("predicate", "name", "arity"),
+                         &Prologot::predicate);
 
     // High-level structured solving
     ClassDB::bind_method(D_METHOD("solve", "goal", "args"),
@@ -610,6 +612,11 @@ Ref<PrologVariable> Prologot::variable(String const& p_name)
 Ref<PrologVariable> Prologot::anonymous()
 {
     return PrologVariable::create_anonymous();
+}
+
+Ref<PrologPredicate> Prologot::predicate(String const& p_name, int p_arity)
+{
+    return PrologPredicate::create(p_name, p_arity);
 }
 
 // =============================================================================
