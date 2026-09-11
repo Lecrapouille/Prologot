@@ -69,6 +69,10 @@ func run_all_tests() -> void:
 	test_prolog_goal_composition()
 	test_prolog_solution()
 	test_solve_prolog_goal()
+	test_atom_versus_string()
+	test_assert_fact_goal()
+	test_prolog_object()
+	test_query_text_named()
 
 	# Demo examples tests
 	test_demo_01_basic_queries()
@@ -862,6 +866,127 @@ func test_solve_prolog_goal() -> void:
 	assert_equal(chained.size(), 1, "conjunction finds tom -> bob -> ann")
 	assert_equal(chained[0].get(child), "bob", "shared variable stays bound across the conjunction")
 	assert_equal(chained[0].get(grandchild), "ann", "second variable is bound")
+
+	teardown_prolog()
+
+
+func test_atom_versus_string() -> void:
+	print("\n[Test Suite: atom vs Prolog string]")
+
+	if not setup_prolog():
+		print("  ✗ SKIP: Could not initialize Prolog")
+		return
+
+	assert_true(prolog.consult_string("""
+		named(hello).
+		msg("hello").
+	"""), "Load atom and string facts")
+
+	assert_true(prolog.succeeds(goal("named", ["hello"])), "String bind() is an atom")
+	assert_false(
+		prolog.succeeds(goal("named", [prolog.string("hello")])),
+		"prolog.string() does not match an atom"
+	)
+	assert_true(
+		prolog.succeeds(goal("msg", [prolog.string("hello")])),
+		"prolog.string() matches a Prolog string fact"
+	)
+	assert_false(prolog.succeeds(goal("msg", ["hello"])), "atom hello does not match \"hello\"")
+
+	var value := prolog.variable()
+	var atom_sol: PrologSolution = prolog.solve_one(goal("named", [value]))
+	assert_equal(atom_sol.get(value), "hello", "atom comes back as a Godot String")
+
+	var str_sol: PrologSolution = prolog.solve_one(goal("msg", [value]))
+	var bound = str_sol.get(value)
+	assert_true(bound is PrologTerm and bound.is_string(), "Prolog string comes back as PrologTerm")
+	assert_equal(bound.get_string(), "hello", "Prolog string contents")
+
+	teardown_prolog()
+
+
+func test_assert_fact_goal() -> void:
+	print("\n[Test Suite: assert_fact / retract on PrologGoal]")
+
+	if not setup_prolog():
+		print("  ✗ SKIP: Could not initialize Prolog")
+		return
+
+	var score := prolog.predicate("score", 2)
+	assert_true(prolog.assert_fact(score.bind("p1", 10)), "assert_fact adds a goal")
+	assert_true(prolog.succeeds(score.bind("p1", 10)), "asserted goal is queryable")
+	assert_true(prolog.retract_fact(score.bind("p1", 10)), "retract_fact accepts a goal")
+	assert_false(prolog.succeeds(score.bind("p1", 10)), "retracted goal is gone")
+
+	prolog.assert_fact(score.bind("a", 1))
+	prolog.assert_fact(score.bind("b", 2))
+	assert_true(prolog.retract_all(score.bind(prolog.anonymous(), prolog.anonymous())), "retract_all(goal)")
+	assert_false(prolog.succeeds(score.bind(prolog.anonymous(), prolog.anonymous())), "all score facts removed")
+
+	teardown_prolog()
+
+
+func test_prolog_object() -> void:
+	print("\n[Test Suite: PrologObject]")
+
+	if not setup_prolog():
+		print("  ✗ SKIP: Could not initialize Prolog")
+		return
+
+	var node := Node.new()
+	node.name = "Player"
+	var handle: PrologObject = prolog.object(node)
+	assert_true(handle != null and handle.is_valid(), "object() wraps a live Node")
+	assert_equal(handle.get_object(), node, "get_object() returns the same Node")
+	assert_true(handle.equals(prolog.object(node)), "same instance id compares equal")
+
+	var at := prolog.predicate("at", 2)
+	assert_true(prolog.assert_fact(at.bind(handle, "zone_1")), "assert a fact with a PrologObject")
+	assert_true(prolog.succeeds(at.bind(handle, "zone_1")), "query with the same handle")
+	assert_true(prolog.succeeds(at.bind(node, "zone_1")), "bind() auto-wraps a Node")
+
+	var place := prolog.variable()
+	var solution: PrologSolution = prolog.solve_one(at.bind(handle, place))
+	assert_equal(solution.get(place), "zone_1", "object fact binds other arguments")
+
+	var who := prolog.variable()
+	var found: PrologSolution = prolog.solve_one(at.bind(who, "zone_1"))
+	var bound_obj = found.get(who)
+	assert_true(bound_obj is PrologObject, "blob comes back as PrologObject")
+	assert_true(bound_obj.equals(handle), "round-trip keeps the instance id")
+
+	node.free()
+	assert_false(handle.is_valid(), "handle is invalid after the Node is freed")
+
+	teardown_prolog()
+
+
+func test_query_text_named() -> void:
+	print("\n[Test Suite: REPL named bindings]")
+
+	if not setup_prolog():
+		print("  ✗ SKIP: Could not initialize Prolog")
+		return
+
+	assert_true(prolog.consult_string("""
+		parent(tom, bob).
+		parent(tom, liz).
+	"""), "Load family facts")
+
+	var rows: Array = prolog._query_text_named("parent(tom, X)")
+	assert_equal(rows.size(), 2, "named query returns both children")
+	var names := []
+	for row in rows:
+		names.append(row["X"])
+	assert_true("bob" in names and "liz" in names, "bindings use source variable names")
+
+	var ground: Array = prolog._query_text_named("parent(tom, bob)")
+	assert_equal(ground.size(), 1, "ground success is one empty binding set")
+	assert_true(ground[0].is_empty(), "ground success has no variables")
+
+	var bad: Array = prolog._query_text_named("this is not valid")
+	assert_true(bad.is_empty(), "parse error returns no solutions")
+	assert_true(prolog.get_last_error().length() > 0, "parse error is stored")
 
 	teardown_prolog()
 

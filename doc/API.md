@@ -295,7 +295,8 @@ GDScript cannot write `parent("tom", child)` on a stored object, and `if []:` is
 |--------|--------|
 | `atom(name)` | Atom term |
 | `integer(value)` / `real(value)` | Numbers |
-| `string(value)` | Prolog string (distinct from an atom; P1 will make this conversion explicit) |
+| `string(value)` | Prolog string `"text"` — not the same as the atom from a GDScript `String` |
+| `object(node)` | `PrologObject` handle (Node / Resource instance id, SWI blob) |
 | `nil()` / `list(items)` | Empty list / list |
 | `compound(functor, args)` | Compound term |
 | `variable(name = "")` | Named or anonymous variable |
@@ -352,7 +353,22 @@ Returns the first `PrologSolution`, or `null` if none.
 
 ---
 
+#### `object(value: Object) -> PrologObject`
+
+Wraps a Godot `Node`, `Resource`, or other `Object`. Passing the same object to `bind()` wraps it automatically. `get_object()` / `is_valid()` follow the Godot instance id (the object may already be freed).
+
+---
+
 ### Dynamic Facts
+
+#### `assert_fact(goal: PrologGoal) -> bool`
+
+Asserts a goal with `assertz/1`. This is the object API for facts.
+
+```gdscript
+var parent = prolog.predicate("parent", 2)
+prolog.assert_fact(parent.bind("tom", "bob"))
+```
 
 #### `add_fact(fact: String) -> bool`
 
@@ -376,52 +392,22 @@ prolog.add_fact("game_state(level, 5)")
 # Note: "parent(tom, bob)." also works (period is removed automatically)
 ```
 
-#### `retract_fact(fact: String) -> bool`
+#### `retract_fact(fact) -> bool`
 
-Removes a fact from the Prolog knowledge base.
-
-This method removes a clause from the knowledge base. Uses Prolog's retract/1 predicate, which removes the first matching clause.
-
-**Note:** Do not include a trailing period ('.') in the fact string. If a period is present, it will be automatically removed.
-
-**Parameters:**
-
-- `fact` (String): The Prolog fact to remove (must match exactly).
-
-**Returns:** `true` if a matching fact was found and removed, `false` otherwise.
-
-**Example:**
+Removes the first matching clause. `fact` is a `PrologGoal` or a legacy source string.
 
 ```gdscript
-prolog.retract_fact("parent(tom, bob)")
-prolog.retract_fact("game_state(level, 5)")
+prolog.retract_fact(parent.bind("tom", "bob"))
+prolog.retract_fact("parent(tom, bob)")  # legacy
 ```
 
-#### `retract_all(functor: String) -> bool`
+#### `retract_all(pattern) -> bool`
 
-Retracts all facts matching a functor pattern.
-
-This method removes all clauses that match the given functor pattern. Uses Prolog's retractall/1 predicate, which removes all matching clauses.
-
-**Note:** Do not include a trailing period ('.') in the functor pattern. If a period is present, it will be automatically removed.
-
-**Parameters:**
-
-- `functor` (String): The functor pattern to match (can contain variables).
-
-**Returns:** `true` if any matching facts were retracted, `false` otherwise.
-
-**Example:**
+Removes every matching clause. `pattern` is a `PrologGoal` or a legacy source string.
 
 ```gdscript
-# Remove all likes/2 facts
-prolog.retract_all("likes(_, _)")
-
-# Remove all game_state facts
-prolog.retract_all("game_state(_, _)")
-
-# Remove all facts with a specific first argument
-prolog.retract_all("parent(tom, _)")
+prolog.retract_all(parent.bind("tom", prolog.anonymous()))
+prolog.retract_all("likes(_, _)")  # legacy
 ```
 
 ---

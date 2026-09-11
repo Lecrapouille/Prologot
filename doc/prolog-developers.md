@@ -12,9 +12,11 @@ Prologot uses an object API from GDScript. Rules stay in `.pl` files (or `consul
 |---------------|-------------------------|-------------|
 | `consult_file()` | `consult/1` | Load a Prolog file |
 | `consult_string()` | `consult_string/1` or `assertz/1` | Load Prolog code from a string |
-| `add_fact()` | `assert/1` or `assertz/1` | Add a fact (string, until a later `assert_fact(goal)` API) |
-| `retract_fact()` | `retract/1` | Remove a fact from the knowledge base |
-| `retract_all()` | `retractall/1` | Remove all facts matching a pattern |
+| `assert_fact(goal)` | `assertz/1` | Add a fact from a `PrologGoal` |
+| `add_fact()` | `assert/1` | Legacy: add a fact from a source string |
+| `retract_fact()` | `retract/1` | Goal or legacy source string |
+| `retract_all()` | `retractall/1` | Goal or legacy source string |
+| `object()` | SWI blob `godot_object` | Handle to a Godot `Object` (instance id) |
 | `predicate(name, arity)` | functor / arity | Reusable predicate object |
 | `variable()` / `anonymous()` | logical variable / `_` | Variable object, never a `String` |
 | `predicate.bind(...)` | compound term | Builds a `PrologGoal` (`parent(tom, Child)`) |
@@ -36,6 +38,7 @@ There is no public `query_text()`. The editor dock parses Prolog source through 
 ## Prolog Syntax Notes
 
 - **Variables are objects.** A `String` passed to `bind()` is always an atom. `"X"` is the atom `X`, not a variable. Call `prolog.variable()` (optionally with a debug name).
-- **Atoms vs strings.** A GDScript `String` sent as an argument is a Prolog atom. Use `prolog.string()` when you need a Prolog string.
+- **Atoms vs strings.** A GDScript `String` sent as an argument is a Prolog atom. Use `prolog.string()` for a Prolog string. Bound atoms come back as `String`; bound Prolog strings come back as `PrologTerm`.
+- **Godot objects.** `prolog.object(node)` (or passing a `Node` / `Resource` to `bind()`) stores the instance id as a SWI blob. The handle does not keep the node alive.
 - **No trailing periods in facts.** `add_fact()` / `retract_*()` ignore a trailing period if present.
 - **Knowledge base accumulation.** Multiple calls to `consult_file()` and `consult_string()` accumulate clauses. Use `retract_all()` to remove specific predicates if needed.

@@ -11,6 +11,7 @@
 #pragma once
 
 #include "PrologGoal.hpp"
+#include "PrologObject.hpp"
 #include "PrologPredicate.hpp"
 #include "PrologSolution.hpp"
 #include "PrologTerm.hpp"
@@ -213,6 +214,18 @@ public:
     Ref<PrologVariable> anonymous();
     Ref<PrologPredicate> predicate(String const& p_name, int p_arity);
 
+    /**
+     * @brief Wraps a Godot Object (Node, Resource, ...) as a Prolog handle.
+     *
+     * A String is never an object handle. Pass the Node / Resource itself.
+     * If the object is freed later, the handle stays but is_valid() is false.
+     *
+     * @example
+     * var player = prolog.object($Player)
+     * prolog.assert_fact(prolog.predicate("at", 2).bind(player, "zone_1"))
+     */
+    Ref<PrologObject> object(Object* p_object);
+
     // =========================================================================
     // High-level solving (structured terms, no Prolog source parsing)
     // =========================================================================
@@ -275,6 +288,15 @@ public:
     Variant query_text_one(String const& p_goal);
 
     /**
+     * @brief Parses a Prolog source string and returns named bindings
+     * (bound as `_query_text_named`). Used by the editor REPL.
+     *
+     * Each solution is a Dictionary of variable name → value, e.g.
+     * {"X": "bob"}. A successful ground query yields an empty Dictionary.
+     */
+    Array query_text_named(String const& p_goal);
+
+    /**
      * @brief Gets the last error message from Prolog.
      *
      * This method returns the last error message stored in m_last_error.
@@ -312,6 +334,15 @@ public:
     bool add_fact(String const& p_fact);
 
     /**
+     * @brief Asserts a PrologGoal as a fact (assertz/1). No source string.
+     *
+     * @example
+     * var parent = prolog.predicate("parent", 2)
+     * prolog.assert_fact(parent.bind("tom", "bob"))
+     */
+    bool assert_fact(Ref<PrologGoal> const& p_goal);
+
+    /**
      * @brief Removes a fact from the Prolog knowledge base.
      *
      * This method removes a clause from the knowledge base. Uses Prolog's
@@ -320,14 +351,14 @@ public:
      * Note: Do not include a trailing period ('.') in the fact string. If a
      * period is present, it will be automatically removed.
      *
-     * @param p_fact The Prolog fact to remove (must match exactly).
+     * @param p_fact String (legacy) or PrologGoal.
      * @return true if a matching fact was found and removed, false otherwise.
      *
      * @example
      * prolog.retract_fact("parent(tom, bob)")
-     * prolog.retract_fact("game_state(level, 5)")
+     * prolog.retract_fact(parent.bind("tom", "bob"))
      */
-    bool retract_fact(String const& p_fact);
+    bool retract_fact(Variant const& p_fact);
 
     /**
      * @brief Retracts all facts matching a functor pattern.
@@ -338,20 +369,14 @@ public:
      * Note: Do not include a trailing period ('.') in the functor pattern. If a
      * period is present, it will be automatically removed.
      *
-     * @param p_functor The functor pattern to match (can contain variables).
+     * @param p_pattern String pattern (legacy) or PrologGoal.
      * @return true if any matching facts were retracted, false otherwise.
      *
      * @example
-     * # Remove all likes/2 facts
      * prolog.retract_all("likes(_, _)")
-     *
-     * # Remove all game_state facts
-     * prolog.retract_all("game_state(_, _)")
-     *
-     * # Remove all facts with a specific first argument
-     * prolog.retract_all("parent(tom, _)")
+     * prolog.retract_all(parent.bind("tom", prolog.anonymous()))
      */
-    bool retract_all(String const& p_functor);
+    bool retract_all(Variant const& p_pattern);
 
     // =========================================================================
     // Predicate Manipulation
@@ -519,6 +544,18 @@ private:
                       std::vector<Ref<PrologVariable>>& p_order);
 
     Array collect_goal_solutions(Ref<PrologGoal> const& p_goal);
+
+    /**
+     * @brief Calls a unary built-in (assertz, retract, retractall) on a goal.
+     */
+    bool apply_clause_predicate(char const* p_name,
+                                Ref<PrologGoal> const& p_goal,
+                                String const& p_context);
+
+    /**
+     * @brief Converts a Godot Object / PrologObject to a SWI blob term.
+     */
+    term_t godot_object_to_term(Object* p_object);
 
     /**
      * @brief Helper to push error messages respecting error handling options.

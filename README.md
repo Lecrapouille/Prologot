@@ -47,7 +47,7 @@ make run-demo
 make run-galactic_customs
 ```
 
-- **Experiment in the Editor**: After playing with the demos, fire up the **[Editor Console](doc/editor-console.md)** in Godot. It's like having a Prolog REPL right in your editor - perfect for tinkering and testing ideas. Once you've convinced yourself that Prolog is actually useful (we know, it's a hard sell), grab the **[hello_world_prologot.gd](hello_world_prologot.gd)** template and start building. Don't forget to check the **[API Reference](doc/API.md)** when you need the details.
+- **Getting started from GDScript**: read **[Getting started](doc/getting-started.md)** (variables, lists, facts, objects). Then fire up the **[Editor Console](doc/editor-console.md)** (`X = bob`, query history). Grab the **[hello_world_prologot.gd](doc/hello_world_prologot.gd)** template and the **[API Reference](doc/API.md)** when you need the details.
 
 - **For Prolog Veterans**: If you're already fluent in Prolog and wondering why we renamed everything, check out the **[Mapping between Prologot and traditional Prolog names](doc/prolog-developers.md)**. We promise it's not just to confuse you.
 

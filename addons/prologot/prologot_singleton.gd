@@ -94,6 +94,9 @@ func anonymous():
 func predicate(name: String, arity: int):
 	return engine.predicate(name, arity) if engine else null
 
+func object(value):
+	return engine.object(value) if engine else null
+
 func succeeds(goal) -> bool:
 	if not engine:
 		push_error("Prologot: Engine not initialized")
@@ -180,21 +183,28 @@ func add_fact(fact: String) -> bool:
 		return false
 	return engine.add_fact(fact)
 
+func assert_fact(goal) -> bool:
+	if not engine:
+		push_error("Prologot: Engine not initialized")
+		return false
+	return engine.assert_fact(goal)
+
 ###############################################################################
 ## Retract a fact from the Prolog knowledge base.
 ##
-## Removes a specific fact from the knowledge base. The fact string must match
-## exactly (including arguments) for it to be removed. This allows runtime
-## modification of the knowledge base.
-##
-## @param fact: The Prolog fact to remove as a string (must match exactly)
-## @return: true if the fact was successfully removed, false otherwise
+## Accepts a legacy Prolog source string or a PrologGoal from bind().
 ###############################################################################
-func retract_fact(fact: String) -> bool:
+func retract_fact(fact) -> bool:
 	if not engine:
 		push_error("Prologot: Engine not initialized")
 		return false
 	return engine.retract_fact(fact)
+
+func retract_all(pattern) -> bool:
+	if not engine:
+		push_error("Prologot: Engine not initialized")
+		return false
+	return engine.retract_all(pattern)
 
 ###############################################################################
 ## Call a Prolog predicate with the given arguments.

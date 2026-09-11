@@ -71,6 +71,20 @@ func _ready():
     print("Enemy: ", solution.get(name), " HP: ", solution.get(hp), " Threat: ", solution.get(threat))
 ```
 
+## Godot objects in facts
+
+Pass a `Node` or `Resource` without turning it into a name string:
+
+```gdscript
+var player = PrologotEngine.object($Player)
+var at = PrologotEngine.predicate("at", 2)
+PrologotEngine.assert_fact(at.bind(player, "zone_1"))
+if PrologotEngine.succeeds(at.bind($Player, "zone_1")):
+    print("same instance")
+```
+
+If the node is freed, `player.is_valid()` becomes false. Retract stale facts after a scene change.
+
 ## AI Decision Making
 
 Use Prolog to make intelligent decisions for NPCs based on game state:

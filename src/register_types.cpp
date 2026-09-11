@@ -11,6 +11,7 @@
 
 #include "register_types.h"
 #include "PrologGoal.hpp"
+#include "PrologObject.hpp"
 #include "PrologPredicate.hpp"
 #include "PrologSolution.hpp"
 #include "PrologTerm.hpp"
@@ -46,6 +47,7 @@ void initialize_prologot_module(ModuleInitializationLevel p_level)
     ClassDB::register_class<PrologGoal>();
     ClassDB::register_class<PrologPredicate>();
     ClassDB::register_class<PrologSolution>();
+    ClassDB::register_class<PrologObject>();
     ClassDB::register_class<Prologot>();
 }
 

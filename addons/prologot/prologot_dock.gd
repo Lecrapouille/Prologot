@@ -30,6 +30,10 @@ var code_input: TextEdit
 ## Set by the plugin when the dock is created.
 var engine = null
 
+## Previous queries for Up/Down history (étape 13).
+var _history: Array[String] = []
+var _history_index: int = -1
+
 
 ###############################################################################
 ## Initialize the dock when it enters the scene tree.
@@ -92,6 +96,7 @@ func _build_query_section() -> void:
 	query_input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	# Connect Enter key press to execute query
 	query_input.text_submitted.connect(_on_query_submitted)
+	query_input.gui_input.connect(_on_query_gui_input)
 	query_container.add_child(query_input)
 
 	# Execute button
@@ -222,30 +227,73 @@ func _on_query_button_pressed() -> void:
 ##
 ## @param query: The Prolog query string to execute
 ###############################################################################
+func _on_query_gui_input(event: InputEvent) -> void:
+	if not (event is InputEventKey) or not event.pressed or event.echo:
+		return
+	if event.keycode == KEY_UP:
+		_history_step(-1)
+		query_input.accept_event()
+	elif event.keycode == KEY_DOWN:
+		_history_step(1)
+		query_input.accept_event()
+
+
+func _history_step(delta: int) -> void:
+	if _history.is_empty():
+		return
+	if _history_index < 0:
+		_history_index = _history.size()
+	_history_index = clampi(_history_index + delta, 0, _history.size())
+	if _history_index == _history.size():
+		query_input.text = ""
+	else:
+		query_input.text = _history[_history_index]
+	query_input.caret_column = query_input.text.length()
+
+
+func _push_history(query: String) -> void:
+	if query.is_empty():
+		return
+	if _history.is_empty() or _history[_history.size() - 1] != query:
+		_history.append(query)
+	_history_index = -1
+
+
 func _execute_query(query: String) -> void:
-	# Skip empty queries
+	query = query.strip_edges()
 	if query.is_empty():
 		return
 
-	# Check if engine is available
 	if not engine:
 		_append_result("❌ Error: Prologot engine not available")
 		return
 
-	# Display the query in Prolog format
+	_push_history(query)
 	_append_result("\n?- " + query)
 
-	# Execute the query and get all solutions
-	var results = engine._query_text_all(query)
+	var results = engine._query_text_named(query)
 	if results.is_empty():
-		# No solutions found
-		_append_result("false.")
-	else:
-		# Display each solution found
-		for i in results.size():
-			_append_result("  Solution %d: %s" % [i + 1, _format_result(results[i])])
-		# Show summary
-		_append_result("true. (%d solution(s))" % results.size())
+		var err: String = engine.get_last_error()
+		if not err.is_empty():
+			_append_result("ERROR: " + err)
+		else:
+			_append_result("false.")
+		return
+
+	for i in results.size():
+		_append_result(_format_named_solution(results[i], i + 1))
+	_append_result("true. (%d solution(s))" % results.size())
+
+
+func _format_named_solution(bindings, index: int) -> String:
+	if bindings == null or not (bindings is Dictionary):
+		return "  %d. %s" % [index, _format_result(bindings)]
+	if bindings.is_empty():
+		return "  %d. true" % index
+	var parts: Array[String] = []
+	for key in bindings.keys():
+		parts.append("%s = %s" % [str(key), _format_result(bindings[key])])
+	return "  %d. %s" % [index, ", ".join(parts)]
 
 ###############################################################################
 ## Formats a Prolog result for display.
@@ -260,6 +308,8 @@ func _execute_query(query: String) -> void:
 func _format_result(result) -> String:
 	if result == null:
 		return "null"
+	if result is Object and result.has_method("as_text"):
+		return str(result.as_text())
 	if result is Dictionary:
 		# Compound term: {"functor": "name", "args": [...]}
 		# Format as functor(arg1, arg2, ...)
@@ -370,6 +420,9 @@ func _on_consult_string_pressed() -> void:
 		_on_refresh_predicates()
 	else:
 		_append_result("✗ Error loading code")
+		var err = engine.get_last_error()
+		if not err.is_empty():
+			_append_result("  → " + err)
 
 ###############################################################################
 ## Event handler for refresh predicates button pressed.

@@ -66,6 +66,7 @@ void Prologot::_bind_methods()
     ClassDB::bind_method(D_METHOD("anonymous"), &Prologot::anonymous);
     ClassDB::bind_method(D_METHOD("predicate", "name", "arity"),
                          &Prologot::predicate);
+    ClassDB::bind_method(D_METHOD("object", "value"), &Prologot::object);
 
     // High-level structured solving
     ClassDB::bind_method(D_METHOD("succeeds", "goal"), &Prologot::succeeds);
@@ -79,9 +80,13 @@ void Prologot::_bind_methods()
                          &Prologot::query_text_all);
     ClassDB::bind_method(D_METHOD("_query_text_one", "goal"),
                          &Prologot::query_text_one);
+    ClassDB::bind_method(D_METHOD("_query_text_named", "goal"),
+                         &Prologot::query_text_named);
 
     // Dynamic assertion methods
     ClassDB::bind_method(D_METHOD("add_fact", "fact"), &Prologot::add_fact);
+    ClassDB::bind_method(D_METHOD("assert_fact", "goal"),
+                         &Prologot::assert_fact);
     ClassDB::bind_method(D_METHOD("retract_fact", "fact"),
                          &Prologot::retract_fact);
     ClassDB::bind_method(D_METHOD("retract_all", "functor"),
@@ -334,6 +339,8 @@ bool Prologot::initialize(Dictionary const& p_options)
 
         return false;
     }
+
+    PrologObject::register_blob_type();
 
     // Log which SWI_HOME_DIR is being used by Prolog
     term_t home_term = PL_new_term_ref();
@@ -614,6 +621,11 @@ Ref<PrologPredicate> Prologot::predicate(String const& p_name, int p_arity)
     return PrologPredicate::create(p_name, p_arity);
 }
 
+Ref<PrologObject> Prologot::object(Object* p_object)
+{
+    return PrologObject::create(p_object);
+}
+
 // =============================================================================
 // High-level solving (structured terms)
 // =============================================================================
@@ -657,6 +669,14 @@ term_t Prologot::object_arg_to_term(Variant const& p_arg,
         Ref<PrologTerm> term = p_arg;
         if (term.is_valid())
             return prolog_term_to_swi(term, p_vars, p_order);
+
+        Ref<PrologObject> handle = p_arg;
+        if (handle.is_valid())
+            return handle->to_swi_term();
+
+        Object* native = p_arg;
+        if (native)
+            return godot_object_to_term(native);
     }
 
     if (p_arg.get_type() == Variant::ARRAY)
@@ -803,6 +823,49 @@ Array Prologot::collect_goal_solutions(Ref<PrologGoal> const& p_goal)
 
     PL_close_query(qid);
     return results;
+}
+
+term_t Prologot::godot_object_to_term(Object* p_object)
+{
+    Ref<PrologObject> handle = PrologObject::create(p_object);
+    if (handle.is_null())
+        return (term_t)0;
+    return handle->to_swi_term();
+}
+
+bool Prologot::apply_clause_predicate(char const* p_name,
+                                      Ref<PrologGoal> const& p_goal,
+                                      String const& p_context)
+{
+    if (!m_initialized)
+        return false;
+    if (p_goal.is_null())
+    {
+        m_last_error = p_context + String(": missing PrologGoal");
+        return false;
+    }
+
+    std::map<int64_t, term_t> vars;
+    std::vector<Ref<PrologVariable>> order;
+    term_t term = PL_new_term_ref();
+    if (!compile_goal(p_goal, term, vars, order))
+    {
+        if (m_last_error.is_empty())
+            m_last_error = p_context + String(": failed to compile goal");
+        return false;
+    }
+
+    qid_t qid = PL_open_query(
+        NULL, PL_Q_CATCH_EXCEPTION, PL_predicate(p_name, 1, "user"), term);
+    int result = PL_next_solution(qid);
+    if (result == PL_S_EXCEPTION)
+    {
+        handle_prolog_exception(qid, p_context);
+        PL_close_query(qid);
+        return false;
+    }
+    PL_close_query(qid);
+    return result != 0;
 }
 
 bool Prologot::succeeds(Ref<PrologGoal> const& p_goal)
@@ -961,6 +1024,89 @@ Variant Prologot::query_text_one(String const& p_goal)
     return var;
 }
 
+Array Prologot::query_text_named(String const& p_goal)
+{
+    Array results;
+    if (!m_initialized)
+        return results;
+
+    String goal = strip_trailing_period(p_goal);
+    if (goal.begins_with("?-"))
+        goal = goal.substr(2).strip_edges();
+    if (goal.is_empty())
+    {
+        m_last_error = "Empty query";
+        return results;
+    }
+
+    term_t args = PL_new_term_refs(3);
+    if (!PL_put_atom_chars(args + 0, goal.utf8().get_data()))
+    {
+        m_last_error = "Failed to build query atom: " + goal;
+        return results;
+    }
+    if (!PL_put_variable(args + 1) || !PL_put_variable(args + 2))
+        return results;
+
+    qid_t parse_qid = PL_open_query(NULL,
+                                    PL_Q_CATCH_EXCEPTION,
+                                    PL_predicate("atom_to_term", 3, NULL),
+                                    args);
+    int parsed = PL_next_solution(parse_qid);
+    if (parsed == PL_S_EXCEPTION)
+    {
+        handle_prolog_exception(parse_qid, "Parse query");
+        PL_close_query(parse_qid);
+        return results;
+    }
+    if (!parsed)
+    {
+        m_last_error = "Failed to parse query: " + goal;
+        PL_close_query(parse_qid);
+        return results;
+    }
+    PL_close_query(parse_qid);
+
+    term_t term = args + 1;
+    term_t bindings = args + 2;
+
+    qid_t qid = PL_open_query(
+        NULL, PL_Q_CATCH_EXCEPTION, PL_predicate("call", 1, "user"), term);
+
+    while (true)
+    {
+        int result = PL_next_solution(qid);
+        if (result == PL_S_EXCEPTION)
+        {
+            handle_prolog_exception(qid, "Query");
+            PL_close_query(qid);
+            return results;
+        }
+        if (!result)
+            break;
+
+        Dictionary dict;
+        term_t head = PL_new_term_ref();
+        term_t tail = PL_copy_term_ref(bindings);
+        while (PL_get_list(tail, head, tail))
+        {
+            term_t name_term = PL_new_term_ref();
+            term_t value_term = PL_new_term_ref();
+            if (!PL_get_arg(1, head, name_term) ||
+                !PL_get_arg(2, head, value_term))
+                continue;
+            char* name_chars = nullptr;
+            if (!PL_get_atom_chars(name_term, &name_chars) || !name_chars)
+                continue;
+            dict[String(name_chars)] = term_to_variant(value_term);
+        }
+        results.push_back(dict);
+    }
+
+    PL_close_query(qid);
+    return results;
+}
+
 // =============================================================================
 // Dynamic Assertions
 // =============================================================================
@@ -1012,20 +1158,36 @@ bool Prologot::add_fact(String const& p_fact)
     return result != 0;
 }
 
-bool Prologot::retract_fact(String const& p_fact)
+bool Prologot::assert_fact(Ref<PrologGoal> const& p_goal)
 {
+    return apply_clause_predicate("assertz", p_goal, "Assert fact");
+}
+
+bool Prologot::retract_fact(Variant const& p_fact)
+{
+    Ref<PrologGoal> goal = p_fact;
+    if (goal.is_valid())
+        return apply_clause_predicate("retract", goal, "Retract fact");
+
+    if (p_fact.get_type() != Variant::STRING)
+    {
+        push_error("retract_fact() expects a String or a PrologGoal");
+        return false;
+    }
+
+    String fact_string = p_fact;
     if (!m_initialized)
         return false;
 
     // Validate input
-    if (p_fact.is_empty())
+    if (fact_string.is_empty())
     {
         m_last_error = "Empty fact";
         return false;
     }
 
     // Remove trailing period if present (users might include it by mistake)
-    String fact = p_fact;
+    String fact = fact_string;
     if (fact.length() > 0 && fact[fact.length() - 1] == '.')
     {
         fact = fact.substr(0, fact.length() - 1);
@@ -1059,13 +1221,23 @@ bool Prologot::retract_fact(String const& p_fact)
     return result != 0;
 }
 
-bool Prologot::retract_all(String const& p_functor)
+bool Prologot::retract_all(Variant const& p_pattern)
 {
+    Ref<PrologGoal> goal = p_pattern;
+    if (goal.is_valid())
+        return apply_clause_predicate("retractall", goal, "Retract all");
+
+    if (p_pattern.get_type() != Variant::STRING)
+    {
+        push_error("retract_all() expects a String or a PrologGoal");
+        return false;
+    }
+
     if (!m_initialized)
         return false;
 
     // Remove trailing period if present (users might include it by mistake)
-    String functor = p_functor;
+    String functor = p_pattern;
     if (functor.length() > 0 && functor[functor.length() - 1] == '.')
     {
         functor = functor.substr(0, functor.length() - 1);
@@ -1248,9 +1420,21 @@ Variant Prologot::term_to_variant(term_t p_term)
             return Variant();
 
         case PL_ATOM:
+        case PL_BLOB:
         {
-            // Convert Prolog atom to Godot String
-            // Atoms are like symbols in other languages (e.g., 'foo', 'bar')
+            PL_blob_t* blob_type = nullptr;
+            if (PL_is_blob(p_term, &blob_type) &&
+                PrologObject::is_blob_type(blob_type))
+            {
+                Ref<PrologObject> handle = PrologObject::from_swi_term(p_term);
+                if (handle.is_valid())
+                    return handle;
+            }
+
+            if (type == PL_BLOB)
+                return Variant();
+
+            // Atom → Godot String. Distinct from a Prolog string.
             char* s;
             if (!PL_get_atom_chars(p_term, &s))
                 return Variant();
@@ -1277,14 +1461,13 @@ Variant Prologot::term_to_variant(term_t p_term)
 
         case PL_STRING:
         {
-            // Convert Prolog string to Godot String
-            // Note: Prolog strings are different from atoms
-            // Strings are "text" while atoms are 'symbols'
+            // Prolog string → PrologTerm, so it is not confused with an atom.
             char* s;
             size_t len;
             if (!PL_get_string_chars(p_term, &s, &len))
                 return Variant();
-            return String(s);
+            (void)len;
+            return PrologTerm::make_string(String(s));
         }
 
         case PL_NIL:
@@ -1419,15 +1602,31 @@ term_t Prologot::variant_to_term(Variant const& p_var)
             break;
 
         case Variant::STRING:
-            // Convert GDScript strings to Prolog atoms (not strings)
-            // This is important because Prolog atoms (foo) differ from strings
-            // ("foo") Atoms are more commonly used in Prolog, so we use them by
-            // default
+            // A GDScript String is always a Prolog atom. Use prolog.string()
+            // for a Prolog string ("text").
             if (!PL_put_atom_chars(t, ((String)p_var).utf8().get_data()))
             {
-                return (term_t)0; // Return invalid term on failure
+                return (term_t)0;
             }
             break;
+
+        case Variant::OBJECT:
+        {
+            Ref<PrologTerm> term = p_var;
+            if (term.is_valid())
+            {
+                std::map<int64_t, term_t> vars;
+                std::vector<Ref<PrologVariable>> order;
+                return prolog_term_to_swi(term, vars, order);
+            }
+            Ref<PrologObject> handle = p_var;
+            if (handle.is_valid())
+                return handle->to_swi_term();
+            Object* native = p_var;
+            if (native)
+                return godot_object_to_term(native);
+            return (term_t)0;
+        }
 
         case Variant::ARRAY:
         {

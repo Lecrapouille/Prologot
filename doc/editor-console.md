@@ -21,7 +21,9 @@ The plugin adds a **Prologot Console** dock in the editor where you can:
 5. **Execute queries**:
    - Type a Prolog query in the "Query" field (e.g., `parent(X, bob)`)
    - Press Enter or click "Execute"
-   - Results appear in the "Results" area
+   - Bindings print as `X = bob` (like the SWI toplevel). Ground success prints `true`
+   - Parse / runtime errors show `ERROR:` plus the engine message
+   - Up / Down recalls previous queries
 6. **View predicates**: Click "Refresh" to see all loaded predicates in the list
 
 ## Example Workflow
@@ -36,7 +38,7 @@ The plugin adds a **Prologot Console** dock in the editor where you can:
 
 3. Type query: grandparent(X, ann)
 
-4. Click "Execute" or press Enter
+4. Click "Execute" or press Enter — expect `X = tom`
 
-5. See results: Solution 1: {result: grandparent(tom, ann), arg1: tom, arg2: ann}
+5. See results: `X = tom`
 ```
