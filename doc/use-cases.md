@@ -85,6 +85,25 @@ if PrologotEngine.succeeds(at.bind($Player, "zone_1")):
 
 If the node is freed, `player.is_valid()` becomes false. Retract stale facts after a scene change.
 
+## Read Node / Resource fields from Prolog
+
+Expose only the members your rules need, then write ordinary Prolog:
+
+```gdscript
+PrologotEngine.expose_property("Node", "name", "node_name")
+PrologotEngine.consult_string("""
+    hero(X) :- node_name(X, 'Hero').
+""")
+if PrologotEngine.succeeds(PrologotEngine.predicate("hero", 1).bind($Player)):
+    print("the player node is named Hero")
+```
+
+Or drop a `PrologotNode` in the scene, assign a `PrologKnowledge` Resource, and query from a sibling script:
+
+```gdscript
+$Prologot.succeeds($Prologot.predicate("hero", 1).bind($Player))
+```
+
 ## AI Decision Making
 
 Use Prolog to make intelligent decisions for NPCs based on game state:

@@ -359,6 +359,57 @@ Wraps a Godot `Node`, `Resource`, or other `Object`. Passing the same object to 
 
 ---
 
+### Exposing Godot members
+
+Each call installs one wrapper predicate. The Godot API is never exported as a whole.
+
+#### `expose_property(class_name: String, property: String, predicate: String = "") -> bool`
+
+Creates `predicate(Object, Value)`. Unbound `Value` unifies with the current property; a ground `Value` succeeds only when it matches (no setter). `class_name` is an `is_class()` filter; empty accepts any live object. Property `name` defaults to the functor `node_name` (SWI already has `name/2`).
+
+```gdscript
+prolog.expose_property("Node", "name", "node_name")
+prolog.expose_property("Node2D", "position")
+prolog.succeeds(prolog.predicate("node_name", 2).bind($Player, "Hero"))
+```
+
+`Vector2` / `Vector3` become Prolog lists `[x, y]` / `[x, y, z]`.
+
+#### `expose_method(class_name: String, method: String, predicate: String = "") -> bool`
+
+Arity is 1 (the object) + required arguments + 1 if the method returns a non-`NIL` value.
+
+```gdscript
+prolog.expose_method("Object", "get_class", "godot_class")
+var cls = prolog.variable()
+var solution = prolog.solve_one(prolog.predicate("godot_class", 2).bind($Player, cls))
+print(solution.get(cls))  # "CharacterBody2D"
+```
+
+#### `unexpose(predicate: String, arity: int) -> bool`
+
+Retracts the wrapper clause and drops it from `list_exposed()`.
+
+#### `list_exposed() -> Array`
+
+Dictionaries `{kind, class, member, predicate, arity}`. The editor dock shows the same list.
+
+Call these from the Godot main thread only.
+
+---
+
+### Scene integration
+
+#### `PrologotNode`
+
+A `Node` you add to the scene tree (`class_name PrologotNode`). Exports `knowledge` (assign a `PrologKnowledge`), `consult_files`, `swipl_home`, `auto_start`, `use_autoload`. Forwards `predicate` / `solve` / `expose_*` to its engine. Reuses `/root/PrologotEngine` when the plugin autoload is present.
+
+#### `PrologKnowledge`
+
+A `Resource` (`class_name PrologKnowledge`) with `@export` file list and multiline Prolog. `load_into(engine)` consults files then inline code. Editable in the Inspector.
+
+---
+
 ### Dynamic Facts
 
 #### `assert_fact(goal: PrologGoal) -> bool`
@@ -564,6 +615,8 @@ Compound terms (e.g., `parent(tom, bob)`) are converted to a Dictionary with:
 | `Variant::STRING` | `PL_ATOM` | **Important:** Strings become Prolog atoms, not strings |
 | `Variant::ARRAY` (empty) | `PL_NIL` | Empty Array becomes empty list `[]` |
 | `Variant::ARRAY` (non-empty) | `PL_LIST_PAIR` | Arrays become Prolog lists `[elem1, elem2, ...]` |
+| `Variant::VECTOR2` / `VECTOR2I` | Prolog list | `[x, y]` |
+| `Variant::VECTOR3` / `VECTOR3I` | Prolog list | `[x, y, z]` |
 | `Variant::DICTIONARY` | `PL_TERM` (compound) | Dictionary with `"functor"` and `"args"` becomes compound term |
 
 **Dictionary Format for Compound Terms:**

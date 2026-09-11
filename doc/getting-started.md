@@ -104,6 +104,35 @@ p.succeeds(at.bind($Player, "zone_1"))  # same instance id
 
 The handle stores the Godot instance id (SWI blob). If the node is freed, `player.is_valid()` is false. Use this from the main thread only.
 
+## 9. Expose a Node or Resource to Prolog
+
+Nothing of the Godot API is exported automatically. You list each property or method:
+
+```gdscript
+p.expose_property("Node", "name", "node_name")
+p.expose_property("Node2D", "position")          # position/2, Vector2 → [x, y]
+p.expose_method("Object", "get_class", "godot_class")
+
+var who = p.variable()
+if p.succeeds(p.predicate("node_name", 2).bind($Player, "Hero")):
+    print("this node is Hero")
+for solution in p.solve(p.predicate("godot_class", 2).bind($Player, who)):
+    print(solution.get(who))
+```
+
+`node_name(Obj, Val)` is relational: an unbound `Val` reads the property; a ground `Val` succeeds only if it matches. There is no implicit setter. The first argument is a class filter (`Object.is_class()`); a `Node` will not satisfy a `Node2D` property.
+
+Do not expose as `name/2` — that functor is already used by SWI-Prolog.
+
+### Scene node and knowledge Resource
+
+Drop a **PrologotNode** in the scene (Create Node) and assign a **PrologKnowledge** Resource (files + optional inline clauses). At runtime the node starts the engine (or reuses `PrologotEngine`) and consults that knowledge. The Resource is inspectable in the Inspector; the editor dock lists exposed members under **Exposed Godot members**.
+
+```gdscript
+# PrologKnowledge on the node, or:
+$PrologotNode.expose_property("Node", "name", "node_name")
+```
+
 ## Next
 
 - [API reference](API.md)
