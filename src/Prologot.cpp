@@ -60,6 +60,10 @@ void Prologot::_bind_methods()
     ClassDB::bind_method(D_METHOD("list", "items"), &Prologot::list);
     ClassDB::bind_method(D_METHOD("compound", "functor", "args"),
                          &Prologot::compound);
+    ClassDB::bind_method(D_METHOD("variable", "name"),
+                         &Prologot::variable,
+                         DEFVAL(String()));
+    ClassDB::bind_method(D_METHOD("anonymous"), &Prologot::anonymous);
 
     // High-level structured solving
     ClassDB::bind_method(D_METHOD("solve", "goal", "args"),
@@ -596,6 +600,16 @@ Ref<PrologTerm> Prologot::list(Array const& p_items)
 Ref<PrologTerm> Prologot::compound(String const& p_functor, Array const& p_args)
 {
     return PrologTerm::make_compound(p_functor, p_args);
+}
+
+Ref<PrologVariable> Prologot::variable(String const& p_name)
+{
+    return PrologVariable::create(p_name);
+}
+
+Ref<PrologVariable> Prologot::anonymous()
+{
+    return PrologVariable::create_anonymous();
 }
 
 // =============================================================================

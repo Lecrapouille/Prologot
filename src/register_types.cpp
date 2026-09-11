@@ -11,6 +11,7 @@
 
 #include "register_types.h"
 #include "PrologTerm.hpp"
+#include "PrologVariable.hpp"
 #include "Prologot.hpp"
 
 #include <godot_cpp/core/defs.hpp>
@@ -38,6 +39,7 @@ void initialize_prologot_module(ModuleInitializationLevel p_level)
     // Register the Prologot class with Godot's class database
     // This makes it available to GDScript and the editor
     ClassDB::register_class<PrologTerm>();
+    ClassDB::register_class<PrologVariable>();
     ClassDB::register_class<Prologot>();
 }
 

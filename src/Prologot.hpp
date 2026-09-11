@@ -11,6 +11,7 @@
 #pragma once
 
 #include "PrologTerm.hpp"
+#include "PrologVariable.hpp"
 #include <SWI-Prolog.h>
 #include <godot_cpp/classes/ref_counted.hpp>
 #include <godot_cpp/variant/array.hpp>
@@ -206,6 +207,8 @@ public:
     Ref<PrologTerm> nil();
     Ref<PrologTerm> list(Array const& p_items);
     Ref<PrologTerm> compound(String const& p_functor, Array const& p_args);
+    Ref<PrologVariable> variable(String const& p_name = String());
+    Ref<PrologVariable> anonymous();
 
     // =========================================================================
     // High-level solving (structured terms, no Prolog source parsing)

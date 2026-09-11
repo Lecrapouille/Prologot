@@ -64,6 +64,7 @@ func run_all_tests() -> void:
 	test_lists_atoms_and_variants()
 	test_consult_file_standalone()
 	test_prolog_term_factories()
+	test_prolog_variable()
 
 	# Demo examples tests
 	test_demo_01_basic_queries()
@@ -734,6 +735,29 @@ func test_prolog_term_factories() -> void:
 	assert_equal(parent.get_functor(), "parent", "compound functor")
 	assert_equal(parent.get_args(), ["tom", "bob"], "compound args")
 	assert_equal(parent.as_text(), "parent(tom, bob)", "compound as_text")
+
+	teardown_prolog()
+
+
+func test_prolog_variable() -> void:
+	print("\n[Test Suite: PrologVariable]")
+
+	if not setup_prolog():
+		print("  ✗ SKIP: Could not initialize Prolog")
+		return
+
+	var child := prolog.variable()
+	var named := prolog.variable("Child")
+	var other := prolog.variable()
+	var anon := prolog.anonymous()
+
+	assert_true(child != null and child.is_variable(), "variable() creates a PrologVariable")
+	assert_true(named.get_name() == "Child", "named variable keeps its debug name")
+	assert_true(child.get_id() != other.get_id(), "each variable() call has a distinct identity")
+	assert_true(child.get_id() == child.get_id(), "the same object keeps a stable id")
+	assert_true(anon.is_anonymous(), "anonymous() is anonymous")
+	assert_false(named.is_anonymous(), "a named variable is not anonymous")
+	assert_true(child != named, "different variable objects are not equal")
 
 	teardown_prolog()
 
