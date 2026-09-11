@@ -54,7 +54,7 @@ var aliens_processed: int = 0
 #
 # 2. ALIEN DATABASE (below)
 #    Each alien entry contains facts that will be converted to Prolog facts
-#    at runtime using add_fact(). The galactic_customs.pl predicates then evaluate these facts.
+#    at runtime using assert_fact(predicate.bind(...)). The galactic_customs.pl predicates then evaluate these facts.
 #
 # 3. DAILY MISSIONS (further below)
 #    Each day adds specific rules that use or override the base galactic_customs.pl predicates.
@@ -67,7 +67,7 @@ var aliens_processed: int = 0
 #   threat_level(X, critical) :- has_tentacles(X), has_cargo(X, C), banned_substance(C).
 #   "X has critical threat if X has tentacles AND banned cargo"
 #
-# The game queries these predicates using solve(), call_predicate(), etc.
+# The game queries these predicates using succeeds(), solve(), and assert_fact().
 # =============================================================================
 
 # Alien database with all possible passengers
@@ -262,16 +262,12 @@ func init_prolog():
 	# Create the Prolog engine instance
 	prolog = Prologot.new()
 
-	# Initialize the engine
-	prolog.initialize({"home": _swipl_home()})
-	 	push_error("Failed to initialize Prologot: " + prolog.get_last_error())
- 	return
-
-	# Check if initialization was successful
-	if prolog.is_initialized():
-		log_message("[OK] Prolog engine initialized")
-	else:
+	if not prolog.initialize({"home": _swipl_home()}):
+		push_error("Failed to initialize Prologot: " + prolog.get_last_error())
 		log_message("[ERROR] Failed to initialize Prolog engine")
+		return
+
+	log_message("[OK] Prolog engine initialized")
 
 # =============================================================================
 # PROLOGOT TUTORIAL #2: CLEANUP - CLEAN RESOURCES
@@ -377,13 +373,24 @@ func load_next_alien():
 # =============================================================================
 # PROLOGOT TUTORIAL #4: RETRACT_ALL - CLEAR FACTS
 # -----------------------------------------------------------------------------
-# retract_all(predicate) clears ALL facts matching a predicate.
-# For example, retract_all("has_visa") deletes has_visa for all aliens.
-# This is essential between aliens to avoid fact buildup.
+# retract_all(goal) removes every clause that unifies with a PrologGoal.
+# Anonymous variables stand for "any argument". This is essential between
+# aliens to avoid leftover facts from the previous passenger.
 # =============================================================================
 func clear_alien_facts():
-	for fact in ["passenger", "has_visa", "has_tentacles", "has_slime_permit", "origin", "has_cargo"]:
-		prolog.retract_all(fact)
+	_retract_pred("passenger", 2)
+	_retract_pred("has_visa", 1)
+	_retract_pred("has_tentacles", 1)
+	_retract_pred("has_slime_permit", 1)
+	_retract_pred("origin", 2)
+	_retract_pred("has_cargo", 2)
+
+
+func _retract_pred(name: String, arity: int) -> void:
+	var args := []
+	for _i in arity:
+		args.append(prolog.anonymous())
+	prolog.retract_all(prolog.predicate(name, arity).bindv(args))
 
 # =============================================================================
 # Visually displays the current alien
@@ -440,35 +447,32 @@ func scan_alien():
 	list_cargo()
 
 # =============================================================================
-# PROLOGOT TUTORIAL #5: ADD_FACT - ADD DYNAMIC FACTS
+# PROLOGOT TUTORIAL #5: ASSERT_FACT - ADD DYNAMIC FACTS
 # -----------------------------------------------------------------------------
-# add_fact("pred(arg1, arg2)") adds a Prolog fact at runtime.
-# Use to_lower() for names for Prolog atom case consistency.
+# assert_fact(predicate.bind(...)) adds a clause without building a Prolog
+# source string. A String argument is always an atom (zorglub, water, ...).
 # =============================================================================
 func add_alien_facts():
 	var alien_name = current_alien.name.to_lower()
 
-	prolog.add_fact("passenger(%s, %s)" % [alien_name, current_alien.species])
-	log_message("  Added: passenger(%s, %s)" % [alien_name, current_alien.species])
-
+	_assert_pred("passenger", [alien_name, current_alien.species])
 	if current_alien.has_visa:
-		prolog.add_fact("has_visa(%s)" % alien_name)
-		log_message("  Added: has_visa(%s)" % alien_name)
-
+		_assert_pred("has_visa", [alien_name])
 	if current_alien.has_tentacles:
-		prolog.add_fact("has_tentacles(%s)" % alien_name)
-		log_message("  Added: has_tentacles(%s)" % alien_name)
-
+		_assert_pred("has_tentacles", [alien_name])
 	if current_alien.has_permit:
-		prolog.add_fact("has_slime_permit(%s)" % alien_name)
-		log_message("  Added: has_slime_permit(%s)" % alien_name)
-
-	prolog.add_fact("origin(%s, %s)" % [alien_name, current_alien.origin])
-	log_message("  Added: origin(%s, %s)" % [alien_name, current_alien.origin])
-
+		_assert_pred("has_slime_permit", [alien_name])
+	_assert_pred("origin", [alien_name, current_alien.origin])
 	for cargo_item in current_alien.cargo:
-		prolog.add_fact("has_cargo(%s, %s)" % [alien_name, cargo_item])
-		log_message("  Added: has_cargo(%s, %s)" % [alien_name, cargo_item])
+		_assert_pred("has_cargo", [alien_name, cargo_item])
+
+
+func _assert_pred(name: String, args: Array) -> void:
+	var goal = prolog.predicate(name, args.size()).bindv(args)
+	if prolog.assert_fact(goal):
+		log_message("  Added: %s" % goal.as_text())
+	else:
+		log_message("  [ERROR] assert_fact failed: %s" % name)
 
 # =============================================================================
 # PROLOGOT TUTORIAL #6: SOLVE - STRUCTURED BOOLEAN GOAL
@@ -547,25 +551,24 @@ func check_taxes():
 			log_message("  [TAX] Amount: %s credits" % str(tax))
 
 # =============================================================================
-# PROLOGOT TUTORIAL #8: SOLVE_ALL - ALL SOLUTIONS
+# PROLOGOT TUTORIAL #8: SOLVE - ALL SOLUTIONS
 # -----------------------------------------------------------------------------
-# solve_all(has_cargo.bind(name, item)) returns all matching cargo items.
-# Each result is a dictionary of variable bindings.
-# Used here to count cargo items.
+# solve(has_cargo.bind(name, item)) returns an Array of PrologSolution.
+# Read a binding with solution.get(variable). Used here to list cargo.
 # =============================================================================
 func list_cargo():
 	var alien_name = current_alien.name.to_lower()
-	var cargo_item = prolog.variable("C")
-	var all_cargo = prolog.solve_all(prolog.predicate("has_cargo", 2).bind(alien_name, cargo_item))
+	var cargo_item = prolog.variable()
+	var all_cargo = prolog.solve(prolog.predicate("has_cargo", 2).bind(alien_name, cargo_item))
 	log_message("  [CARGO] Items detected: %d" % all_cargo.size())
+	for solution in all_cargo:
+		log_message("    - %s" % str(solution.get(cargo_item)))
 
 # =============================================================================
-# PROLOGOT TUTORIAL #9: CALL_PREDICATE - CHECK A PREDICATE
+# PROLOGOT TUTORIAL #9: SUCCEEDS - CHECK A GROUND GOAL
 # -----------------------------------------------------------------------------
-# call_predicate(name, [args]) is like succeeds() for a ground goal.
-# Returns true/false depending on Prolog rules.
-# Used to verify if the alien is authorized. Result determines
-# whether the player's choice is correct.
+# succeeds(predicate.bind(...)) is the boolean test (if []: is true in GDScript,
+# so do not use solve() as a yes/no check).
 # =============================================================================
 func make_decision(is_approve: bool):
 	if processing:
@@ -573,7 +576,7 @@ func make_decision(is_approve: bool):
 	processing = true
 
 	var alien_name = current_alien.name.to_lower()
-	var is_authorized = prolog.call_predicate("authorize", [alien_name])
+	var is_authorized = prolog.succeeds(prolog.predicate("authorize", 1).bind(alien_name))
 	var is_dangerous = prolog.succeeds(prolog.predicate("dangerous", 1).bind(alien_name))
 
 	if is_approve:

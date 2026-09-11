@@ -26,11 +26,11 @@ This game demonstrates key features of the Prologot API:
 7. ✅ `solve_all()` - Lists all cargo items of an alien
 
 ### Dynamic Facts
-8. ✅ `add_fact()` - Adds scanned alien characteristics
-9. ✅ `retract_all()` - Cleans all facts between each alien
+8. ✅ `assert_fact(predicate.bind(...))` - Adds scanned alien characteristics
+9. ✅ `retract_all(goal)` - Cleans all facts between each alien
 
 ### Predicates
-10. ✅ `call_predicate()` - Verifies if authorization is legal
+10. ✅ `succeeds()` - Verifies if authorization is legal
 11. ✅ `call_function()` - Calculates tax amounts
 
 ### Introspection
@@ -111,16 +111,16 @@ res://
 
 ```
 1. load_next_alien()
-   └─> retract_all() - Cleans old facts
+   └─> retract_all(goal) - Cleans old facts
 
 2. scan_alien()
-   ├─> add_fact() - Adds visa, tentacles, cargo, etc.
+   ├─> assert_fact(predicate.bind(...)) - Adds visa, tentacles, cargo
    ├─> succeeds() - Checks danger level
    ├─> call_function() - Calculates tax
-   └─> solve_all() - Lists all cargo
+   └─> solve() / solution.get() - Lists all cargo
 
 3. make_decision(approve/arrest)
-   └─> call_predicate("authorize", [name]) - Legal decision?
+   └─> succeeds(authorize.bind(name)) - Legal decision?
 ```
 
 ### Knowledge Base
@@ -148,8 +148,8 @@ The game uses a two-tier rule system:
 
 To test each feature:
 
-1. **Scan** an alien → Tests `add_fact()`, `succeeds()`, `solve_all()`
-2. **Approve/Arrest** → Tests `call_predicate()`
+1. **Scan** an alien → Tests `assert_fact()`, `succeeds()`, `solve()`
+2. **Approve/Arrest** → Tests `succeeds(authorize.bind(...))`
 3. **Observe console** → Shows all Prolog operations
 4. **Process 5 aliens** → Tests day advancement and `consult_string()`
 
