@@ -61,6 +61,8 @@ func run_all_tests() -> void:
 	test_tracking_with_distance()
 	test_error_handling()
 	test_solve_and_query_text()
+	test_lists_atoms_and_variants()
+	test_consult_file_standalone()
 
 	# Demo examples tests
 	test_demo_01_basic_queries()
@@ -609,6 +611,84 @@ func test_solve_and_query_text() -> void:
 	# solve() must reject Prolog source strings
 	assert_false(prolog.solve("parent(tom, bob)"), "solve rejects a Prolog source string")
 	assert_true(prolog.get_last_error().length() > 0, "solve source-string error is reported")
+
+	teardown_prolog()
+
+
+# =============================================================================
+# Test: Lists, atoms vs strings, compound Variants
+# =============================================================================
+
+func test_lists_atoms_and_variants() -> void:
+	print("\n[Test Suite: Lists, atoms, Variant compounds]")
+
+	if not setup_prolog():
+		print("  ✗ SKIP: Could not initialize Prolog")
+		return
+
+	assert_true(prolog.consult_string("""
+		nums([1, 2, 3]).
+		nested([[a, b], [c]]).
+		empty_list([]).
+		named(hello).
+	"""), "Load list and atom facts")
+
+	var nums: Variant = prolog.query_text_one("nums(L)")
+	assert_true(nums is Dictionary, "nums/1 result is a compound Dictionary")
+	assert_equal(nums["functor"], "nums", "nums functor name")
+	assert_true(nums["args"][0] is Array, "Prolog list becomes a Godot Array")
+	assert_equal(nums["args"][0], [1, 2, 3], "List [1, 2, 3] round-trips")
+
+	var empty: Variant = prolog.query_text_one("empty_list(L)")
+	assert_equal(empty["args"][0], [], "Empty Prolog list becomes []")
+
+	var nested: Variant = prolog.query_text_one("nested(L)")
+	assert_equal(nested["args"][0], [["a", "b"], ["c"]], "Nested lists convert recursively")
+
+	# GDScript strings become Prolog atoms (not Prolog strings)
+	assert_true(prolog.query_text("named(hello)"), "Atom hello matches string 'hello'")
+	assert_true(prolog.solve("named", ["hello"]), "solve() treats lowercase strings as atoms")
+
+	# Compound Variant form used by solve()
+	assert_true(
+		prolog.solve({"functor": "named", "args": ["hello"]}),
+		"Dictionary {functor, args} is accepted by solve()"
+	)
+	assert_false(
+		prolog.solve({"functor": "named", "args": ["goodbye"]}),
+		"Compound Variant fails when the fact does not exist"
+	)
+
+	# member/2 via call_predicate with a Godot Array
+	assert_true(prolog.call_predicate("member", [2, [1, 2, 3]]), "member/2 accepts a Godot Array")
+	assert_false(prolog.call_predicate("member", [9, [1, 2, 3]]), "member/2 fails for a missing element")
+
+	var list_len: Variant = prolog.call_function("length", [[1, 2, 3, 4]])
+	assert_equal(list_len, 4, "call_function length/2 on a list")
+
+	teardown_prolog()
+
+
+# =============================================================================
+# Test: consult_file outside the demo suites
+# =============================================================================
+
+func test_consult_file_standalone() -> void:
+	print("\n[Test Suite: consult_file]")
+
+	if not setup_prolog():
+		print("  ✗ SKIP: Could not initialize Prolog")
+		return
+
+	var loaded := prolog.consult_file("res://fixtures/animals.pl")
+	assert_true(loaded, "consult_file loads tests/fixtures/animals.pl")
+	assert_true(prolog.query_text("animal(dog)"), "Fact from consulted file is available")
+	assert_true(prolog.query_text("animal(cat)"), "Second fact from consulted file is available")
+	assert_false(prolog.query_text("animal(fish)"), "Missing fact from consulted file fails")
+
+	var missing := prolog.consult_file("res://fixtures/does_not_exist.pl")
+	assert_false(missing, "consult_file of a missing file returns false")
+	assert_true(prolog.get_last_error().length() > 0, "Missing file sets get_last_error()")
 
 	teardown_prolog()
 
