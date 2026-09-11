@@ -1,6 +1,6 @@
-# =============================================================================
+% =============================================================================
 % PROLOGOT TUTORIAL: COMPREHENSIVE PROLOG RULES FILE
-# =============================================================================
+% =============================================================================
 % This file contains the complete Prolog knowledge base for the Galactic Customs
 % game. It demonstrates various Prolog concepts and patterns used in rule-based
 % systems.
@@ -37,11 +37,11 @@
 % Anonymous:  _  (matches anything, value is ignored)
 %
 % For more examples and usage, see the tutorial comments throughout this file.
-# =============================================================================
+% =============================================================================
 
-# =============================================================================
+% =============================================================================
 % PROLOG TUTORIAL: PERMANENT RULES - GALACTIC BASE
-# =============================================================================
+% =============================================================================
 % This section defines the foundational facts and rules of the game world.
 %
 % PROLOG BASICS - FACTS:
@@ -57,7 +57,7 @@
 % Facts can be queried later to check if they are true. For example:
 %   ?- valid_species(tentaculien).  % Returns: true
 %   ?- valid_species(human).        % Returns: false (not in database)
-# =============================================================================
+% =============================================================================
 
 % Definition of valid species
 % These are facts that list all species types recognized by the customs system.
@@ -96,9 +96,9 @@ taxable_substance(water, 10).
 taxable_substance(electronic_components, 30).
 taxable_substance(medications, 20).
 
-# =============================================================================
+% =============================================================================
 % PROLOG TUTORIAL: DIPLOMATIC RULES
-# =============================================================================
+% =============================================================================
 % PROLOG BASICS - RULES:
 % -----------------------------------------------------------------------------
 % Rules are conditional statements. They define when a predicate is true.
@@ -114,7 +114,7 @@ taxable_substance(medications, 20).
 % Multiple rules with the same head mean "OR" - the predicate is true if
 % ANY of the rules' bodies are satisfied. Here, diplomatic immunity applies
 % if the alien is an ambassador OR a consul.
-# =============================================================================
+% =============================================================================
 
 % Diplomatic immunity (for 'federation_rules' knowledge base)
 % Rule 1: Ambassadors have diplomatic immunity
@@ -125,9 +125,9 @@ diplomatic_immunity(X) :-
 diplomatic_immunity(X) :-
 	rank(X, consul).
 
-# =============================================================================
+% =============================================================================
 % PROLOG TUTORIAL: ANALYSIS RULES
-# =============================================================================
+% =============================================================================
 % PROLOG BASICS - CONJUNCTION AND NEGATION:
 % -----------------------------------------------------------------------------
 % - Comma (,): Means "AND" - all conditions must be true
@@ -139,7 +139,7 @@ diplomatic_immunity(X) :-
 %
 % Variables (capitalized like X, C, P) are placeholders that Prolog will
 % try to match. They can represent any value that makes the rule true.
-# =============================================================================
+% =============================================================================
 
 % An alien is suspect if carrying banned substances
 % Rule: X is suspect IF X has cargo C AND C is a banned substance
@@ -188,15 +188,15 @@ has_complete_documents(X) :-
     has_visa(X),
     origin(X, _).
 
-# =============================================================================
+% =============================================================================
 % PROLOG TUTORIAL: ADVANCED SECURITY RULES
-# =============================================================================
+% =============================================================================
 % PROLOG BASICS - MULTIPLE RULES WITH DIFFERENT VALUES:
 % ----------------------------------------------------------------------------------
 % These rules define threat_level(X, Level) with different Level values.
 % Prolog tries rules in order and returns the first matching one.
 % The rules form a priority system: critical > high > medium > low
-# =============================================================================
+% =============================================================================
 
 % Threat level - CRITICAL (highest priority)
 % Rule: X has critical threat IF X has tentacles AND X has banned cargo
@@ -237,12 +237,12 @@ requires_quarantine(X) :-
 requires_quarantine(X) :-
     species(X, gaseous).
 
-# =============================================================================
+% =============================================================================
 % PROLOG TUTORIAL: TEMPORAL RULES (Day of the week)
-# =============================================================================
+% =============================================================================
 % These rules demonstrate conditional logic based on alien characteristics.
 % The second rule uses anonymous variable (_) meaning "any day" for non-3-eyed aliens.
-# =============================================================================
+% =============================================================================
 
 % Aliens with 3 eyes can only enter on Tuesday
 % Rule: X is allowed on tuesday IF X has 3 eyes
@@ -255,12 +255,12 @@ allowed_by_day(X, tuesday) :-
 allowed_by_day(X, _) :-
     \+ eyes_count(X, 3).
 
-# =============================================================================
+% =============================================================================
 % PROLOG TUTORIAL: BACKGROUND CHECK
-# =============================================================================
+% =============================================================================
 % This section shows how to store and query multiple records per entity.
 % An alien can have multiple criminal_record facts (see Zorglub has 2 records).
-# =============================================================================
+% =============================================================================
 
 % Example criminal records
 % Facts storing criminal history. An alien can have multiple records.
@@ -278,15 +278,15 @@ criminal_record(glorp, illegal_substance_import).
 has_record(X) :-
     criminal_record(X, _).
 
-# =============================================================================
+% =============================================================================
 % PROLOG TUTORIAL: COMPLEX DECISION RULES
-# =============================================================================
+% =============================================================================
 % These rules demonstrate complex logical conditions including:
 % - Nested negation: \+ (condition1, condition2)
 % - Calling other predicates: calculate_total_tax(X, T)
 % - Comparison operators: T > 0
 % - Lists as values: [quarantine], [tax_payment]
-# =============================================================================
+% =============================================================================
 
 % Standard authorization
 % PROLOG BASICS - NESTED NEGATION:
