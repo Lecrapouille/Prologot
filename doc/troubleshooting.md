@@ -61,38 +61,27 @@ To make your prolog files visible in Godot in `res://` you can add `pl` (or `pro
 
 ## Variables Not Working in Queries
 
-**Problem:** Variables in queries don't seem to work or return unexpected results.
+**Problem:** Queries return no solutions, or a string looks like a variable but is treated as a constant.
 
 **Solution:**
 
-In Prolog, **variable names must start with an uppercase letter or underscore**. Lowercase names are atoms (constants), not variables. This is a fundamental Prolog rule that affects how you name things:
-
-- ✅ **Variables** (uppercase): `X`, `Y`, `Player`, `Enemy`, `_` (anonymous)
-- ❌ **Atoms** (lowercase): `x`, `y`, `tom`, `bob`, `player`
-
-**Common mistake:**
+A `String` passed to `bind()` is always a Prolog **atom**. Only `prolog.variable()` creates a variable. `"X"` is the atom `X`, not a logical variable.
 
 ```gdscript
-# Wrong: x and y are atoms, not variables!
-prolog.solve_all("parent", ["x", "y"])  # Will search for atoms named "x" and "y"
+var parent = prolog.predicate("parent", 2)
 
-# Correct: X and Y are variables
-prolog.solve_all("parent", ["X", "Y"])  # Will bind X and Y to actual values
+# Wrong: "X" is the atom X
+prolog.solve(parent.bind("tom", "X"))
+
+# Correct: a PrologVariable object
+var child = prolog.variable()
+for solution in prolog.solve(parent.bind("tom", child)):
+    print(solution.get(child))
 ```
 
-**For character/entity names:** Use lowercase (atoms) when defining facts, but uppercase (variables) when querying:
+Use lowercase atoms in facts (`parent(tom, bob)`). If a character name starts with an uppercase letter in a `.pl` file, quote it: `parent('Tom', 'Bob')`.
 
-```gdscript
-# Define facts with lowercase (atoms)
-prolog.add_fact("parent(tom, bob)")
-prolog.add_fact("parent(bob, ann)")
-
-# Query with uppercase (variables)
-var results = prolog.solve_all("parent", ["X", "Y"])
-# Returns: [{"X": "tom", "Y": "bob"}, {"X": "bob", "Y": "ann"}]
-```
-
-**Note:** If you have character names that start with uppercase (like "Tom"), you'll need to quote them in Prolog: `parent('Tom', 'Bob')` or use lowercase consistently.
+In GDScript, `if []:` is true. Use `succeeds(goal)` for a yes/no test — do not write `if prolog.solve(goal):`.
 
 ---
 

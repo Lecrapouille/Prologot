@@ -20,10 +20,15 @@ prolog.consult_string("fact(data).")      # Load from string
 # Object API: predicates, variables, goals, solutions
 var parent = prolog.predicate("parent", 2)
 var child = prolog.variable()
-prolog.succeeds(parent.bind("tom", "bob"))         # Returns bool
+prolog.succeeds(parent.bind("tom", "bob"))         # bool — do not use solve() as a test
 for solution in prolog.solve(parent.bind("tom", child)):
     print(solution.get(child))                     # "bob", then "liz"
 var first = prolog.solve_one(parent.bind("tom", child))
+
+# Optional term factories
+prolog.atom("tom")
+prolog.integer(42)
+prolog.list([1, 2, 3])
 
 # Dynamic facts
 prolog.add_fact("new_fact(value)")        # Add fact
@@ -270,11 +275,52 @@ prolog.consult_file("res://rules/game_rules.pl")
 
 ---
 
+### Structured terms
+
+Rules stay in Prolog source (`consult_file`, `consult_string`). Queries from GDScript are objects: a `PrologPredicate`, one or more `PrologVariable`, a `PrologGoal` from `bind()`, then `succeeds` / `solve` / `solve_one`.
+
+A `String` passed to `bind()` is always an atom, never a variable. Only `prolog.variable()` (or `anonymous()`) creates a variable.
+
+GDScript cannot write `parent("tom", child)` on a stored object, and `if []:` is true, so:
+
+- use `parent.bind("tom", child)` (or `bindv([...])`) to build a goal
+- use `succeeds(goal)` for a yes/no test — never treat the Array from `solve()` as a bool
+- use `solution.get(child)` / `solution.has(child)` — object keys do not work via `_get`
+
+`and` / `or` are GDScript keywords; composition is `conjunction()`, `disjunction()`, `negated()`.
+
+#### Factories on `Prologot`
+
+| Method | Result |
+|--------|--------|
+| `atom(name)` | Atom term |
+| `integer(value)` / `real(value)` | Numbers |
+| `string(value)` | Prolog string (distinct from an atom; P1 will make this conversion explicit) |
+| `nil()` / `list(items)` | Empty list / list |
+| `compound(functor, args)` | Compound term |
+| `variable(name = "")` | Named or anonymous variable |
+| `anonymous()` | Fresh anonymous variable |
+| `predicate(name, arity)` | Reusable `PrologPredicate` |
+
+#### `PrologPredicate.bind(...) -> PrologGoal`
+
+Checks arity. `as_text()` prints `parent/2`.
+
+#### `PrologGoal`
+
+- `conjunction(other)` → `','/2`
+- `disjunction(other)` → `';'/2`
+- `negated()` → `'\+'/1`
+
+#### `PrologSolution`
+
+- `get(variable)` / `has(variable)`
+- `get_bindings()` — Dictionary keyed by the `PrologVariable` objects
+- `values()` — bound values only
+
+---
+
 ### Query Execution
-
-Public game code builds a `PrologGoal` with `predicate()`, `variable()`, and `bind()`. A `String` passed to `bind()` is always an atom. Only `prolog.variable()` creates a variable. In GDScript, `if []:` is true, so use `succeeds()` for a boolean test — never treat the Array returned by `solve()` as a bool.
-
-Prolog source strings are not a public query API. The editor dock parses text through an internal `_query_text_all()` helper.
 
 ```gdscript
 prolog.add_fact("parent(tom, bob)")
@@ -290,6 +336,8 @@ for solution in prolog.solve(parent.bind("tom", child)):
     print(solution.get(child))               # bob, then liz
 ```
 
+Prolog source strings are not a public query API. The editor dock parses text through an internal `_query_text_all()` helper.
+
 #### `succeeds(goal: PrologGoal) -> bool`
 
 Returns `true` if the goal has at least one solution.
@@ -297,8 +345,6 @@ Returns `true` if the goal has at least one solution.
 #### `solve(goal: PrologGoal) -> Array`
 
 Returns every `PrologSolution`. Empty if the goal fails. `solve_all()` is an alias.
-
-Each solution exposes `get(variable)`, `has(variable)`, and `get_bindings()`.
 
 #### `solve_one(goal: PrologGoal) -> Variant`
 

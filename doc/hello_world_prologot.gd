@@ -28,7 +28,7 @@ func _ready():
 	if prolog.succeeds(grandparent.bind("tom", "ann")):
 		print("Tom is Ann's grandparent!")
 
-	for solution in prolog.solve_all(parent.bind(ancestor, child)):
+	for solution in prolog.solve(parent.bind(ancestor, child)):
 		print("Parent: ", solution.get(ancestor), " -> ", solution.get(child))
 
 	var via = prolog.variable("Via")

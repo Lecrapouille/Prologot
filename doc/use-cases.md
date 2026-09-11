@@ -20,24 +20,23 @@ func _ready():
     push_error("Failed to initialize Prologot")
     return
 
-  # Load facts
+  # Load rules as Prolog source
   prolog.consult_string("""
     parent(tom, bob).
     parent(bob, ann).
     grandparent(X, Z) :- parent(X, Y), parent(Y, Z).
   """)
 
-  # High-level: structured terms
-  if prolog.solve("grandparent", ["tom", "ann"]):
+  var parent = prolog.predicate("parent", 2)
+  var grandparent = prolog.predicate("grandparent", 2)
+  var ancestor = prolog.variable()
+  var child = prolog.variable()
+
+  if prolog.succeeds(grandparent.bind("tom", "ann")):
     print("Tom is Ann's grandparent!")
 
-  var results_dict = prolog.solve_all("parent", ["X", "Y"])
-  for result in results_dict:
-    print("Parent: ", result["X"], " -> ", result["Y"])
-
-  # Low-level: Prolog source text
-  var results = prolog.query_text_all("parent(X, Y)")
-  print("Parent relationships: ", results)
+  for solution in prolog.solve(parent.bind(ancestor, child)):
+    print("Parent: ", solution.get(ancestor), " -> ", solution.get(child))
 
 func _exit_tree():
   if prolog:
@@ -54,19 +53,22 @@ When the plugin addons/prologot/prologot_singleton.gd is enabled, you can use th
 extends Node
 
 func _ready():
-  # Load rules
   PrologotEngine.consult_string("""
     enemy(goblin, 10, low).
     enemy(dragon, 100, high).
     weak_enemy(Name) :- enemy(Name, HP, _), HP < 50.
   """)
 
-  if PrologotEngine.solve("weak_enemy", ["goblin"]):
+  var weak_enemy = PrologotEngine.predicate("weak_enemy", 1)
+  if PrologotEngine.succeeds(weak_enemy.bind("goblin")):
     print("Goblin is a weak enemy")
 
-  var enemies_dict = PrologotEngine.solve_all("enemy", ["Name", "HP", "Threat"])
-  for enemy in enemies_dict:
-    print("Enemy: ", enemy["Name"], " HP: ", enemy["HP"], " Threat: ", enemy["Threat"])
+  var enemy = PrologotEngine.predicate("enemy", 3)
+  var name = PrologotEngine.variable()
+  var hp = PrologotEngine.variable()
+  var threat = PrologotEngine.variable()
+  for solution in PrologotEngine.solve(enemy.bind(name, hp, threat)):
+    print("Enemy: ", solution.get(name), " HP: ", solution.get(hp), " Threat: ", solution.get(threat))
 ```
 
 ## AI Decision Making
@@ -120,7 +122,8 @@ PrologotEngine.add_fact("has_item(wood, 2)")
 PrologotEngine.add_fact("has_item(herb, 3)")
 
 # Check if we can craft items
-if PrologotEngine.solve("can_craft", ["iron_sword"]):
+var can_craft = PrologotEngine.predicate("can_craft", 1)
+if PrologotEngine.succeeds(can_craft.bind("iron_sword")):
     craft_item("iron_sword")
     # Remove used items
     PrologotEngine.retract_fact("has_item(iron, 5)")
@@ -136,10 +139,11 @@ Use Prolog for pathfinding algorithms:
 ```gdscript
 PrologotEngine.consult_file("res://ai/pathfinding.pl")
 
-# Find all paths from point A to point B
-var paths = PrologotEngine.solve_all("path", ["a", "f", "Path", "Cost"])
-for path_info in paths:
-    print("Path: ", path_info["Path"], " Cost: ", path_info["Cost"])
+var path_pred = PrologotEngine.predicate("path", 4)
+var route = PrologotEngine.variable()
+var cost = PrologotEngine.variable()
+for solution in PrologotEngine.solve(path_pred.bind("a", "f", route, cost)):
+    print("Path: ", solution.get(route), " Cost: ", solution.get(cost))
 ```
 
 ## State Machines
@@ -159,8 +163,10 @@ PrologotEngine.consult_string("""
     transition(flee, idle) :- safe_distance.
 """)
 
-# Query current state transitions
-var next_states = PrologotEngine.solve_all("transition", ["idle", "X"])
+var transition = PrologotEngine.predicate("transition", 2)
+var next_state = PrologotEngine.variable()
+for solution in PrologotEngine.solve(transition.bind("idle", next_state)):
+    print(solution.get(next_state))
 ```
 
 ## Knowledge Base Management
@@ -175,8 +181,11 @@ PrologotEngine.consult_file("res://game_rules.pl")
 PrologotEngine.add_fact("player_location(zone_1)")
 PrologotEngine.add_fact("enemy_spotted(goblin, zone_2)")
 
-# Query the knowledge base
-var enemies = PrologotEngine.solve_all("enemy_spotted", ["Type", "Location"])
+var spotted = PrologotEngine.predicate("enemy_spotted", 2)
+var type = PrologotEngine.variable()
+var location = PrologotEngine.variable()
+for solution in PrologotEngine.solve(spotted.bind(type, location)):
+    print(solution.get(type), " at ", solution.get(location))
 
 # Update facts
 PrologotEngine.retract_fact("player_location(zone_1)")
