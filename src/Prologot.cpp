@@ -26,6 +26,10 @@
 #include <godot_cpp/classes/scene_tree.hpp>
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
+#include <godot_cpp/variant/vector2.hpp>
+#include <godot_cpp/variant/vector2i.hpp>
+#include <godot_cpp/variant/vector3.hpp>
+#include <godot_cpp/variant/vector3i.hpp>
 
 // =============================================================================
 // Static Member Initialization
@@ -60,9 +64,8 @@ void Prologot::_bind_methods()
     ClassDB::bind_method(D_METHOD("list", "items"), &Prologot::list);
     ClassDB::bind_method(D_METHOD("compound", "functor", "args"),
                          &Prologot::compound);
-    ClassDB::bind_method(D_METHOD("variable", "name"),
-                         &Prologot::variable,
-                         DEFVAL(String()));
+    ClassDB::bind_method(
+        D_METHOD("variable", "name"), &Prologot::variable, DEFVAL(String()));
     ClassDB::bind_method(D_METHOD("anonymous"), &Prologot::anonymous);
     ClassDB::bind_method(D_METHOD("predicate", "name", "arity"),
                          &Prologot::predicate);
@@ -75,7 +78,8 @@ void Prologot::_bind_methods()
     ClassDB::bind_method(D_METHOD("solve_one", "goal"), &Prologot::solve_one);
 
     // Editor/REPL only: not part of the public GDScript API
-    ClassDB::bind_method(D_METHOD("_query_text", "goal"), &Prologot::query_text);
+    ClassDB::bind_method(D_METHOD("_query_text", "goal"),
+                         &Prologot::query_text);
     ClassDB::bind_method(D_METHOD("_query_text_all", "goal"),
                          &Prologot::query_text_all);
     ClassDB::bind_method(D_METHOD("_query_text_one", "goal"),
@@ -103,6 +107,17 @@ void Prologot::_bind_methods()
                          &Prologot::predicate_exists);
     ClassDB::bind_method(D_METHOD("list_predicates"),
                          &Prologot::list_predicates);
+    ClassDB::bind_method(
+        D_METHOD("expose_property", "class_name", "property", "predicate"),
+        &Prologot::expose_property,
+        DEFVAL(String()));
+    ClassDB::bind_method(
+        D_METHOD("expose_method", "class_name", "method", "predicate"),
+        &Prologot::expose_method,
+        DEFVAL(String()));
+    ClassDB::bind_method(D_METHOD("unexpose", "predicate", "arity"),
+                         &Prologot::unexpose);
+    ClassDB::bind_method(D_METHOD("list_exposed"), &Prologot::list_exposed);
 
     // Error handling
     ClassDB::bind_method(D_METHOD("get_last_error"), &Prologot::get_last_error);
@@ -341,6 +356,12 @@ bool Prologot::initialize(Dictionary const& p_options)
     }
 
     PrologObject::register_blob_type();
+    if (!register_foreign_predicates())
+    {
+        m_last_error = "Failed to register Prologot foreign predicates";
+        PL_cleanup(0);
+        return false;
+    }
 
     // Log which SWI_HOME_DIR is being used by Prolog
     term_t home_term = PL_new_term_ref();
@@ -461,6 +482,7 @@ void Prologot::cleanup()
         // The argument (0) means normal cleanup
         PL_cleanup(0);
         m_initialized = false;
+        m_exposed.clear();
     }
 }
 
@@ -723,7 +745,8 @@ term_t Prologot::prolog_term_to_swi(Ref<PrologTerm> const& p_term,
         case PrologTerm::KIND_STRING:
         {
             term_t t = PL_new_term_ref();
-            if (!PL_put_string_chars(t, p_term->get_string_value().utf8().get_data()))
+            if (!PL_put_string_chars(
+                    t, p_term->get_string_value().utf8().get_data()))
                 return (term_t)0;
             return t;
         }
@@ -738,9 +761,8 @@ term_t Prologot::prolog_term_to_swi(Ref<PrologTerm> const& p_term,
             return object_arg_to_term(p_term->get_args(), p_vars, p_order);
         case PrologTerm::KIND_COMPOUND:
         {
-            Ref<PrologGoal> goal =
-                PrologGoal::from_compound(p_term->get_functor(),
-                                          p_term->get_args());
+            Ref<PrologGoal> goal = PrologGoal::from_compound(
+                p_term->get_functor(), p_term->get_args());
             term_t t = PL_new_term_ref();
             if (!compile_goal(goal, t, p_vars, p_order))
                 return (term_t)0;
@@ -768,8 +790,8 @@ bool Prologot::compile_goal(Ref<PrologGoal> const& p_goal,
         term_t arg = object_arg_to_term(args[i], p_vars, p_order);
         if (!arg || !PL_put_term(arg_refs + i, arg))
         {
-            m_last_error = "Failed to convert goal argument " +
-                           String::num_int64(i);
+            m_last_error =
+                "Failed to convert goal argument " + String::num_int64(i);
             return false;
         }
     }
@@ -790,11 +812,18 @@ Array Prologot::collect_goal_solutions(Ref<PrologGoal> const& p_goal)
     if (!m_initialized || p_goal.is_null())
         return results;
 
+    if (PL_exception(0))
+        PL_clear_exception();
+
+    fid_t frame = PL_open_foreign_frame();
     std::map<int64_t, term_t> vars;
     std::vector<Ref<PrologVariable>> order;
     term_t goal = PL_new_term_ref();
     if (!compile_goal(p_goal, goal, vars, order))
+    {
+        PL_discard_foreign_frame(frame);
         return results;
+    }
 
     qid_t qid = PL_open_query(
         NULL, PL_Q_CATCH_EXCEPTION, PL_predicate("call", 1, "user"), goal);
@@ -806,6 +835,7 @@ Array Prologot::collect_goal_solutions(Ref<PrologGoal> const& p_goal)
         {
             handle_prolog_exception(qid, "Solve goal");
             PL_close_query(qid);
+            PL_discard_foreign_frame(frame);
             return results;
         }
         if (!result)
@@ -822,6 +852,7 @@ Array Prologot::collect_goal_solutions(Ref<PrologGoal> const& p_goal)
     }
 
     PL_close_query(qid);
+    PL_close_foreign_frame(frame);
     return results;
 }
 
@@ -1245,8 +1276,8 @@ bool Prologot::retract_all(Variant const& p_pattern)
 
     // Build and execute a retractall/1 goal
     // retractall/1 removes all clauses that unify with the given term
-    String goal = String("retractall(") + functor + String(")");
-    return query_text(goal);
+    String query = String("retractall(") + functor + String(")");
+    return query_text(query);
 }
 
 // =============================================================================
@@ -1602,9 +1633,10 @@ term_t Prologot::variant_to_term(Variant const& p_var)
             break;
 
         case Variant::STRING:
-            // A GDScript String is always a Prolog atom. Use prolog.string()
-            // for a Prolog string ("text").
-            if (!PL_put_atom_chars(t, ((String)p_var).utf8().get_data()))
+        case Variant::STRING_NAME:
+            // A GDScript String / StringName is always a Prolog atom.
+            // Use prolog.string() for a Prolog string ("text").
+            if (!PL_put_atom_chars(t, String(p_var).utf8().get_data()))
             {
                 return (term_t)0;
             }
@@ -1672,6 +1704,44 @@ term_t Prologot::variant_to_term(Variant const& p_var)
                 }
             }
             break;
+        }
+
+        case Variant::VECTOR2:
+        {
+            Vector2 v = p_var;
+            Array arr;
+            arr.push_back(v.x);
+            arr.push_back(v.y);
+            return variant_to_term(arr);
+        }
+
+        case Variant::VECTOR2I:
+        {
+            Vector2i v = p_var;
+            Array arr;
+            arr.push_back(v.x);
+            arr.push_back(v.y);
+            return variant_to_term(arr);
+        }
+
+        case Variant::VECTOR3:
+        {
+            Vector3 v = p_var;
+            Array arr;
+            arr.push_back(v.x);
+            arr.push_back(v.y);
+            arr.push_back(v.z);
+            return variant_to_term(arr);
+        }
+
+        case Variant::VECTOR3I:
+        {
+            Vector3i v = p_var;
+            Array arr;
+            arr.push_back(v.x);
+            arr.push_back(v.y);
+            arr.push_back(v.z);
+            return variant_to_term(arr);
         }
 
         case Variant::DICTIONARY:

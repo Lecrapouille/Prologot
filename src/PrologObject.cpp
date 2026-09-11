@@ -108,11 +108,14 @@ term_t PrologObject::to_swi_term() const
     if (!g_blob_ready || m_instance_id == 0)
         return (term_t)0;
 
-    GodotObjectBlob blob;
+    GodotObjectBlob blob{};
     blob.instance_id = m_instance_id;
     term_t t = PL_new_term_ref();
-    if (!PL_put_blob(t, &blob, sizeof(blob), &g_godot_object_blob))
+    if (!t)
         return (term_t)0;
+    // PL_put_blob() does not report errors. With PL_BLOB_UNIQUE its
+    // boolean is "already existed" (TRUE) vs "newly allocated" (FALSE).
+    PL_put_blob(t, &blob, sizeof(blob), &g_godot_object_blob);
     return t;
 }
 

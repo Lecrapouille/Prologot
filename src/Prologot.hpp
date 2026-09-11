@@ -426,6 +426,81 @@ public:
     Variant call_function(String const& p_predicate, Array const& p_args);
 
     // =========================================================================
+    // Explicit Godot → Prolog exposure (properties and methods)
+    // =========================================================================
+
+    /**
+     * @brief Exposes a Godot property as a relational Prolog predicate.
+     *
+     * Creates `predicate(Object, Value)`. If Value is unbound, it is unified
+     * with the current property. If Value is ground, the goal succeeds only
+     * when it unifies with the current value (no implicit setter).
+     *
+     * The class name filters with Object.is_class(). Empty class accepts any
+     * live object. Property `name` defaults to the predicate `node_name` to
+     * avoid clashing with SWI-Prolog name/2.
+     *
+     * @param p_class Godot class filter (e.g. "Node", "Node2D"), or empty.
+     * @param p_property Property name (e.g. "health", "position").
+     * @param p_predicate Prolog functor. Empty → property name (or node_name).
+     * @return true if the wrapper clause was installed.
+     *
+     * @example
+     * prolog.expose_property("Node", "name", "node_name")
+     * prolog.expose_property("Node2D", "position")
+     */
+    bool expose_property(String const& p_class,
+                         String const& p_property,
+                         String const& p_predicate = String());
+
+    /**
+     * @brief Exposes a Godot method as a Prolog predicate.
+     *
+     * Arity is 1 (the object) + required arguments + 1 if the method returns
+     * a non-NIL value. A void method has no result argument.
+     *
+     * @param p_class Godot class filter, or empty.
+     * @param p_method Method name (e.g. "get_class").
+     * @param p_predicate Prolog functor. Empty → method name.
+     * @return true if the wrapper clause was installed.
+     *
+     * @example
+     * prolog.expose_method("Object", "get_class", "godot_class")
+     */
+    bool expose_method(String const& p_class,
+                       String const& p_method,
+                       String const& p_predicate = String());
+
+    /**
+     * @brief Removes an exposed wrapper predicate (retractall + bookkeeping).
+     */
+    bool unexpose(String const& p_predicate, int p_arity);
+
+    /**
+     * @brief Returns the list of currently exposed members.
+     *
+     * Each item is {kind, class, member, predicate, arity}.
+     */
+    Array list_exposed() const;
+
+    /**
+     * @brief SWI foreign: prologot_property(Class, Property, Object, Value).
+     */
+    static bool foreign_property(term_t p_class,
+                                 term_t p_property,
+                                 term_t p_object,
+                                 term_t p_value);
+
+    /**
+     * @brief SWI foreign: prologot_method(Class, Method, Object, Args, Result).
+     */
+    static bool foreign_method(term_t p_class,
+                               term_t p_method,
+                               term_t p_object,
+                               term_t p_args,
+                               term_t p_result);
+
+    // =========================================================================
     // Introspection
     // =========================================================================
 
@@ -581,10 +656,25 @@ private:
      */
     bool handle_prolog_exception(qid_t p_qid, String const& p_context);
 
-private:
+    /**
+     * @brief Registers prologot_property/4 and prologot_method/5 after init.
+     */
+    bool register_foreign_predicates();
+
+    struct ExposedBinding
+    {
+        String kind;
+        String class_name;
+        String member;
+        String predicate;
+        int arity = 0;
+    };
 
     /** Whether the Prolog engine has been initialized. */
     bool m_initialized;
+
+    /** Wrappers installed by expose_property / expose_method. */
+    std::vector<ExposedBinding> m_exposed;
 
     /** Last error message from Prolog. */
     String m_last_error;
