@@ -68,6 +68,7 @@ func run_all_tests() -> void:
 	test_prolog_predicate()
 	test_prolog_goal_composition()
 	test_prolog_solution()
+	test_solve_prolog_goal()
 
 	# Demo examples tests
 	test_demo_01_basic_queries()
@@ -841,6 +842,50 @@ func test_prolog_solution() -> void:
 	assert_true(solution.get_bindings().has(child), "bindings is keyed by the variable object")
 	assert_equal(solution.get_bindings()[child], "bob", "bindings[variable] returns the value")
 	assert_equal(solution.values(), ["bob"], "values() lists bound values")
+
+	teardown_prolog()
+
+
+func test_solve_prolog_goal() -> void:
+	print("\n[Test Suite: solve(PrologGoal)]")
+
+	if not setup_prolog():
+		print("  ✗ SKIP: Could not initialize Prolog")
+		return
+
+	assert_true(prolog.consult_string("""
+		parent(tom, bob).
+		parent(tom, liz).
+		parent(bob, ann).
+	"""), "Load family facts")
+
+	var parent := prolog.predicate("parent", 2)
+	var child := prolog.variable("Child")
+
+	assert_true(prolog.succeeds(parent.bind("tom", "bob")), "succeeds parent(tom, bob)")
+	assert_false(prolog.succeeds(parent.bind("bob", "tom")), "succeeds fails for missing fact")
+	assert_true(prolog.solve(parent.bind("tom", "bob")), "solve(goal) is true when solutions exist")
+
+	var solutions := prolog.solve_all(parent.bind("tom", child))
+	assert_equal(solutions.size(), 2, "solve_all(goal) returns two children")
+	var names := []
+	for solution in solutions:
+		assert_true(solution.has(child), "each solution binds the variable object")
+		names.append(solution.get(child))
+	assert_true("bob" in names and "liz" in names, "bindings are bob and liz")
+
+	var first: PrologSolution = prolog.solve_one(parent.bind("tom", child))
+	assert_true(first != null and first.has(child), "solve_one(goal) returns a PrologSolution")
+
+	var none: Variant = prolog.solve_one(parent.bind("ann", child))
+	assert_true(none == null, "solve_one(goal) is null when there is no solution")
+
+	var grandchild := prolog.variable("Grand")
+	var chain := parent.bind("tom", child).conjunction(parent.bind(child, grandchild))
+	var chained := prolog.solve_all(chain)
+	assert_equal(chained.size(), 1, "conjunction finds tom -> bob -> ann")
+	assert_equal(chained[0].get(child), "bob", "shared variable stays bound across the conjunction")
+	assert_equal(chained[0].get(grandchild), "ann", "second variable is bound")
 
 	teardown_prolog()
 

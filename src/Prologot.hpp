@@ -12,6 +12,7 @@
 
 #include "PrologGoal.hpp"
 #include "PrologPredicate.hpp"
+#include "PrologSolution.hpp"
 #include "PrologTerm.hpp"
 #include "PrologVariable.hpp"
 #include <SWI-Prolog.h>
@@ -266,6 +267,11 @@ public:
      * # Returns: {"X": "bob"} or null
      */
     Variant solve_one(Variant const& p_goal, Array const& p_args = Array());
+
+    /**
+     * @brief Returns true if a PrologGoal has at least one solution.
+     */
+    bool succeeds(Ref<PrologGoal> const& p_goal);
 
     // =========================================================================
     // Low-level queries (Prolog source text)
@@ -583,6 +589,21 @@ private:
      */
     Dictionary bindings_from_vars(Array const& p_var_names,
                                   std::vector<term_t> const& p_var_terms);
+
+    term_t object_arg_to_term(Variant const& p_arg,
+                              std::map<int64_t, term_t>& p_vars,
+                              std::vector<Ref<PrologVariable>>& p_order);
+
+    term_t prolog_term_to_swi(Ref<PrologTerm> const& p_term,
+                              std::map<int64_t, term_t>& p_vars,
+                              std::vector<Ref<PrologVariable>>& p_order);
+
+    bool compile_goal(Ref<PrologGoal> const& p_goal,
+                      term_t p_out_goal,
+                      std::map<int64_t, term_t>& p_vars,
+                      std::vector<Ref<PrologVariable>>& p_order);
+
+    Array collect_goal_solutions(Ref<PrologGoal> const& p_goal);
 
     /**
      * @brief Helper to push error messages respecting error handling options.

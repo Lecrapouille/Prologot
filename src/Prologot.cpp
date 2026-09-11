@@ -77,6 +77,7 @@ void Prologot::_bind_methods()
     ClassDB::bind_method(D_METHOD("solve_one", "goal", "args"),
                          &Prologot::solve_one,
                          DEFVAL(Array()));
+    ClassDB::bind_method(D_METHOD("succeeds", "goal"), &Prologot::succeeds);
 
     // Low-level Prolog source queries
     ClassDB::bind_method(D_METHOD("query_text", "goal"), &Prologot::query_text);
@@ -808,8 +809,204 @@ Dictionary Prologot::bindings_from_vars(Array const& p_var_names,
     return result;
 }
 
+term_t Prologot::object_arg_to_term(Variant const& p_arg,
+                                    std::map<int64_t, term_t>& p_vars,
+                                    std::vector<Ref<PrologVariable>>& p_order)
+{
+    if (p_arg.get_type() == Variant::OBJECT)
+    {
+        Ref<PrologVariable> variable = p_arg;
+        if (variable.is_valid())
+        {
+            if (variable->is_anonymous())
+            {
+                term_t fresh = PL_new_term_ref();
+                if (!PL_put_variable(fresh))
+                    return (term_t)0;
+                return fresh;
+            }
+            auto it = p_vars.find(variable->get_id());
+            if (it != p_vars.end())
+                return it->second;
+            term_t var = PL_new_term_ref();
+            if (!PL_put_variable(var))
+                return (term_t)0;
+            p_vars[variable->get_id()] = var;
+            p_order.push_back(variable);
+            return var;
+        }
+
+        Ref<PrologGoal> nested = p_arg;
+        if (nested.is_valid())
+        {
+            term_t goal = PL_new_term_ref();
+            if (!compile_goal(nested, goal, p_vars, p_order))
+                return (term_t)0;
+            return goal;
+        }
+
+        Ref<PrologTerm> term = p_arg;
+        if (term.is_valid())
+            return prolog_term_to_swi(term, p_vars, p_order);
+    }
+
+    if (p_arg.get_type() == Variant::ARRAY)
+    {
+        Array arr = p_arg;
+        term_t list = PL_new_term_ref();
+        if (!PL_put_nil(list))
+            return (term_t)0;
+        for (int i = arr.size() - 1; i >= 0; i--)
+        {
+            term_t elem = object_arg_to_term(arr[i], p_vars, p_order);
+            if (!elem)
+                return (term_t)0;
+            term_t new_list = PL_new_term_ref();
+            if (!PL_cons_list(new_list, elem, list))
+                return (term_t)0;
+            list = new_list;
+        }
+        return list;
+    }
+
+    return variant_to_term(p_arg);
+}
+
+term_t Prologot::prolog_term_to_swi(Ref<PrologTerm> const& p_term,
+                                    std::map<int64_t, term_t>& p_vars,
+                                    std::vector<Ref<PrologVariable>>& p_order)
+{
+    if (p_term.is_null())
+        return (term_t)0;
+
+    Ref<PrologVariable> variable = p_term;
+    if (variable.is_valid())
+        return object_arg_to_term(variable, p_vars, p_order);
+
+    switch (p_term->get_kind_enum())
+    {
+        case PrologTerm::KIND_ATOM:
+            return variant_to_term(p_term->get_atom());
+        case PrologTerm::KIND_INTEGER:
+            return variant_to_term(p_term->get_integer());
+        case PrologTerm::KIND_FLOAT:
+            return variant_to_term(p_term->get_real());
+        case PrologTerm::KIND_STRING:
+        {
+            term_t t = PL_new_term_ref();
+            if (!PL_put_string_chars(t, p_term->get_string_value().utf8().get_data()))
+                return (term_t)0;
+            return t;
+        }
+        case PrologTerm::KIND_NIL:
+        {
+            term_t t = PL_new_term_ref();
+            if (!PL_put_nil(t))
+                return (term_t)0;
+            return t;
+        }
+        case PrologTerm::KIND_LIST:
+            return object_arg_to_term(p_term->get_args(), p_vars, p_order);
+        case PrologTerm::KIND_COMPOUND:
+        {
+            Ref<PrologGoal> goal =
+                PrologGoal::from_compound(p_term->get_functor(),
+                                          p_term->get_args());
+            term_t t = PL_new_term_ref();
+            if (!compile_goal(goal, t, p_vars, p_order))
+                return (term_t)0;
+            return t;
+        }
+        case PrologTerm::KIND_VARIABLE:
+            return (term_t)0;
+    }
+    return (term_t)0;
+}
+
+bool Prologot::compile_goal(Ref<PrologGoal> const& p_goal,
+                            term_t p_out_goal,
+                            std::map<int64_t, term_t>& p_vars,
+                            std::vector<Ref<PrologVariable>>& p_order)
+{
+    if (p_goal.is_null())
+        return false;
+
+    Array args = p_goal->get_args();
+    int arity = args.size();
+    term_t arg_refs = arity > 0 ? PL_new_term_refs(arity) : (term_t)0;
+    for (int i = 0; i < arity; i++)
+    {
+        term_t arg = object_arg_to_term(args[i], p_vars, p_order);
+        if (!arg || !PL_put_term(arg_refs + i, arg))
+        {
+            m_last_error = "Failed to convert goal argument " +
+                           String::num_int64(i);
+            return false;
+        }
+    }
+
+    functor_t f = PL_new_functor(
+        PL_new_atom(p_goal->get_functor().utf8().get_data()), arity);
+    if (!PL_cons_functor_v(p_out_goal, f, arg_refs))
+    {
+        m_last_error = "Failed to construct goal term";
+        return false;
+    }
+    return true;
+}
+
+Array Prologot::collect_goal_solutions(Ref<PrologGoal> const& p_goal)
+{
+    Array results;
+    if (!m_initialized || p_goal.is_null())
+        return results;
+
+    std::map<int64_t, term_t> vars;
+    std::vector<Ref<PrologVariable>> order;
+    term_t goal = PL_new_term_ref();
+    if (!compile_goal(p_goal, goal, vars, order))
+        return results;
+
+    qid_t qid = PL_open_query(
+        NULL, PL_Q_CATCH_EXCEPTION, PL_predicate("call", 1, "user"), goal);
+
+    while (true)
+    {
+        int result = PL_next_solution(qid);
+        if (result == PL_S_EXCEPTION)
+        {
+            handle_prolog_exception(qid, "Solve goal");
+            PL_close_query(qid);
+            return results;
+        }
+        if (!result)
+            break;
+
+        Ref<PrologSolution> solution = PrologSolution::create();
+        for (Ref<PrologVariable> const& variable : order)
+        {
+            auto it = vars.find(variable->get_id());
+            if (it != vars.end())
+                solution->put(variable, term_to_variant(it->second));
+        }
+        results.push_back(solution);
+    }
+
+    PL_close_query(qid);
+    return results;
+}
+
+bool Prologot::succeeds(Ref<PrologGoal> const& p_goal)
+{
+    return !collect_goal_solutions(p_goal).is_empty();
+}
+
 bool Prologot::solve(Variant const& p_goal, Array const& p_args)
 {
+    Ref<PrologGoal> object_goal = p_goal;
+    if (object_goal.is_valid())
+        return succeeds(object_goal);
+
     if (!m_initialized)
         return false;
 
@@ -836,6 +1033,10 @@ bool Prologot::solve(Variant const& p_goal, Array const& p_args)
 
 Array Prologot::solve_all(Variant const& p_goal, Array const& p_args)
 {
+    Ref<PrologGoal> object_goal = p_goal;
+    if (object_goal.is_valid())
+        return collect_goal_solutions(object_goal);
+
     Array results;
     if (!m_initialized)
         return results;
@@ -873,6 +1074,15 @@ Array Prologot::solve_all(Variant const& p_goal, Array const& p_args)
 
 Variant Prologot::solve_one(Variant const& p_goal, Array const& p_args)
 {
+    Ref<PrologGoal> object_goal = p_goal;
+    if (object_goal.is_valid())
+    {
+        Array results = collect_goal_solutions(object_goal);
+        if (results.is_empty())
+            return Variant();
+        return results[0];
+    }
+
     if (!m_initialized)
         return Variant();
 
