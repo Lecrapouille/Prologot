@@ -168,7 +168,7 @@ func _on_execute_button_pressed() -> void:
 ###############################################################################
 func execute_basic_queries() -> void:
 	result_display.text += "🔍 Query: parent(tom, bob)\n"
-	var result = prolog.query_text("parent(tom, bob)")
+	var result = prolog.succeeds(prolog.predicate("parent", 2).bind("tom", "bob"))
 	if result:
 		result_display.text += "✓ TRUE\n"
 		result_display.text += "  → Tom is Bob's parent\n\n"
@@ -177,7 +177,8 @@ func execute_basic_queries() -> void:
 
 	result_display.text += "🔍 Query: parent(tom, X)\n"
 	result_display.text += "  Find all Tom's children\n\n"
-	var children = prolog.query_text_all("parent(tom, X)")
+	var child = prolog.variable("X")
+	var children = prolog.solve_all(prolog.predicate("parent", 2).bind("tom", child))
 	result_display.text += "📋 Solutions found: %d\n" % children.size()
 	for i in range(children.size()):
 		result_display.text += "  %d. %s\n" % [i + 1, format_solution(children[i])]
@@ -189,21 +190,23 @@ func execute_basic_queries() -> void:
 func execute_facts_and_rules() -> void:
 	# Grandparent derived rule based on basic facts
 	result_display.text += "🔍 Query: grandparent(tom, ann)\n"
-	var is_grandparent = prolog.query_text("grandparent(tom, ann)")
+	var is_grandparent = prolog.succeeds(prolog.predicate("grandparent", 2).bind("tom", "ann"))
 	result_display.text += "%s\n" % ("✓ TRUE - Rule matched!" if is_grandparent else "✗ FALSE")
 	result_display.text += "  → Tom is Ann's grandparent\n\n"
 
 	# Recursive rule to find all descendants
 	result_display.text += "🔍 Query: ancestor(tom, X)\n"
 	result_display.text += "  Recursive rule test\n\n"
-	var descendants = prolog.query_text_all("ancestor(tom, X)")
+	var descendant = prolog.variable("X")
+	var descendants = prolog.solve_all(prolog.predicate("ancestor", 2).bind("tom", descendant))
 	result_display.text += "📋 Descendants: %d\n" % descendants.size()
 	for i in range(descendants.size()):
 		result_display.text += "  %d. %s\n" % [i + 1, format_solution(descendants[i])]
 
 	# Retrieve siblings
 	result_display.text += "\n🔍 Query: sibling(bob, X)\n"
-	var siblings = prolog.query_text_all("sibling(bob, X)")
+	var sibling = prolog.variable("X")
+	var siblings = prolog.solve_all(prolog.predicate("sibling", 2).bind("bob", sibling))
 	result_display.text += "📋 Siblings: %d\n" % siblings.size()
 	for i in range(siblings.size()):
 		result_display.text += "  %d. %s\n" % [i + 1, format_solution(siblings[i])]
@@ -221,9 +224,10 @@ func execute_dynamic_assertions() -> void:
 	result_display.text += "  ✓ game_state(score, 0)\n"
 	result_display.text += "  ✓ game_state(health, 100)\n\n"
 
-	# Query for a single value (query_text_one returns Variant or null)
+	# Query for a single value (solve_one returns PrologSolution or null)
 	result_display.text += "🔍 Query: game_state(level, X)\n"
-	var level = prolog.query_text_one("game_state(level, X)")
+	var level_x = prolog.variable("X")
+	var level = prolog.solve_one(prolog.predicate("game_state", 2).bind("level", level_x))
 	if level:
 		result_display.text += "📌 Result = %s\n\n" % format_value(level)
 	else:
@@ -237,7 +241,8 @@ func execute_dynamic_assertions() -> void:
 	result_display.text += "  ✓ Added: game_state(score, 150)\n\n"
 
 	# Check update
-	var score = prolog.query_text_one("game_state(score, X)")
+	var score_x = prolog.variable("X")
+	var score = prolog.solve_one(prolog.predicate("game_state", 2).bind("score", score_x))
 	if score:
 		result_display.text += "📌 Result = %s\n\n" % format_value(score)
 	else:
@@ -284,7 +289,9 @@ func execute_pathfinding() -> void:
 	# Find all paths from node 'a' to 'f'
 	result_display.text += "🗺️  Find: path(a, f, Path, Cost)\n"
 	result_display.text += "   From node 'a' to 'f'\n\n"
-	var paths = prolog.query_text_all("path(a, f, Path, Cost)")
+	var path_var = prolog.variable("Path")
+	var cost_var = prolog.variable("Cost")
+	var paths = prolog.solve_all(prolog.predicate("path", 4).bind("a", "f", path_var, cost_var))
 	result_display.text += "📋 Paths found: %d\n\n" % paths.size()
 
 	# Show up to 5 paths (for readability)
@@ -295,7 +302,10 @@ func execute_pathfinding() -> void:
 	# Display graph structure (all edges)
 	result_display.text += "\n🔗 Graph edges:\n"
 	result_display.text += "─────────────────────\n"
-	var edges = prolog.query_text_all("edge(X, Y, C)")
+	var edge_x = prolog.variable("X")
+	var edge_y = prolog.variable("Y")
+	var edge_c = prolog.variable("C")
+	var edges = prolog.solve_all(prolog.predicate("edge", 3).bind(edge_x, edge_y, edge_c))
 	for edge in edges:
 		var formatted = format_solution(edge)
 		result_display.text += "  %s\n" % formatted
@@ -352,10 +362,13 @@ func get_action_icon(action: String) -> String:
 # @return: Solution formatted as string
 ###############################################################################
 func format_solution(solution) -> String:
-	# Handle possible Prolog formats:
-	# - Atom: String
-	# - Compound term: Dictionary {"functor": "name", "args": [...]}
-	# - List: Array
+	if solution is PrologSolution:
+		var parts := []
+		var bindings = solution.get_bindings()
+		for key in bindings.keys():
+			var label = key.get_name() if key is PrologVariable and key.get_name() != "" else str(key.get_id()) if key is PrologVariable else str(key)
+			parts.append("%s = %s" % [label, format_value(bindings[key])])
+		return ", ".join(parts) if parts.size() > 0 else "true"
 	if solution is Dictionary and solution.has("functor") and solution.has("args"):
 		var functor = solution["functor"]
 		var args = []
@@ -374,6 +387,8 @@ func format_solution(solution) -> String:
 func format_value(value) -> String:
 	if value == null:
 		return "null"
+	if value is PrologSolution:
+		return format_solution(value)
 	if value is Dictionary:
 		if value.has("functor") and value.has("args"):
 			return format_solution(value)

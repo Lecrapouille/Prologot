@@ -478,7 +478,7 @@ func add_alien_facts():
 # =============================================================================
 func check_alien_status():
 	var alien_name = current_alien.name.to_lower()
-	var is_dangerous = prolog.solve("dangerous", [alien_name])
+	var is_dangerous = prolog.succeeds(prolog.predicate("dangerous", 1).bind(alien_name))
 
 	if is_dangerous:
 		set_alien_color(Color.RED)
@@ -504,22 +504,22 @@ func check_advanced_rules():
 	var alien_name = current_alien.name.to_lower()
 
 	# Check if suspect (from galactic_customs.pl)
-	if prolog.solve("suspect", [alien_name]):
+	if prolog.succeeds(prolog.predicate("suspect", 1).bind(alien_name)):
 		log_message("  [WARNING] Alien is SUSPECT (banned cargo or outer planet without visa)")
 
 	# Check threat level (from galactic_customs.pl)
 	var threat_levels = ["critical", "high", "medium", "low"]
 	for level in threat_levels:
-		if prolog.solve("threat_level", [alien_name, level]):
+		if prolog.succeeds(prolog.predicate("threat_level", 2).bind(alien_name, level)):
 			log_message("  [THREAT] Threat level: %s" % level.to_upper())
 			break
 
 	# Check quarantine requirement (from galactic_customs.pl)
-	if prolog.solve("requires_quarantine", [alien_name]):
+	if prolog.succeeds(prolog.predicate("requires_quarantine", 1).bind(alien_name)):
 		log_message("  [QUARANTINE] Quarantine required (Europa origin or gaseous species)")
 
 	# Check criminal record (from galactic_customs.pl)
-	if prolog.solve("has_record", [alien_name]):
+	if prolog.succeeds(prolog.predicate("has_record", 1).bind(alien_name)):
 		log_message("  [CRIMINAL] Has criminal record!")
 
 # =============================================================================
@@ -555,7 +555,8 @@ func check_taxes():
 # =============================================================================
 func list_cargo():
 	var alien_name = current_alien.name.to_lower()
-	var all_cargo = prolog.solve_all("has_cargo", [alien_name, "C"])
+	var cargo_item = prolog.variable("C")
+	var all_cargo = prolog.solve_all(prolog.predicate("has_cargo", 2).bind(alien_name, cargo_item))
 	log_message("  [CARGO] Items detected: %d" % all_cargo.size())
 
 # =============================================================================
@@ -573,7 +574,7 @@ func make_decision(is_approve: bool):
 
 	var alien_name = current_alien.name.to_lower()
 	var is_authorized = prolog.call_predicate("authorize", [alien_name])
-	var is_dangerous = prolog.solve("dangerous", [alien_name])
+	var is_dangerous = prolog.succeeds(prolog.predicate("dangerous", 1).bind(alien_name))
 
 	if is_approve:
 		handle_approval(is_authorized)

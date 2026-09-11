@@ -64,34 +64,54 @@ func _exit_tree() -> void:
 	# Ensure engine reference is cleared
 	engine = null
 
-###############################################################################
-## High-level solve: build a structured goal from a functor and arguments.
-##
-## Strings starting with an uppercase letter or '_' are Prolog variables.
-## Prefer this over query_text() from game code.
-##
-## @param goal: Functor name (String) or compound Dictionary
-## @param args: Arguments when goal is a functor name
-## @return: true if the goal succeeds, false otherwise
-###############################################################################
+func atom(name: String):
+	return engine.atom(name) if engine else null
+
+func integer(value: int):
+	return engine.integer(value) if engine else null
+
+func real(value: float):
+	return engine.real(value) if engine else null
+
+func string(value: String):
+	return engine.string(value) if engine else null
+
+func nil():
+	return engine.nil() if engine else null
+
+func list(items: Array):
+	return engine.list(items) if engine else null
+
+func compound(functor: String, args: Array):
+	return engine.compound(functor, args) if engine else null
+
+func variable(name: String = ""):
+	return engine.variable(name) if engine else null
+
+func anonymous():
+	return engine.anonymous() if engine else null
+
+func predicate(name: String, arity: int):
+	return engine.predicate(name, arity) if engine else null
+
+func succeeds(goal) -> bool:
+	if not engine:
+		push_error("Prologot: Engine not initialized")
+		return false
+	return engine.succeeds(goal)
+
 func solve(goal, args: Array = []) -> bool:
 	if not engine:
 		push_error("Prologot: Engine not initialized")
 		return false
 	return engine.solve(goal, args)
 
-###############################################################################
-## High-level solve: return all variable bindings.
-###############################################################################
 func solve_all(goal, args: Array = []) -> Array:
 	if not engine:
 		push_error("Prologot: Engine not initialized")
 		return []
 	return engine.solve_all(goal, args)
 
-###############################################################################
-## High-level solve: return the first solution (null if none).
-###############################################################################
 func solve_one(goal, args: Array = []) -> Variant:
 	if not engine:
 		push_error("Prologot: Engine not initialized")
