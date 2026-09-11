@@ -473,7 +473,7 @@ func add_alien_facts():
 # =============================================================================
 # PROLOGOT TUTORIAL #6: SOLVE - STRUCTURED BOOLEAN GOAL
 # -----------------------------------------------------------------------------
-# solve("predicate", [args]) builds a Prolog term from Godot values.
+# succeeds(predicate.bind(...)) tests a ground goal.
 # Used here to determine if the alien is dangerous.
 # =============================================================================
 func check_alien_status():
@@ -549,7 +549,7 @@ func check_taxes():
 # =============================================================================
 # PROLOGOT TUTORIAL #8: SOLVE_ALL - ALL SOLUTIONS
 # -----------------------------------------------------------------------------
-# solve_all("has_cargo", [name, "C"]) returns all matching cargo items.
+# solve_all(has_cargo.bind(name, item)) returns all matching cargo items.
 # Each result is a dictionary of variable bindings.
 # Used here to count cargo items.
 # =============================================================================
@@ -562,7 +562,7 @@ func list_cargo():
 # =============================================================================
 # PROLOGOT TUTORIAL #9: CALL_PREDICATE - CHECK A PREDICATE
 # -----------------------------------------------------------------------------
-# call_predicate(name, [args]) is like solve() for a ground goal.
+# call_predicate(name, [args]) is like succeeds() for a ground goal.
 # Returns true/false depending on Prolog rules.
 # Used to verify if the alien is authorized. Result determines
 # whether the player's choice is correct.

@@ -68,22 +68,16 @@ void Prologot::_bind_methods()
                          &Prologot::predicate);
 
     // High-level structured solving
-    ClassDB::bind_method(D_METHOD("solve", "goal", "args"),
-                         &Prologot::solve,
-                         DEFVAL(Array()));
-    ClassDB::bind_method(D_METHOD("solve_all", "goal", "args"),
-                         &Prologot::solve_all,
-                         DEFVAL(Array()));
-    ClassDB::bind_method(D_METHOD("solve_one", "goal", "args"),
-                         &Prologot::solve_one,
-                         DEFVAL(Array()));
     ClassDB::bind_method(D_METHOD("succeeds", "goal"), &Prologot::succeeds);
+    ClassDB::bind_method(D_METHOD("solve", "goal"), &Prologot::solve);
+    ClassDB::bind_method(D_METHOD("solve_all", "goal"), &Prologot::solve_all);
+    ClassDB::bind_method(D_METHOD("solve_one", "goal"), &Prologot::solve_one);
 
-    // Low-level Prolog source queries
-    ClassDB::bind_method(D_METHOD("query_text", "goal"), &Prologot::query_text);
-    ClassDB::bind_method(D_METHOD("query_text_all", "goal"),
+    // Editor/REPL only: not part of the public GDScript API
+    ClassDB::bind_method(D_METHOD("_query_text", "goal"), &Prologot::query_text);
+    ClassDB::bind_method(D_METHOD("_query_text_all", "goal"),
                          &Prologot::query_text_all);
-    ClassDB::bind_method(D_METHOD("query_text_one", "goal"),
+    ClassDB::bind_method(D_METHOD("_query_text_one", "goal"),
                          &Prologot::query_text_one);
 
     // Dynamic assertion methods
@@ -624,191 +618,6 @@ Ref<PrologPredicate> Prologot::predicate(String const& p_name, int p_arity)
 // High-level solving (structured terms)
 // =============================================================================
 
-bool Prologot::is_variable_name(String const& p_name)
-{
-    if (p_name.is_empty())
-        return false;
-    char32_t first = p_name[0];
-    return (first >= 'A' && first <= 'Z') || first == '_';
-}
-
-term_t Prologot::solve_arg_to_term(Variant const& p_arg,
-                                  std::map<std::string, term_t>& p_named_vars,
-                                  Array& p_var_names,
-                                  std::vector<term_t>& p_var_terms)
-{
-    if (p_arg.get_type() == Variant::STRING)
-    {
-        String name = p_arg;
-        if (is_variable_name(name))
-        {
-            // Fresh anonymous variable for each "_"
-            if (name == String("_"))
-            {
-                term_t fresh = PL_new_term_ref();
-                if (!PL_put_variable(fresh))
-                    return (term_t)0;
-                return fresh;
-            }
-
-            std::string key(name.utf8().get_data());
-            auto it = p_named_vars.find(key);
-            if (it != p_named_vars.end())
-                return it->second;
-
-            term_t var = PL_new_term_ref();
-            if (!PL_put_variable(var))
-                return (term_t)0;
-            p_named_vars[key] = var;
-            p_var_names.push_back(name);
-            p_var_terms.push_back(var);
-            return var;
-        }
-    }
-
-    if (p_arg.get_type() == Variant::DICTIONARY)
-    {
-        Dictionary dict = p_arg;
-        if (!dict.has("functor") || !dict.has("args"))
-            return (term_t)0;
-
-        String functor = dict["functor"];
-        Array args_arr = dict["args"];
-        int arity = args_arr.size();
-
-        term_t args = arity > 0 ? PL_new_term_refs(arity) : (term_t)0;
-        for (int i = 0; i < arity; i++)
-        {
-            term_t arg = solve_arg_to_term(
-                args_arr[i], p_named_vars, p_var_names, p_var_terms);
-            if (!arg || !PL_put_term(args + i, arg))
-                return (term_t)0;
-        }
-
-        functor_t f =
-            PL_new_functor(PL_new_atom(functor.utf8().get_data()), arity);
-        term_t compound = PL_new_term_ref();
-        if (!PL_cons_functor_v(compound, f, args))
-            return (term_t)0;
-        return compound;
-    }
-
-    if (p_arg.get_type() == Variant::ARRAY)
-    {
-        Array arr = p_arg;
-        term_t list = PL_new_term_ref();
-        if (!PL_put_nil(list))
-            return (term_t)0;
-
-        for (int i = arr.size() - 1; i >= 0; i--)
-        {
-            term_t elem = solve_arg_to_term(
-                arr[i], p_named_vars, p_var_names, p_var_terms);
-            if (!elem)
-                return (term_t)0;
-            term_t new_list = PL_new_term_ref();
-            if (!PL_cons_list(new_list, elem, list))
-                return (term_t)0;
-            list = new_list;
-        }
-        return list;
-    }
-
-    return variant_to_term(p_arg);
-}
-
-bool Prologot::build_solve_goal(Variant const& p_goal,
-                               Array const& p_args,
-                               term_t p_out_goal,
-                               Array& p_var_names,
-                               std::vector<term_t>& p_var_terms)
-{
-    std::map<std::string, term_t> named_vars;
-
-    if (p_goal.get_type() == Variant::DICTIONARY)
-    {
-        if (!p_args.is_empty())
-        {
-            push_error(
-                "solve() with a compound term does not take extra arguments");
-            return false;
-        }
-
-        term_t goal = solve_arg_to_term(
-            p_goal, named_vars, p_var_names, p_var_terms);
-        if (!goal)
-        {
-            m_last_error =
-                "solve() compound term must be {\"functor\": name, \"args\": "
-                "[...]}";
-            return false;
-        }
-        return PL_put_term(p_out_goal, goal);
-    }
-
-    if (p_goal.get_type() != Variant::STRING)
-    {
-        push_error(
-            "solve() expects a functor name (String) or a compound term "
-            "(Dictionary)");
-        return false;
-    }
-
-    String functor = p_goal;
-    if (functor.length() > 0 && functor[functor.length() - 1] == '.')
-        functor = functor.substr(0, functor.length() - 1);
-
-    if (functor.is_empty())
-    {
-        m_last_error = "Empty functor name";
-        return false;
-    }
-
-    // Source strings belong to query_text(), not solve()
-    if (functor.contains("(") || functor.contains(")") || functor.contains(",") ||
-        functor.contains(" "))
-    {
-        push_error(
-            "solve() expects a functor name, not a Prolog source string. Use "
-            "query_text() instead.");
-        return false;
-    }
-
-    int arity = p_args.size();
-    term_t args = arity > 0 ? PL_new_term_refs(arity) : (term_t)0;
-    for (int i = 0; i < arity; i++)
-    {
-        term_t arg =
-            solve_arg_to_term(p_args[i], named_vars, p_var_names, p_var_terms);
-        if (!arg || !PL_put_term(args + i, arg))
-        {
-            m_last_error = "Failed to convert argument " + String::num_int64(i);
-            return false;
-        }
-    }
-
-    functor_t f =
-        PL_new_functor(PL_new_atom(functor.utf8().get_data()), arity);
-    if (!PL_cons_functor_v(p_out_goal, f, args))
-    {
-        m_last_error = "Failed to construct goal term";
-        return false;
-    }
-    return true;
-}
-
-Dictionary Prologot::bindings_from_vars(Array const& p_var_names,
-                                        std::vector<term_t> const& p_var_terms)
-{
-    Dictionary result;
-    int count = p_var_names.size();
-    if (count > (int)p_var_terms.size())
-        count = (int)p_var_terms.size();
-    for (int i = 0; i < count; i++)
-        result[p_var_names[i]] = term_to_variant(p_var_terms[i]);
-    return result;
-}
-
 term_t Prologot::object_arg_to_term(Variant const& p_arg,
                                     std::map<int64_t, term_t>& p_vars,
                                     std::vector<Ref<PrologVariable>>& p_order)
@@ -1001,123 +810,26 @@ bool Prologot::succeeds(Ref<PrologGoal> const& p_goal)
     return !collect_goal_solutions(p_goal).is_empty();
 }
 
-bool Prologot::solve(Variant const& p_goal, Array const& p_args)
+Array Prologot::solve(Ref<PrologGoal> const& p_goal)
 {
-    Ref<PrologGoal> object_goal = p_goal;
-    if (object_goal.is_valid())
-        return succeeds(object_goal);
-
-    if (!m_initialized)
-        return false;
-
-    term_t goal = PL_new_term_ref();
-    Array var_names;
-    std::vector<term_t> var_terms;
-    if (!build_solve_goal(p_goal, p_args, goal, var_names, var_terms))
-        return false;
-
-    qid_t qid = PL_open_query(
-        NULL, PL_Q_CATCH_EXCEPTION, PL_predicate("call", 1, "user"), goal);
-    int result = PL_next_solution(qid);
-
-    if (result == PL_S_EXCEPTION)
-    {
-        handle_prolog_exception(qid, "Solve");
-        PL_close_query(qid);
-        return false;
-    }
-
-    PL_close_query(qid);
-    return result != 0;
+    return collect_goal_solutions(p_goal);
 }
 
-Array Prologot::solve_all(Variant const& p_goal, Array const& p_args)
+Array Prologot::solve_all(Ref<PrologGoal> const& p_goal)
 {
-    Ref<PrologGoal> object_goal = p_goal;
-    if (object_goal.is_valid())
-        return collect_goal_solutions(object_goal);
-
-    Array results;
-    if (!m_initialized)
-        return results;
-
-    term_t goal = PL_new_term_ref();
-    Array var_names;
-    std::vector<term_t> var_terms;
-    if (!build_solve_goal(p_goal, p_args, goal, var_names, var_terms))
-        return results;
-
-    qid_t qid = PL_open_query(
-        NULL, PL_Q_CATCH_EXCEPTION, PL_predicate("call", 1, "user"), goal);
-
-    while (true)
-    {
-        int result = PL_next_solution(qid);
-        if (result == PL_S_EXCEPTION)
-        {
-            handle_prolog_exception(qid, "Solve all");
-            PL_close_query(qid);
-            return results;
-        }
-        if (!result)
-            break;
-
-        if (!var_names.is_empty())
-            results.push_back(bindings_from_vars(var_names, var_terms));
-        else
-            results.push_back(term_to_variant(goal));
-    }
-
-    PL_close_query(qid);
-    return results;
+    return collect_goal_solutions(p_goal);
 }
 
-Variant Prologot::solve_one(Variant const& p_goal, Array const& p_args)
+Variant Prologot::solve_one(Ref<PrologGoal> const& p_goal)
 {
-    Ref<PrologGoal> object_goal = p_goal;
-    if (object_goal.is_valid())
-    {
-        Array results = collect_goal_solutions(object_goal);
-        if (results.is_empty())
-            return Variant();
-        return results[0];
-    }
-
-    if (!m_initialized)
+    Array results = collect_goal_solutions(p_goal);
+    if (results.is_empty())
         return Variant();
-
-    term_t goal = PL_new_term_ref();
-    Array var_names;
-    std::vector<term_t> var_terms;
-    if (!build_solve_goal(p_goal, p_args, goal, var_names, var_terms))
-        return Variant();
-
-    qid_t qid = PL_open_query(
-        NULL, PL_Q_CATCH_EXCEPTION, PL_predicate("call", 1, "user"), goal);
-    int result = PL_next_solution(qid);
-
-    if (result == PL_S_EXCEPTION)
-    {
-        handle_prolog_exception(qid, "Solve one");
-        PL_close_query(qid);
-        return Variant();
-    }
-
-    Variant value;
-    if (result)
-    {
-        if (!var_names.is_empty())
-            value = bindings_from_vars(var_names, var_terms);
-        else
-            value = term_to_variant(goal);
-    }
-
-    PL_close_query(qid);
-    return value;
+    return results[0];
 }
 
 // =============================================================================
-// Low-level queries (Prolog source text)
+// Low-level queries (Prolog source text, editor/REPL)
 // =============================================================================
 
 static String strip_trailing_period(String text)

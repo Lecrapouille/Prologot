@@ -60,7 +60,7 @@ func run_all_tests() -> void:
 	test_euclidean_distance()
 	test_tracking_with_distance()
 	test_error_handling()
-	test_solve_and_query_text()
+	test_object_solve_api()
 	test_lists_atoms_and_variants()
 	test_consult_file_standalone()
 	test_prolog_term_factories()
@@ -344,7 +344,7 @@ func test_complex_queries() -> void:
 	assert_false(prolog.succeeds(goal("weak", ["dragon"])), "Dragon is not weak")
 	assert_true(prolog.succeeds(goal("strong", ["dragon"])), "Dragon is strong")
 
-	# Test query_text_all with complex results
+	# Test solve_all with complex results
 	var weak_enemies := prolog.solve_all(goal("weak", [prolog.variable("X")]))
 	assert_true(weak_enemies.size() >= 1, "At least one weak enemy found")
 
@@ -530,12 +530,12 @@ func test_error_handling() -> void:
 		print("  ✗ SKIP: Could not initialize Prolog")
 		return
 
-	# Test query with syntax error (should not crash)
-	var bad_query := prolog.query_text("this is not valid prolog")
+	# Internal source parser (editor dock): syntax errors must not crash
+	var bad_query := prolog._query_text("this is not valid prolog")
 	assert_false(bad_query, "Invalid query returns false")
 
 	# Test empty query
-	var empty_query := prolog.query_text("")
+	var empty_query := prolog._query_text("")
 	assert_false(empty_query, "Empty query returns false")
 
 	# Test retract non-existent fact
@@ -552,11 +552,11 @@ func test_error_handling() -> void:
 
 
 # =============================================================================
-# Test: solve() (structured) vs query_text() (Prolog source)
+# Test: public object solve API (no string / Dictionary goals)
 # =============================================================================
 
-func test_solve_and_query_text() -> void:
-	print("\n[Test Suite: solve / query_text API]")
+func test_object_solve_api() -> void:
+	print("\n[Test Suite: object solve API]")
 
 	if not setup_prolog():
 		print("  ✗ SKIP: Could not initialize Prolog")
@@ -568,42 +568,36 @@ func test_solve_and_query_text() -> void:
 		parent(bob, ann).
 	"""), "Load family facts")
 
-	# High-level structured API
-	assert_true(prolog.solve("parent", ["tom", "bob"]), "solve parent(tom, bob) succeeds")
-	assert_false(prolog.solve("parent", ["bob", "tom"]), "solve parent(bob, tom) fails")
+	var parent := prolog.predicate("parent", 2)
+	assert_true(prolog.succeeds(parent.bind("tom", "bob")), "succeeds parent(tom, bob)")
+	assert_false(prolog.succeeds(parent.bind("bob", "tom")), "succeeds parent(bob, tom) fails")
 
-	var children := prolog.solve_all("parent", ["tom", "X"])
+	var found := prolog.solve(parent.bind("tom", "bob"))
+	assert_equal(found.size(), 1, "solve returns one PrologSolution for a ground fact")
+	assert_true(prolog.solve(parent.bind("bob", "tom")).is_empty(), "solve is empty when the goal fails")
+
+	var child := prolog.variable("Child")
+	var children := prolog.solve_all(parent.bind("tom", child))
 	assert_equal(children.size(), 2, "solve_all returns both children of tom")
-	assert_true(children[0]["X"] == "bob" or children[1]["X"] == "bob", "solve_all binds X to bob")
-	assert_true(children[0]["X"] == "liz" or children[1]["X"] == "liz", "solve_all binds X to liz")
+	var names := []
+	for solution in children:
+		assert_true(solution.has(child), "each solution binds the variable object")
+		names.append(solution.get(child))
+	assert_true("bob" in names and "liz" in names, "solve_all binds the child variable")
 
-	var first_child: Variant = prolog.solve_one("parent", ["tom", "X"])
-	assert_true(first_child != null and first_child.has("X"), "solve_one returns {X: ...}")
+	var first_child: PrologSolution = prolog.solve_one(parent.bind("tom", child))
+	assert_true(first_child != null and first_child.has(child), "solve_one returns a PrologSolution")
 
-	# Compound Dictionary form: solve(parent(tom, child))
+	var via := prolog.variable()
+	var grandchild := prolog.variable()
 	assert_true(
-		prolog.solve({"functor": "parent", "args": ["tom", "bob"]}),
-		"solve compound Dictionary succeeds"
-	)
-
-	var dict_children := prolog.solve_all({"functor": "parent", "args": ["tom", "X"]})
-	assert_equal(dict_children.size(), 2, "solve_all from Dictionary extracts X")
-
-	var via := prolog.variable("X")
-	var child_y := prolog.variable("Y")
-	assert_true(
-		prolog.succeeds(goal("parent", ["tom", via]).conjunction(goal("parent", [via, child_y]))),
+		prolog.succeeds(parent.bind("tom", via).conjunction(parent.bind(via, grandchild))),
 		"conjunction of two parent goals succeeds"
 	)
 
-	var child_x := prolog.variable("X")
-	var text_results := prolog.solve_all(goal("parent", ["tom", child_x]))
-	assert_equal(text_results.size(), 2, "solve_all returns two children of tom")
-	assert_true(text_results[0].has(child_x), "each solution binds the variable object")
-
-	# solve() must reject Prolog source strings
-	assert_false(prolog.solve("parent(tom, bob)"), "solve rejects a Prolog source string")
-	assert_true(prolog.get_last_error().length() > 0, "solve source-string error is reported")
+	# A String passed to bind() is always an atom, never a variable
+	assert_true(prolog.succeeds(parent.bind("tom", "bob")), "lowercase strings are atoms")
+	assert_true(prolog.solve(parent.bind("tom", "X")).is_empty(), "uppercase string 'X' is an atom, not a variable")
 
 	teardown_prolog()
 
@@ -640,16 +634,10 @@ func test_lists_atoms_and_variants() -> void:
 
 	# GDScript strings become Prolog atoms (not Prolog strings)
 	assert_true(prolog.succeeds(goal("named", ["hello"])), "Atom hello matches string 'hello'")
-	assert_true(prolog.solve("named", ["hello"]), "solve() treats lowercase strings as atoms")
-
-	# Compound Variant form used by solve()
+	assert_false(prolog.succeeds(goal("named", ["goodbye"])), "Missing atom fact fails")
 	assert_true(
-		prolog.solve({"functor": "named", "args": ["hello"]}),
-		"Dictionary {functor, args} is accepted by solve()"
-	)
-	assert_false(
-		prolog.solve({"functor": "named", "args": ["goodbye"]}),
-		"Compound Variant fails when the fact does not exist"
+		prolog.succeeds(goal("named", [prolog.atom("hello")])),
+		"prolog.atom() matches the same atom as a String"
 	)
 
 	# member/2 via call_predicate with a Godot Array
@@ -851,7 +839,8 @@ func test_solve_prolog_goal() -> void:
 
 	assert_true(prolog.succeeds(parent.bind("tom", "bob")), "succeeds parent(tom, bob)")
 	assert_false(prolog.succeeds(parent.bind("bob", "tom")), "succeeds fails for missing fact")
-	assert_true(prolog.solve(parent.bind("tom", "bob")), "solve(goal) is true when solutions exist")
+	assert_equal(prolog.solve(parent.bind("tom", "bob")).size(), 1, "solve(goal) returns solutions")
+	assert_true(prolog.solve(parent.bind("bob", "tom")).is_empty(), "solve(goal) is empty when there is no solution")
 
 	var solutions := prolog.solve_all(parent.bind("tom", child))
 	assert_equal(solutions.size(), 2, "solve_all(goal) returns two children")

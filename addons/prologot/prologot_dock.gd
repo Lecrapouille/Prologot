@@ -236,7 +236,7 @@ func _execute_query(query: String) -> void:
 	_append_result("\n?- " + query)
 
 	# Execute the query and get all solutions
-	var results = engine.query_text_all(query)
+	var results = engine._query_text_all(query)
 	if results.is_empty():
 		# No solutions found
 		_append_result("false.")

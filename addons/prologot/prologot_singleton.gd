@@ -100,55 +100,23 @@ func succeeds(goal) -> bool:
 		return false
 	return engine.succeeds(goal)
 
-func solve(goal, args: Array = []) -> bool:
-	if not engine:
-		push_error("Prologot: Engine not initialized")
-		return false
-	return engine.solve(goal, args)
-
-func solve_all(goal, args: Array = []) -> Array:
+func solve(goal) -> Array:
 	if not engine:
 		push_error("Prologot: Engine not initialized")
 		return []
-	return engine.solve_all(goal, args)
+	return engine.solve(goal)
 
-func solve_one(goal, args: Array = []) -> Variant:
-	if not engine:
-		push_error("Prologot: Engine not initialized")
-		return null
-	return engine.solve_one(goal, args)
-
-###############################################################################
-## Low-level query: parse and execute a Prolog source string.
-##
-## Use this for conjunctions, operators, or goals already written as text.
-##
-## @param goal: The Prolog query as a string (e.g., "parent(tom, X)")
-## @return: true if the query succeeds, false otherwise
-###############################################################################
-func query_text(goal: String) -> bool:
-	if not engine:
-		push_error("Prologot: Engine not initialized")
-		return false
-	return engine.query_text(goal)
-
-###############################################################################
-## Low-level query: return all solutions as converted Prolog terms.
-###############################################################################
-func query_text_all(goal: String) -> Array:
+func solve_all(goal) -> Array:
 	if not engine:
 		push_error("Prologot: Engine not initialized")
 		return []
-	return engine.query_text_all(goal)
+	return engine.solve_all(goal)
 
-###############################################################################
-## Low-level query: return the first solution (null if none).
-###############################################################################
-func query_text_one(goal: String) -> Variant:
+func solve_one(goal) -> Variant:
 	if not engine:
 		push_error("Prologot: Engine not initialized")
 		return null
-	return engine.query_text_one(goal)
+	return engine.solve_one(goal)
 
 ###############################################################################
 ## Get the last error message from Prolog.
