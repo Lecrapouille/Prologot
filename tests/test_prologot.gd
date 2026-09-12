@@ -72,7 +72,7 @@ func run_all_tests() -> void:
 	test_atom_versus_string()
 	test_assert_fact_goal()
 	test_prolog_object()
-	test_query_text_named()
+	test_editor_query()
 	test_expose_godot_members()
 	test_prolog_knowledge_and_node()
 
@@ -536,13 +536,12 @@ func test_error_handling() -> void:
 		print("  ✗ SKIP: Could not initialize Prolog")
 		return
 
-	# Internal source parser (editor dock): syntax errors must not crash
-	var bad_query := prolog._query_text("this is not valid prolog")
-	assert_false(bad_query, "Invalid query returns false")
+	# Editor console parser: syntax errors must not crash
+	var bad_query: Array = prolog._editor_query("this is not valid prolog")
+	assert_true(bad_query.is_empty(), "Invalid query returns no solutions")
 
-	# Test empty query
-	var empty_query := prolog._query_text("")
-	assert_false(empty_query, "Empty query returns false")
+	var empty_query: Array = prolog._editor_query("")
+	assert_true(empty_query.is_empty(), "Empty query returns no solutions")
 
 	# Test retract non-existent fact
 	var retract_missing := prolog.retract_fact("nonexistent_fact(x)")
@@ -963,8 +962,8 @@ func test_prolog_object() -> void:
 	teardown_prolog()
 
 
-func test_query_text_named() -> void:
-	print("\n[Test Suite: REPL named bindings]")
+func test_editor_query() -> void:
+	print("\n[Test Suite: editor console bindings]")
 
 	if not setup_prolog():
 		print("  ✗ SKIP: Could not initialize Prolog")
@@ -975,18 +974,18 @@ func test_query_text_named() -> void:
 		parent(tom, liz).
 	"""), "Load family facts")
 
-	var rows: Array = prolog._query_text_named("parent(tom, X)")
+	var rows: Array = prolog._editor_query("parent(tom, X)")
 	assert_equal(rows.size(), 2, "named query returns both children")
 	var names := []
 	for row in rows:
 		names.append(row["X"])
 	assert_true("bob" in names and "liz" in names, "bindings use source variable names")
 
-	var ground: Array = prolog._query_text_named("parent(tom, bob)")
+	var ground: Array = prolog._editor_query("parent(tom, bob)")
 	assert_equal(ground.size(), 1, "ground success is one empty binding set")
 	assert_true(ground[0].is_empty(), "ground success has no variables")
 
-	var bad: Array = prolog._query_text_named("this is not valid")
+	var bad: Array = prolog._editor_query("this is not valid")
 	assert_true(bad.is_empty(), "parse error returns no solutions")
 	assert_true(prolog.get_last_error().length() > 0, "parse error is stored")
 

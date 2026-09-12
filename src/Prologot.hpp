@@ -263,39 +263,6 @@ public:
      */
     bool succeeds(Ref<PrologGoal> const& p_goal);
 
-    // =========================================================================
-    // Internal text queries (editor/REPL, not a public GDScript API)
-    // =========================================================================
-
-    /**
-     * @brief Parses a Prolog source string (bound as `_query_text`).
-     *
-     * Used by the editor dock and by retract_all / list_predicates.
-     * Game code should build a PrologGoal instead.
-     */
-    bool query_text(String const& p_goal);
-
-    /**
-     * @brief Parses a Prolog source string and returns all solutions
-     * (bound as `_query_text_all`).
-     */
-    Array query_text_all(String const& p_goal);
-
-    /**
-     * @brief Parses a Prolog source string and returns the first solution
-     * (bound as `_query_text_one`).
-     */
-    Variant query_text_one(String const& p_goal);
-
-    /**
-     * @brief Parses a Prolog source string and returns named bindings
-     * (bound as `_query_text_named`). Used by the editor REPL.
-     *
-     * Each solution is a Dictionary of variable name → value, e.g.
-     * {"X": "bob"}. A successful ground query yields an empty Dictionary.
-     */
-    Array query_text_named(String const& p_goal);
-
     /**
      * @brief Gets the last error message from Prolog.
      *
@@ -520,8 +487,7 @@ public:
      * @brief Lists all currently defined predicates.
      *
      * This method uses Prolog's current_predicate/1 to query for all predicates
-     * currently in the knowledge base. Returns an Array of results from
-     * `_query_text_all()`.
+     * currently in the knowledge base.
      *
      * @return Array of Dictionary objects describing each predicate.
      *
@@ -655,6 +621,11 @@ private:
      * @return true if exception was handled, false if no exception occurred.
      */
     bool handle_prolog_exception(qid_t p_qid, String const& p_context);
+
+    bool query_text(String const& p_goal);
+    Array query_text_all(String const& p_goal);
+    Variant query_text_one(String const& p_goal);
+    Array query_text_named(String const& p_goal);
 
     /**
      * @brief Registers prologot_property/4 and prologot_method/5 after init.

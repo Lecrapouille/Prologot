@@ -33,7 +33,7 @@ for solution in prolog.solve(parent.bind("tom", child)):
     print(solution.get(child))
 ```
 
-There is no public `query_text()`. The editor dock parses Prolog source through an internal helper. Conjunctions in game code use `PrologGoal.conjunction()`.
+There is no string query API (`query_text` and friends are gone). The editor console parses typed goals internally. Conjunctions in game code use `PrologGoal.conjunction()`.
 
 ## Prolog Syntax Notes
 

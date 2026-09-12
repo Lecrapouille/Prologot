@@ -77,14 +77,8 @@ void Prologot::_bind_methods()
     ClassDB::bind_method(D_METHOD("solve_all", "goal"), &Prologot::solve_all);
     ClassDB::bind_method(D_METHOD("solve_one", "goal"), &Prologot::solve_one);
 
-    // Editor/REPL only: not part of the public GDScript API
-    ClassDB::bind_method(D_METHOD("_query_text", "goal"),
-                         &Prologot::query_text);
-    ClassDB::bind_method(D_METHOD("_query_text_all", "goal"),
-                         &Prologot::query_text_all);
-    ClassDB::bind_method(D_METHOD("_query_text_one", "goal"),
-                         &Prologot::query_text_one);
-    ClassDB::bind_method(D_METHOD("_query_text_named", "goal"),
+    // Editor console only (not a game API)
+    ClassDB::bind_method(D_METHOD("_editor_query", "goal"),
                          &Prologot::query_text_named);
 
     // Dynamic assertion methods

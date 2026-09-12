@@ -337,7 +337,7 @@ for solution in prolog.solve(parent.bind("tom", child)):
     print(solution.get(child))               # bob, then liz
 ```
 
-Prolog source strings are not a public query API. The editor dock parses text through an internal `_query_text_all()` helper.
+Prolog source strings are not a query API. The editor console parses typed goals internally; game code uses `succeeds` / `solve` / `solve_one`.
 
 #### `succeeds(goal: PrologGoal) -> bool`
 

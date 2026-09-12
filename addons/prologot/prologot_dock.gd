@@ -288,7 +288,7 @@ func _execute_query(query: String) -> void:
 	_push_history(query)
 	_append_result("\n?- " + query)
 
-	var results = engine._query_text_named(query)
+	var results = engine._editor_query(query)
 	if results.is_empty():
 		var err: String = engine.get_last_error()
 		if not err.is_empty():
