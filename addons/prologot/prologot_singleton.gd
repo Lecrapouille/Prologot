@@ -91,35 +91,17 @@ func variable(name: String = ""):
 func anonymous():
 	return engine.anonymous() if engine else null
 
-func predicate(name: String, arity: int):
-	return engine.predicate(name, arity) if engine else null
+func predicate(name: String):
+	return engine.predicate(name) if engine else null
 
 func object(value):
 	return engine.object(value) if engine else null
 
-func succeeds(goal) -> bool:
-	if not engine:
-		push_error("Prologot: Engine not initialized")
-		return false
-	return engine.succeeds(goal)
-
-func solve(goal) -> Array:
-	if not engine:
-		push_error("Prologot: Engine not initialized")
-		return []
-	return engine.solve(goal)
-
-func solve_all(goal) -> Array:
-	if not engine:
-		push_error("Prologot: Engine not initialized")
-		return []
-	return engine.solve_all(goal)
-
-func solve_one(goal) -> Variant:
+func solve(goal):
 	if not engine:
 		push_error("Prologot: Engine not initialized")
 		return null
-	return engine.solve_one(goal)
+	return engine.solve(goal)
 
 ###############################################################################
 ## Get the last error message from Prolog.
@@ -167,22 +149,6 @@ func consult_string(code: String) -> bool:
 		return false
 	return engine.consult_string(code)
 
-###############################################################################
-## Assert a new fact into the Prolog knowledge base.
-##
-## Adds a new fact to the knowledge base at runtime. The fact must be in Prolog
-## syntax (e.g., "parent(tom, bob)" or "game_state(level, 5)"). This allows
-## dynamic modification of the knowledge base during game execution.
-##
-## @param fact: The Prolog fact to add as a string
-## @return: true if the fact was successfully added, false otherwise
-###############################################################################
-func add_fact(fact: String) -> bool:
-	if not engine:
-		push_error("Prologot: Engine not initialized")
-		return false
-	return engine.add_fact(fact)
-
 func assert_fact(goal) -> bool:
 	if not engine:
 		push_error("Prologot: Engine not initialized")
@@ -192,7 +158,7 @@ func assert_fact(goal) -> bool:
 ###############################################################################
 ## Retract a fact from the Prolog knowledge base.
 ##
-## Accepts a legacy Prolog source string or a PrologGoal from bind().
+## Accepts a PrologGoal from predicate.call().
 ###############################################################################
 func retract_fact(fact) -> bool:
 	if not engine:
@@ -228,42 +194,6 @@ func list_exposed() -> Array:
 	if not engine:
 		return []
 	return engine.list_exposed()
-
-###############################################################################
-## Call a Prolog predicate with the given arguments.
-##
-## Calls a Prolog predicate with arguments passed as a GDScript array. Returns
-## true if the predicate succeeds. This is useful for calling predicates that
-## don't return values but perform checks or side effects.
-##
-## @param predicate: The name of the predicate (e.g., "one_shot_kill")
-## @param args: Array of arguments to pass to the predicate
-## @return: true if the predicate succeeds, false otherwise
-###############################################################################
-func call_predicate(predicate: String, args: Array) -> bool:
-	if not engine:
-		push_error("Prologot: Engine not initialized")
-		return false
-	return engine.call_predicate(predicate, args)
-
-
-###############################################################################
-## Call a Prolog predicate and return the result.
-##
-## Calls a Prolog predicate and returns its result value. This is used for
-## predicates that compute and return values (functions). The result can be
-## a number, string, list, or compound term.
-##
-## @param predicate: The name of the predicate/function (e.g., "damage")
-## @param args: Array of input arguments
-## @return: The result value as a Variant, or null if the predicate fails
-###############################################################################
-func call_function(predicate: String, args: Array) -> Variant:
-	if not engine:
-		push_error("Prologot: Engine not initialized")
-		return null
-	return engine.call_function(predicate, args)
-
 
 ###############################################################################
 ## Create and load a named knowledge base.

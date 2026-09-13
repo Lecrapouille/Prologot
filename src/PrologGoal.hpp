@@ -5,8 +5,8 @@
  * Prologot - SWI-Prolog integration for Godot 4
  *
  * This file defines PrologGoal: an explicit goal built from a predicate
- * bind() or from conjunction / disjunction / negation. Game code passes
- * this object to Prologot.succeeds() / solve() / solve_one().
+ * call() or from conjunction / disjunction / negation. Game code passes
+ * this object to Prologot.solve().
  */
 
 #pragma once
@@ -30,10 +30,10 @@ using namespace godot;
  * Cut and meta-predicates are not exposed yet.
  *
  * @example
- * var parent = prolog.predicate("parent", 2)
+ * var parent = prolog.predicate("parent")
  * var via = prolog.variable()
  * var grandchild = prolog.variable()
- * var chain = parent.bind("tom", via).conjunction(parent.bind(via, grandchild))
+ * var chain = parent.call("tom", via).conjunction(parent.call(via, grandchild))
  * for solution in prolog.solve(chain):
  *     print(solution.get(via), " -> ", solution.get(grandchild))
  */
@@ -44,7 +44,7 @@ class PrologGoal: public RefCounted
 public:
 
     /**
-     * @brief Constructs an empty goal (filled by from_compound() or bind()).
+     * @brief Constructs an empty goal (filled by from_compound() or call()).
      */
     PrologGoal() = default;
 
@@ -56,7 +56,7 @@ public:
     /**
      * @brief Creates a goal functor(args...).
      *
-     * Prefer PrologPredicate.bind() from GDScript.
+     * Prefer PrologPredicate.call() from GDScript.
      *
      * @param p_functor Functor name (e.g. "parent", ",", ";", "\\+").
      * @param p_args Arguments in order.
@@ -69,17 +69,33 @@ public:
      * @brief Returns the outermost functor name.
      *
      * @example
-     * print(parent.bind("tom", child).get_functor())  # parent
+     * print(parent.call("tom", child).get_functor())  # parent
      */
     String get_functor() const { return m_functor; }
 
     /**
      * @brief Returns the outermost arguments.
+     *
+     * For a conjunction the two arguments are the left and right PrologGoal.
+     *
+     * @return Array of arguments (atoms, variables, nested goals, ...).
+     *
+     * @example
+     * var goal: PrologGoal = parent.call("tom", child)
+     * print(goal.get_args())  # ["tom", <PrologVariable>]
      */
     Array get_args() const { return m_args; }
 
     /**
      * @brief Returns the number of outermost arguments.
+     *
+     * This is the arity of this goal, not of the PrologPredicate.
+     *
+     * @return args.size() (2 for parent(tom, Child), 2 for a conjunction).
+     *
+     * @example
+     * print(parent.call("tom", child).get_arity())  # 2
+     * print(parent.call("tom").get_arity())         # 1
      */
     int get_arity() const { return m_args.size(); }
 
@@ -87,7 +103,7 @@ public:
      * @brief Returns a readable Prolog-like representation.
      *
      * @example
-     * print(parent.bind("tom", child).as_text())  # parent(tom, Child)
+     * print(parent.call("tom", child).as_text())  # parent(tom, Child)
      */
     String as_text() const;
 
@@ -95,6 +111,13 @@ public:
      * @brief Converts this goal to a compound PrologTerm.
      *
      * Useful for inspection; solve() compiles the goal directly.
+     *
+     * @return A PrologTerm whose functor and args match this goal.
+     *
+     * @example
+     * var term = parent.call("tom", "bob").to_term()
+     * print(term.is_compound())  # true
+     * print(term.as_text())      # parent(tom, bob)
      */
     Ref<PrologTerm> to_term() const;
 
@@ -108,10 +131,10 @@ public:
      * @return A goal whose functor is ",".
      *
      * @example
-     * var parent = prolog.predicate("parent", 2)
+     * var parent = prolog.predicate("parent")
      * var via = prolog.variable()
-     * var goal = parent.bind("tom", via).conjunction(parent.bind(via, "ann"))
-     * prolog.succeeds(goal)  # true if tom -> via -> ann
+     * var goal = parent.call("tom", via).conjunction(parent.call(via, "ann"))
+     * prolog.solve(goal).has_solution()  # true if tom -> via -> ann
      */
     Ref<PrologGoal> conjunction(Ref<PrologGoal> const& p_other) const;
 
@@ -124,8 +147,8 @@ public:
      * @return A goal whose functor is ";".
      *
      * @example
-     * var animal = prolog.predicate("animal", 1)
-     * var goal = animal.bind("dog").disjunction(animal.bind("cat"))
+     * var animal = prolog.predicate("animal")
+     * var goal = animal.call("dog").disjunction(animal.call("cat"))
      */
     Ref<PrologGoal> disjunction(Ref<PrologGoal> const& p_other) const;
 
@@ -135,8 +158,8 @@ public:
      * @return A goal whose functor is "\\+".
      *
      * @example
-     * var parent = prolog.predicate("parent", 2)
-     * prolog.succeeds(parent.bind("bob", "tom").negated())
+     * var parent = prolog.predicate("parent")
+     * prolog.solve(parent.call("bob", "tom").negated()).has_solution()
      */
     Ref<PrologGoal> negated() const;
 

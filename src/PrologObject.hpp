@@ -23,7 +23,7 @@ using namespace godot;
  * @brief Handle to a Godot Object usable as a Prolog argument.
  *
  * Created with prolog.object(node) or by passing a Node / Resource to
- * bind(). Identity is the Godot instance id: two handles to the same
+ * call(). Identity is the Godot instance id: two handles to the same
  * live object unify. If the object is freed (scene change, queue_free),
  * is_valid() becomes false and get_object() returns null; existing
  * blobs keep the id so comparison still works.
@@ -32,9 +32,9 @@ using namespace godot;
  *
  * @example
  * var player = prolog.object($Player)
- * var at = prolog.predicate("at", 2)
- * prolog.assert_fact(at.bind(player, "zone_1"))
- * prolog.succeeds(at.bind(player, "zone_1"))
+ * var at = prolog.predicate("at")
+ * prolog.assert_fact(at.call(player, "zone_1"))
+ * prolog.solve(at.call(player, "zone_1")).has_solution()
  */
 class PrologObject: public RefCounted
 {
@@ -66,6 +66,9 @@ public:
 
     /**
      * @brief Wraps a Godot instance id (used when reading a blob back).
+     *
+     * @param p_instance_id Godot Object.get_instance_id().
+     * @return A handle; is_valid() is false if that id is gone.
      */
     static Ref<PrologObject> create_from_id(uint64_t p_instance_id);
 
@@ -89,42 +92,88 @@ public:
     /**
      * @brief Reads a Godot-object blob from a Prolog term.
      *
+     * @param p_term Term that may hold a godot_object blob.
      * @return A PrologObject, or null if the term is not our blob.
      */
     static Ref<PrologObject> from_swi_term(term_t p_term);
 
     /**
      * @brief Returns the live Godot object, or null if it was freed.
+     *
+     * @return The original Object, or nullptr after queue_free / scene change.
+     *
+     * @example
+     * var handle = prolog.object($Player)
+     * print(handle.get_object() == $Player)  # true
+     * $Player.free()
+     * print(handle.get_object())             # null
      */
     Object* get_object() const;
 
     /**
      * @brief Returns true if ObjectDB still has this instance id.
+     *
+     * @return true while the Godot object is alive.
+     *
+     * @example
+     * var handle = prolog.object($Player)
+     * print(handle.is_valid())  # true
+     * $Player.free()
+     * print(handle.is_valid())  # false
      */
     bool is_valid() const;
 
     /**
      * @brief Returns the Godot instance id (stable handle).
+     *
+     * Two handles with the same id unify in Prolog even if get_object()
+     * is already null.
+     *
+     * @return Godot instance id stored in the SWI blob.
+     *
+     * @example
+     * print(prolog.object($Player).get_instance_id() == $Player.get_instance_id())
      */
     uint64_t get_instance_id() const { return m_instance_id; }
 
     /**
      * @brief Returns the Godot class name, or empty if the object is gone.
+     *
+     * @return e.g. "Node2D", or "" after the object is freed.
+     *
+     * @example
+     * print(prolog.object($Player).get_class_name())  # Node
      */
     String get_class_name() const;
 
     /**
      * @brief Returns true if both handles refer to the same instance id.
+     *
+     * @param p_other Other handle. Null returns false.
+     * @return true if the ids match.
+     *
+     * @example
+     * var a = prolog.object($Player)
+     * var b = prolog.object($Player)
+     * print(a.equals(b))  # true
      */
     bool equals(Ref<PrologObject> const& p_other) const;
 
     /**
-     * @brief Debug label, e.g. Node2D#123 or <freed#123>.
+     * @brief Debug label, e.g. Player:<Node#123> or <freed#123>.
+     *
+     * @return A short string for print() and as_text() of goals.
+     *
+     * @example
+     * print(prolog.object($Player).as_text())
      */
     String as_text() const;
 
 protected:
 
+    /**
+     * @brief Binds get_object / is_valid / equals / as_text to GDScript.
+     */
     static void _bind_methods();
 
 private:

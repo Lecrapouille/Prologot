@@ -65,23 +65,23 @@ To make your prolog files visible in Godot in `res://` you can add `pl` (or `pro
 
 **Solution:**
 
-A `String` passed to `bind()` is always a Prolog **atom**. Only `prolog.variable()` creates a variable. `"X"` is the atom `X`, not a logical variable.
+A `String` passed to `call()` is always a Prolog **atom**. Only `prolog.variable()` creates a variable. `"X"` is the atom `X`, not a logical variable.
 
 ```gdscript
-var parent = prolog.predicate("parent", 2)
+var parent = prolog.predicate("parent")
 
 # Wrong: "X" is the atom X
-prolog.solve(parent.bind("tom", "X"))
+prolog.solve(parent.call("tom", "X"))
 
 # Correct: a PrologVariable object
-var child = prolog.variable()
-for solution in prolog.solve(parent.bind("tom", child)):
+var child = prolog.variable("Child")
+for solution in prolog.solve(parent.call("tom", child)):
     print(solution.get(child))
 ```
 
 Use lowercase atoms in facts (`parent(tom, bob)`). If a character name starts with an uppercase letter in a `.pl` file, quote it: `parent('Tom', 'Bob')`.
 
-In GDScript, `if []:` is true. Use `succeeds(goal)` for a yes/no test — do not write `if prolog.solve(goal):`.
+A `PrologQuery` is always truthy. Use `solve(goal).has_solution()` for a yes/no test — do not write `if prolog.solve(goal):`.
 
 ---
 
@@ -99,7 +99,7 @@ In GDScript, `if []:` is true. Use `succeeds(goal)` for a yes/no test — do not
        "table space": "128m",  # Limit table space
        "optimized": true       # Enable optimizations
 ```
-3. Consider using `solve_one()` instead of `solve_all()` if you only need the first solution.
+3. Consider using `solve(goal).first()` if you only need the first solution.
 4. Use `retract_all()` to clean up unused facts.
 
 ---

@@ -67,8 +67,8 @@ Each `.pl` file contains standalone Prolog code that can be loaded and executed 
 
 Simple parent-child relationships demonstrating:
 
-- `prolog.succeeds(parent.bind("tom", "bob"))` — yes/no test
-- `prolog.solve(parent.bind("tom", child))` — all `PrologSolution`s; use `solution.get(child)`
+- `prolog.solve(parent.call("tom", "bob")).has_solution()` — yes/no test
+- `prolog.solve(parent.call("tom", child))` — iterate `PrologSolution`s; use `solution.get(child)`
 
 ### 2. Facts and Rules
 
@@ -86,7 +86,7 @@ Grandparent and ancestor relationships showing:
 
 Runtime fact management with:
 
-- `prolog.add_fact()` - Add facts dynamically
+- `prolog.assert_fact()` - Add facts dynamically
 - `prolog.retract_fact()` - Remove specific facts
 - `prolog.retract_all()` - Remove all matching facts
 
@@ -96,8 +96,7 @@ Runtime fact management with:
 
 Combat system with calculations:
 
-- `prolog.call_predicate()` - Call predicates with arguments
-- `prolog.call_function()` - Get calculated values
+- `predicate.call()` - Build a goal and `solve()` it
 - Arithmetic in Prolog with `is`
 
 ### 5. Pathfinding

@@ -13,6 +13,7 @@
 #include "PrologGoal.hpp"
 #include "PrologObject.hpp"
 #include "PrologPredicate.hpp"
+#include "PrologQuery.hpp"
 #include "PrologSolution.hpp"
 #include "PrologTerm.hpp"
 #include "PrologVariable.hpp"
@@ -31,9 +32,25 @@ using namespace godot;
  * @class Prologot
  * @brief Main class providing SWI-Prolog integration for Godot 4.
  *
- * This class wraps the SWI-Prolog C API and exposes it to GDScript,
- * allowing users to execute Prolog queries, assert/retract facts,
- * and consult Prolog files from within Godot.
+ * One instance owns one Prolog engine. Typical flow: initialize(),
+ * consult_file() / consult_string(), build a PrologGoal with
+ * predicate().call(), then solve(). A PrologQuery is always truthy in
+ * GDScript — use has_solution() for a yes/no test.
+ *
+ * @example
+ * var p = Prologot.new()
+ * if not p.initialize():
+ *     push_error(p.get_last_error())
+ *     return
+ * p.consult_file("res://rules.pl")
+ *
+ * var parent = p.predicate("parent")
+ * var child = p.variable("Child")
+ * if p.solve(parent.call("tom", "bob")).has_solution():
+ *     print("true")
+ * for solution in p.solve(parent.call("tom", child)):
+ *     print(solution.get(child))
+ * p.cleanup()
  */
 class Prologot: public RefCounted
 {
@@ -114,22 +131,37 @@ public:
      *     - "custom args" (Array): Additional custom arguments
      *
      * @return true if initialization succeeded, false otherwise.
+     *
+     * @example
+     * var prolog = Prologot.new()
+     * if not prolog.initialize({"home": "res://bin/linux/swipl"}):
+     *     push_error(prolog.get_last_error())
+     *     return
+     * print(prolog.is_initialized())  # true
      */
     bool initialize(Dictionary const& p_options = Dictionary());
 
     /**
      * @brief Cleans up and shuts down the Prolog engine.
      *
-     * This method is safe to call multiple times. It only performs cleanup
-     * if the engine was actually initialized. After cleanup, the engine
-     * must be re-initialized before use.
+     * Safe to call multiple times. After cleanup the engine must be
+     * re-initialized before consult / solve.
+     *
+     * @example
+     * func _exit_tree():
+     *     if prolog:
+     *         prolog.cleanup()
      */
     void cleanup();
 
     /**
      * @brief Checks if the Prolog engine is currently initialized.
      *
-     * @return true if initialized and ready to use, false otherwise.
+     * @return true if initialize() succeeded and cleanup() was not called.
+     *
+     * @example
+     * if not prolog.is_initialized():
+     *     prolog.initialize()
      */
     bool is_initialized() const;
 
@@ -203,16 +235,167 @@ public:
     // Structured term factories
     // =========================================================================
 
+    /**
+     * @brief Creates a Prolog atom term.
+     *
+     * A GDScript String passed to call() is already an atom. Use this
+     * factory when you need an explicit PrologTerm (inspection, as_text).
+     *
+     * @param p_name Atom name (e.g. "tom").
+     * @return A PrologTerm whose kind is atom.
+     *
+     * @example
+     * var tom = prolog.atom("tom")
+     * print(tom.as_text())  # tom
+     * prolog.solve(prolog.predicate("parent").call(tom, "bob")).has_solution()
+     */
     Ref<PrologTerm> atom(String const& p_name);
+
+    /**
+     * @brief Creates a Prolog integer term.
+     *
+     * A GDScript int passed to call() is already an integer.
+     *
+     * @param p_value Signed 64-bit integer.
+     * @return A PrologTerm whose kind is integer.
+     *
+     * @example
+     * var hp = prolog.integer(42)
+     * print(hp.get_integer())  # 42
+     */
     Ref<PrologTerm> integer(int64_t p_value);
+
+    /**
+     * @brief Creates a Prolog floating-point term.
+     *
+     * A GDScript float passed to call() is already a real.
+     *
+     * @param p_value IEEE-754 double.
+     * @return A PrologTerm whose kind is float.
+     *
+     * @example
+     * var dist = prolog.real(3.14)
+     * print(dist.get_real())  # 3.14
+     */
     Ref<PrologTerm> real(double p_value);
+
+    /**
+     * @brief Creates a Prolog string term (quoted, distinct from an atom).
+     *
+     * A GDScript String sent to call() is an atom, not a Prolog string.
+     * Use this factory only when the clause stores a Prolog string.
+     *
+     * @param p_value String contents.
+     * @return A PrologTerm whose kind is string.
+     *
+     * @example
+     * var s = prolog.string("hello")
+     * print(s.as_text())  # "hello"
+     * prolog.assert_fact(prolog.predicate("title").call(s))
+     */
     Ref<PrologTerm> string(String const& p_value);
+
+    /**
+     * @brief Creates the empty Prolog list [].
+     *
+     * @return A PrologTerm whose kind is nil.
+     *
+     * @example
+     * print(prolog.nil().as_text())  # []
+     * prolog.solve(prolog.predicate("empty").call(prolog.nil())).has_solution()
+     */
     Ref<PrologTerm> nil();
+
+    /**
+     * @brief Creates a Prolog list from a Godot Array.
+     *
+     * An empty Array becomes []. A Godot Array passed to call() is
+     * already a list; use this factory for an explicit PrologTerm.
+     *
+     * @param p_items List elements (Variants or PrologTerm).
+     * @return A PrologTerm whose kind is list, or nil if empty.
+     *
+     * @example
+     * var items = prolog.list(["sword", "shield"])
+     * print(items.as_text())  # [sword, shield]
+     * if prolog.solve(prolog.predicate("member").call("sword", items)).has_solution():
+     *     print("found")
+     */
     Ref<PrologTerm> list(Array const& p_items);
+
+    /**
+     * @brief Creates a compound term functor(args...).
+     *
+     * For a query, prefer predicate(functor).call(...) which returns a
+     * PrologGoal. Use compound() when you need a nested term as an argument.
+     *
+     * @param p_functor Functor name (e.g. "point").
+     * @param p_args Arguments in order.
+     * @return A PrologTerm whose kind is compound.
+     *
+     * @example
+     * var point = prolog.compound("point", [10, 20])
+     * print(point.as_text())  # point(10, 20)
+     * prolog.assert_fact(prolog.predicate("at").call("hero", point))
+     */
     Ref<PrologTerm> compound(String const& p_functor, Array const& p_args);
+
+    /**
+     * @brief Creates a logical variable object.
+     *
+     * The optional name is for debug (as_text(), editor console). Solutions
+     * are keyed by this object, not by the name. Two variable("X") calls
+     * create two distinct variables. A String is never a variable.
+     *
+     * @param p_name Optional debug name (e.g. "Child"). Empty still has an id.
+     * @return A PrologVariable to pass to call() and solution.get().
+     *
+     * @example
+     * var child = prolog.variable("Child")
+     * var parent = prolog.predicate("parent")
+     * for solution in prolog.solve(parent.call("tom", child)):
+     *     print(solution.get(child))  # bob, then liz
+     *
+     * var a1 = prolog.variable("A")
+     * var a2 = prolog.variable("A")
+     * print(a1.get_id() != a2.get_id())  # true
+     */
     Ref<PrologVariable> variable(String const& p_name = String());
+
+    /**
+     * @brief Creates a fresh anonymous variable (_).
+     *
+     * Each occurrence compiled into a goal is a new Prolog variable.
+     * Anonymous variables do not appear in PrologSolution bindings.
+     *
+     * @return An anonymous PrologVariable.
+     *
+     * @example
+     * var parent = prolog.predicate("parent")
+     * # parent(tom, _) : succeed if tom has any child
+     * if prolog.solve(parent.call("tom", prolog.anonymous())).has_solution():
+     *     print("tom has at least one child")
+     * prolog.retract_all(parent.call(prolog.anonymous(), prolog.anonymous()))
+     */
     Ref<PrologVariable> anonymous();
-    Ref<PrologPredicate> predicate(String const& p_name, int p_arity);
+
+    /**
+     * @brief Creates a reusable predicate (functor only, no stored arity).
+     *
+     * Arity comes from call(...) / callv([...]). The same object can build
+     * parent/1 and parent/2. GDScript cannot write parent("tom", child);
+     * call() is the goal constructor.
+     *
+     * @param p_name Functor name (e.g. "parent").
+     * @return A PrologPredicate.
+     *
+     * @example
+     * var parent = prolog.predicate("parent")
+     * var child = prolog.variable("Child")
+     * var unary: PrologGoal = parent.call("tom")          # parent/1
+     * var binary: PrologGoal = parent.call("tom", child)  # parent/2
+     */
+    Ref<PrologPredicate> predicate(String const& p_name);
 
     /**
      * @brief Wraps a Godot Object (Node, Resource, ...) as a Prolog handle.
@@ -220,9 +403,15 @@ public:
      * A String is never an object handle. Pass the Node / Resource itself.
      * If the object is freed later, the handle stays but is_valid() is false.
      *
+     * @param p_object Node, Resource, or any Object. Null returns null.
+     * @return A PrologObject handle, or null.
+     *
      * @example
      * var player = prolog.object($Player)
-     * prolog.assert_fact(prolog.predicate("at", 2).bind(player, "zone_1"))
+     * var at = prolog.predicate("at")
+     * prolog.assert_fact(at.call(player, "zone_1"))
+     * # Passing the Node to call() wraps it the same way:
+     * prolog.solve(at.call($Player, "zone_1")).has_solution()
      */
     Ref<PrologObject> object(Object* p_object);
 
@@ -231,37 +420,26 @@ public:
     // =========================================================================
 
     /**
-     * @brief Solves a PrologGoal and returns every solution.
+     * @brief Solves a PrologGoal and returns a PrologQuery.
      *
-     * The public solve path accepts only a PrologGoal. Strings passed to
-     * PrologPredicate.bind() are atoms; only PrologVariable objects are
-     * variables. In GDScript, an empty Array is still truthy — use
-     * succeeds() for a boolean test.
+     * Strings passed to PrologPredicate.call() are atoms; only
+     * PrologVariable objects are variables. A PrologQuery is always
+     * truthy in GDScript — use has_solution() for a yes/no test.
      *
-     * @return Array of PrologSolution. Empty if the goal fails.
+     * @param p_goal Goal from predicate.call() or conjunction / disjunction /
+     * negated().
+     * @return A PrologQuery (never null; check has_solution()).
      *
      * @example
-     * var parent = prolog.predicate("parent", 2)
-     * var child = prolog.variable()
-     * for solution in prolog.solve(parent.bind("tom", child)):
+     * var parent = prolog.predicate("parent")
+     * var child = prolog.variable("Child")
+     * if prolog.solve(parent.call("tom", "bob")).has_solution():
+     *     print("true")
+     * for solution in prolog.solve(parent.call("tom", child)):
      *     print(solution.get(child))
+     * var first = prolog.solve(parent.call("tom", child)).first()
      */
-    Array solve(Ref<PrologGoal> const& p_goal);
-
-    /**
-     * @brief Alias of solve(): returns every PrologSolution for a goal.
-     */
-    Array solve_all(Ref<PrologGoal> const& p_goal);
-
-    /**
-     * @brief Returns the first PrologSolution, or a null Variant if none.
-     */
-    Variant solve_one(Ref<PrologGoal> const& p_goal);
-
-    /**
-     * @brief Returns true if a PrologGoal has at least one solution.
-     */
-    bool succeeds(Ref<PrologGoal> const& p_goal);
+    Ref<PrologQuery> solve(Ref<PrologGoal> const& p_goal);
 
     /**
      * @brief Gets the last error message from Prolog.
@@ -273,6 +451,10 @@ public:
      * error handling or logging.
      *
      * @return The last error message, or empty string if no error.
+     *
+     * @example
+     * if not prolog.consult_file("res://missing.pl"):
+     *     push_error(prolog.get_last_error())
      */
     String get_last_error() const;
 
@@ -281,116 +463,45 @@ public:
     // =========================================================================
 
     /**
-     * @brief Adds a fact into the Prolog knowledge base.
+     * @brief Asserts a PrologGoal as a fact (assertz/1).
      *
-     * This method adds a new clause to the knowledge base. The fact will be
-     * available for subsequent queries. Uses Prolog's assert/1 predicate.
-     *
-     * Note: Do not include a trailing period ('.') in the fact string. If a
-     * period is present, it will be automatically removed. For example,
-     * "parent(tom, bob)." will be treated as "parent(tom, bob)".
-     *
-     * @param p_fact The Prolog fact to add (e.g., "likes(john, pizza)").
-     * @return true if the fact was added successfully, false otherwise.
+     * @param p_goal Ground or open goal to add as a clause.
+     * @return true if assertz succeeded.
      *
      * @example
-     * prolog.add_fact("parent(tom, bob)")
-     * prolog.add_fact("game_state(level, 5)")
-     * # Note: "parent(tom, bob)." also works (period is removed automatically)
-     */
-    bool add_fact(String const& p_fact);
-
-    /**
-     * @brief Asserts a PrologGoal as a fact (assertz/1). No source string.
-     *
-     * @example
-     * var parent = prolog.predicate("parent", 2)
-     * prolog.assert_fact(parent.bind("tom", "bob"))
+     * var parent = prolog.predicate("parent")
+     * prolog.assert_fact(parent.call("tom", "bob"))
+     * prolog.solve(parent.call("tom", "bob")).has_solution()  # true
      */
     bool assert_fact(Ref<PrologGoal> const& p_goal);
 
     /**
-     * @brief Removes a fact from the Prolog knowledge base.
+     * @brief Removes the first clause that unifies with p_goal (retract/1).
      *
-     * This method removes a clause from the knowledge base. Uses Prolog's
-     * retract/1 predicate, which removes the first matching clause.
-     *
-     * Note: Do not include a trailing period ('.') in the fact string. If a
-     * period is present, it will be automatically removed.
-     *
-     * @param p_fact String (legacy) or PrologGoal.
-     * @return true if a matching fact was found and removed, false otherwise.
+     * @param p_goal Goal used as the retract pattern.
+     * @return true if a clause was removed.
      *
      * @example
-     * prolog.retract_fact("parent(tom, bob)")
-     * prolog.retract_fact(parent.bind("tom", "bob"))
+     * var parent = prolog.predicate("parent")
+     * prolog.retract_fact(parent.call("tom", "bob"))
      */
-    bool retract_fact(Variant const& p_fact);
+    bool retract_fact(Ref<PrologGoal> const& p_goal);
 
     /**
-     * @brief Retracts all facts matching a functor pattern.
+     * @brief Removes every clause that unifies with p_goal (retractall/1).
      *
-     * This method removes all clauses that match the given functor pattern.
-     * Uses Prolog's retractall/1 predicate, which removes all matching clauses.
+     * Use anonymous() for “don’t care” arguments. String patterns are
+     * not accepted — pass a PrologGoal.
      *
-     * Note: Do not include a trailing period ('.') in the functor pattern. If a
-     * period is present, it will be automatically removed.
-     *
-     * @param p_pattern String pattern (legacy) or PrologGoal.
-     * @return true if any matching facts were retracted, false otherwise.
+     * @param p_goal Goal used as the retractall pattern.
+     * @return true if retractall succeeded (also when nothing matched).
      *
      * @example
-     * prolog.retract_all("likes(_, _)")
-     * prolog.retract_all(parent.bind("tom", prolog.anonymous()))
+     * var parent = prolog.predicate("parent")
+     * prolog.retract_all(parent.call("tom", prolog.anonymous()))
+     * prolog.retract_all(parent.call(prolog.anonymous(), prolog.anonymous()))
      */
-    bool retract_all(Variant const& p_pattern);
-
-    // =========================================================================
-    // Predicate Manipulation
-    // =========================================================================
-
-    /**
-     * @brief Calls a Prolog predicate with arguments.
-     *
-     * This method constructs a Prolog goal from a predicate name and arguments,
-     * then executes it. The arguments are converted from Godot Variants to
-     * Prolog terms automatically.
-     *
-     * @param p_predicate Name of the predicate to call (e.g., "member").
-     * @param p_args Array of arguments to pass to the predicate.
-     * @return true if the predicate call succeeded, false otherwise.
-     *
-     * @example
-     * # Call member/2: member(3, [1, 2, 3, 4])
-     * prolog.call_predicate("member", [3, [1, 2, 3, 4]])  // Returns true
-     *
-     * # Call traditional Prolog predicates
-     * prolog.call_predicate("assertz", ["parent(tom, bob)"])
-     * prolog.call_predicate("retract", ["parent(tom, bob)"])
-     */
-    bool call_predicate(String const& p_predicate, Array const& p_args);
-
-    /**
-     * @brief Calls a Prolog predicate and returns a result value.
-     *
-     * This method is similar to call_predicate(), but treats the predicate
-     * as a function that returns a value. The result is expected to be the
-     * last argument of the predicate.
-     *
-     * @param p_predicate Name of the predicate to call.
-     * @param p_args Array of input arguments (result is the last argument).
-     * @return The result value as a Variant, or Variant() if the call failed.
-     *
-     * @example
-     * # Call length/2: length([1, 2, 3], N) returns N
-     * var len = prolog.call_function("length", [[1, 2, 3]])
-     * # Returns: 3
-     *
-     * # Call arithmetic: plus(5, 3, Result) returns Result
-     * var sum = prolog.call_function("plus", [5, 3])
-     * # Returns: 8
-     */
-    Variant call_function(String const& p_predicate, Array const& p_args);
+    bool retract_all(Ref<PrologGoal> const& p_goal);
 
     // =========================================================================
     // Explicit Godot → Prolog exposure (properties and methods)
@@ -415,6 +526,9 @@ public:
      * @example
      * prolog.expose_property("Node", "name", "node_name")
      * prolog.expose_property("Node2D", "position")
+     * var name = prolog.variable("Name")
+     * var sol = prolog.solve(prolog.predicate("node_name").call($Player, name)).first()
+     * print(sol.get(name))  # Player
      */
     bool expose_property(String const& p_class,
                          String const& p_property,
@@ -433,6 +547,9 @@ public:
      *
      * @example
      * prolog.expose_method("Object", "get_class", "godot_class")
+     * var cls = prolog.variable("Class")
+     * var sol = prolog.solve(prolog.predicate("godot_class").call($Player, cls)).first()
+     * print(sol.get(cls))  # Node
      */
     bool expose_method(String const& p_class,
                        String const& p_method,
@@ -440,13 +557,28 @@ public:
 
     /**
      * @brief Removes an exposed wrapper predicate (retractall + bookkeeping).
+     *
+     * @param p_predicate Functor installed by expose_property / expose_method.
+     * @param p_arity Arity of that wrapper (usually 2 for a property).
+     * @return true if the wrapper was removed from the bookkeeping list.
+     *
+     * @example
+     * prolog.unexpose("node_name", 2)
+     * prolog.solve(prolog.predicate("node_name").call($Player, "Hero")).has_solution()
+     * # false — the wrapper is gone
      */
     bool unexpose(String const& p_predicate, int p_arity);
 
     /**
      * @brief Returns the list of currently exposed members.
      *
-     * Each item is {kind, class, member, predicate, arity}.
+     * Each item is a Dictionary: kind, class, member, predicate, arity.
+     *
+     * @return Array of Dictionaries (empty if nothing is exposed).
+     *
+     * @example
+     * for item in prolog.list_exposed():
+     *     print(item["predicate"], "/", item["arity"], " -> ", item["member"])
      */
     Array list_exposed() const;
 
@@ -480,6 +612,11 @@ public:
      * @param p_predicate Name of the predicate to check.
      * @param p_arity Number of arguments the predicate should have.
      * @return true if the predicate exists, false otherwise.
+     *
+     * @example
+     * if prolog.predicate_exists("calculate_total_tax", 2):
+     *     var tax = prolog.variable("Tax")
+     *     var sol = prolog.solve(prolog.predicate("calculate_total_tax").call("zorglub", tax)).first()
      */
     bool predicate_exists(String const& p_predicate, int p_arity);
 
@@ -571,19 +708,31 @@ private:
      */
     term_t array_to_prolog_list(Array const& p_arr);
 
+    /**
+     * @brief Converts one call() argument (atom, number, list, variable, object).
+     */
     term_t object_arg_to_term(Variant const& p_arg,
                               std::map<int64_t, term_t>& p_vars,
                               std::vector<Ref<PrologVariable>>& p_order);
 
+    /**
+     * @brief Converts a PrologTerm / PrologVariable tree into a SWI term_t.
+     */
     term_t prolog_term_to_swi(Ref<PrologTerm> const& p_term,
                               std::map<int64_t, term_t>& p_vars,
                               std::vector<Ref<PrologVariable>>& p_order);
 
+    /**
+     * @brief Builds a SWI goal term from a PrologGoal (including compositions).
+     */
     bool compile_goal(Ref<PrologGoal> const& p_goal,
                       term_t p_out_goal,
                       std::map<int64_t, term_t>& p_vars,
                       std::vector<Ref<PrologVariable>>& p_order);
 
+    /**
+     * @brief Eagerly collects every PrologSolution for p_goal (used by solve()).
+     */
     Array collect_goal_solutions(Ref<PrologGoal> const& p_goal);
 
     /**
@@ -622,9 +771,36 @@ private:
      */
     bool handle_prolog_exception(qid_t p_qid, String const& p_context);
 
+    /**
+     * @brief Internal assertz of a Prolog source clause (used by expose_*).
+     */
+    bool add_fact(String const& p_fact);
+
+    /**
+     * @brief Internal yes/no string query (editor / bootstrap helpers).
+     */
     bool query_text(String const& p_goal);
+
+    /**
+     * @brief Internal findall wrapper around a string goal.
+     */
     Array query_text_all(String const& p_goal);
+
+    /**
+     * @brief Internal first-solution string query.
+     */
     Variant query_text_one(String const& p_goal);
+
+    /**
+     * @brief Parses a typed editor goal and returns named bindings.
+     *
+     * Bound to GDScript as `_editor_query`. Game code should use solve().
+     *
+     * @example
+     * # Editor console only
+     * var rows = prolog._editor_query("parent(tom, X)")
+     * # [{"X": "bob"}, {"X": "liz"}]
+     */
     Array query_text_named(String const& p_goal);
 
     /**

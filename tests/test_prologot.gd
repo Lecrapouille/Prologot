@@ -66,6 +66,7 @@ func run_all_tests() -> void:
 	test_prolog_term_factories()
 	test_prolog_variable()
 	test_prolog_predicate()
+	test_named_variables_and_arity()
 	test_prolog_goal_composition()
 	test_prolog_solution()
 	test_solve_prolog_goal()
@@ -153,7 +154,7 @@ func teardown_prolog() -> void:
 
 ## Build a PrologGoal from a functor name and arguments.
 func goal(functor: String, args: Array = []) -> PrologGoal:
-	return prolog.predicate(functor, args.size()).bindv(args)
+	return prolog.predicate(functor).callv(args)
 
 
 # =============================================================================
@@ -209,20 +210,20 @@ func test_basic_queries() -> void:
 	""")
 	assert_true(load_result, "Load basic facts")
 
-	assert_true(prolog.succeeds(goal("animal", ["dog"])), "Query animal(dog) succeeds")
-	assert_false(prolog.succeeds(goal("animal", ["fish"])), "Query animal(fish) fails")
+	assert_true(prolog.solve(goal("animal", ["dog"])).has_solution(), "Query animal(dog) succeeds")
+	assert_false(prolog.solve(goal("animal", ["fish"])).has_solution(), "Query animal(fish) fails")
 
 	var animal := prolog.variable()
-	var animals := prolog.solve_all(goal("animal", [animal]))
-	assert_true(animals.size() >= 3, "solve_all returns multiple results")
+	var animals := prolog.solve(goal("animal", [animal])).all()
+	assert_true(animals.size() >= 3, "solve().all() returns multiple results")
 	print("    Animals found: ", animals)
 
-	var one_animal: Variant = prolog.solve_one(goal("animal", [animal]))
-	assert_true(one_animal != null, "solve_one returns a result")
+	var one_animal: Variant = prolog.solve(goal("animal", [animal])).first()
+	assert_true(one_animal != null, "solve().first() returns a result")
 	print("    First animal: ", one_animal)
 
-	var no_result: Variant = prolog.solve_one(goal("animal", ["unicorn"]))
-	assert_true(no_result == null, "solve_one returns null when no solution")
+	var no_result: Variant = prolog.solve(goal("animal", ["unicorn"])).first()
+	assert_true(no_result == null, "solve().first() returns null when no solution")
 
 	teardown_prolog()
 
@@ -246,8 +247,8 @@ func test_fact_management() -> void:
 	assert_true(consult_result, "consult_string succeeds")
 
 	# Verify facts loaded
-	assert_true(prolog.succeeds(goal("likes", ["mary", "food"])), "Fact likes(mary, food) exists")
-	assert_true(prolog.succeeds(goal("likes", ["mary", "wine"])), "Fact likes(mary, wine) exists")
+	assert_true(prolog.solve(goal("likes", ["mary", "food"])).has_solution(), "Fact likes(mary, food) exists")
+	assert_true(prolog.solve(goal("likes", ["mary", "wine"])).has_solution(), "Fact likes(mary, wine) exists")
 
 	teardown_prolog()
 
@@ -275,13 +276,13 @@ func test_rules() -> void:
 	""")
 
 	# Test rule evaluation
-	assert_true(prolog.succeeds(goal("grandparent", ["tom", "ann"])), "Grandparent rule works")
-	assert_true(prolog.succeeds(goal("grandparent", ["tom", "pat"])), "Grandparent rule - second grandchild")
-	assert_false(prolog.succeeds(goal("grandparent", ["bob", "ann"])), "Non-grandparent correctly fails")
+	assert_true(prolog.solve(goal("grandparent", ["tom", "ann"])).has_solution(), "Grandparent rule works")
+	assert_true(prolog.solve(goal("grandparent", ["tom", "pat"])).has_solution(), "Grandparent rule - second grandchild")
+	assert_false(prolog.solve(goal("grandparent", ["bob", "ann"])).has_solution(), "Non-grandparent correctly fails")
 
 	# Test sibling rule
-	assert_true(prolog.succeeds(goal("sibling", ["bob", "liz"])), "Sibling rule works")
-	assert_true(prolog.succeeds(goal("sibling", ["ann", "pat"])), "Sibling rule - second pair")
+	assert_true(prolog.solve(goal("sibling", ["bob", "liz"])).has_solution(), "Sibling rule works")
+	assert_true(prolog.solve(goal("sibling", ["ann", "pat"])).has_solution(), "Sibling rule - second pair")
 
 	teardown_prolog()
 
@@ -297,29 +298,24 @@ func test_dynamic_assertions() -> void:
 		print("  ✗ SKIP: Could not initialize Prolog")
 		return
 
-	# Test assert_fact
-	var assert_result := prolog.add_fact("score(player1, 100)")
+	var assert_result := prolog.assert_fact(goal("score", ["player1", 100]))
 	assert_true(assert_result, "assert_fact succeeds")
 
-	# Verify fact exists
-	assert_true(prolog.succeeds(goal("score", ["player1", 100])), "Asserted fact exists")
+	assert_true(prolog.solve(goal("score", ["player1", 100])).has_solution(), "Asserted fact exists")
 
-	# Test retract_fact
-	var retract_result := prolog.retract_fact("score(player1, 100)")
+	var retract_result := prolog.retract_fact(goal("score", ["player1", 100]))
 	assert_true(retract_result, "retract_fact succeeds")
 
-	# Verify fact removed
-	assert_false(prolog.succeeds(goal("score", ["player1", 100])), "Retracted fact no longer exists")
+	assert_false(prolog.solve(goal("score", ["player1", 100])).has_solution(), "Retracted fact no longer exists")
 
-	# Test retract_all
-	prolog.add_fact("temp(a)")
-	prolog.add_fact("temp(b)")
-	prolog.add_fact("temp(c)")
+	prolog.assert_fact(goal("temp", ["a"]))
+	prolog.assert_fact(goal("temp", ["b"]))
+	prolog.assert_fact(goal("temp", ["c"]))
 
-	assert_true(prolog.succeeds(goal("temp", [prolog.anonymous()])), "Multiple temp facts exist")
+	assert_true(prolog.solve(goal("temp", [prolog.anonymous()])).has_solution(), "Multiple temp facts exist")
 
-	prolog.retract_all("temp(_)")
-	assert_false(prolog.succeeds(goal("temp", [prolog.anonymous()])), "All temp facts removed")
+	prolog.retract_all(goal("temp", [prolog.anonymous()]))
+	assert_false(prolog.solve(goal("temp", [prolog.anonymous()])).has_solution(), "All temp facts removed")
 
 	teardown_prolog()
 
@@ -346,12 +342,12 @@ func test_complex_queries() -> void:
 	""")
 
 	# Test computed queries
-	assert_true(prolog.succeeds(goal("weak", ["goblin"])), "Goblin is weak")
-	assert_false(prolog.succeeds(goal("weak", ["dragon"])), "Dragon is not weak")
-	assert_true(prolog.succeeds(goal("strong", ["dragon"])), "Dragon is strong")
+	assert_true(prolog.solve(goal("weak", ["goblin"])).has_solution(), "Goblin is weak")
+	assert_false(prolog.solve(goal("weak", ["dragon"])).has_solution(), "Dragon is not weak")
+	assert_true(prolog.solve(goal("strong", ["dragon"])).has_solution(), "Dragon is strong")
 
-	# Test solve_all with complex results
-	var weak_enemies := prolog.solve_all(goal("weak", [prolog.variable("X")]))
+	# Test solve().all() with complex results
+	var weak_enemies := prolog.solve(goal("weak", [prolog.variable("X")])).all()
 	assert_true(weak_enemies.size() >= 1, "At least one weak enemy found")
 
 	teardown_prolog()
@@ -368,47 +364,37 @@ func test_type_conversion() -> void:
 		print("  ✗ SKIP: Could not initialize Prolog")
 		return
 
-	# Test integer handling
-	prolog.add_fact("number_test(42)")
-	assert_true(prolog.succeeds(goal("number_test", [42])), "Integer fact works")
+	prolog.assert_fact(goal("number_test", [42]))
+	assert_true(prolog.solve(goal("number_test", [42])).has_solution(), "Integer fact works")
 
-	# Test negative integer handling
-	prolog.add_fact("negative_test(-15)")
-	assert_true(prolog.succeeds(goal("negative_test", [-15])), "Negative integer fact works")
+	prolog.assert_fact(goal("negative_test", [-15]))
+	assert_true(prolog.solve(goal("negative_test", [-15])).has_solution(), "Negative integer fact works")
 
-	# Test floating point handling
-	prolog.add_fact("float_test(3.14)")
-	assert_true(prolog.succeeds(goal("float_test", [3.14])), "Float fact works")
+	prolog.assert_fact(goal("float_test", [3.14]))
+	assert_true(prolog.solve(goal("float_test", [3.14])).has_solution(), "Float fact works")
 
-	# Test multiple numeric arguments
-	prolog.add_fact("coords(10, 20, 30)")
-	assert_true(prolog.succeeds(goal("coords", [10, 20, 30])), "Multiple numeric arguments work")
+	prolog.assert_fact(goal("coords", [10, 20, 30]))
+	assert_true(prolog.solve(goal("coords", [10, 20, 30])).has_solution(), "Multiple numeric arguments work")
 
-	# Test mixed arguments (atoms and numbers)
-	prolog.add_fact("player_data(alice, 100, 25.5)")
-	assert_true(prolog.succeeds(goal("player_data", ["alice", 100, 25.5])), "Mixed atom and numeric arguments work")
+	prolog.assert_fact(goal("player_data", ["alice", 100, 25.5]))
+	assert_true(prolog.solve(goal("player_data", ["alice", 100, 25.5])).has_solution(), "Mixed atom and numeric arguments work")
 
-	# Test large numbers
-	prolog.add_fact("large_number(999999)")
-	assert_true(prolog.succeeds(goal("large_number", [999999])), "Large number fact works")
+	prolog.assert_fact(goal("large_number", [999999]))
+	assert_true(prolog.solve(goal("large_number", [999999])).has_solution(), "Large number fact works")
 
-	# Test zero
-	prolog.add_fact("zero_test(0)")
-	assert_true(prolog.succeeds(goal("zero_test", [0])), "Zero value fact works")
+	prolog.assert_fact(goal("zero_test", [0]))
+	assert_true(prolog.solve(goal("zero_test", [0])).has_solution(), "Zero value fact works")
 
-	# Test string/atom handling
-	prolog.add_fact("name_test(hello)")
-	assert_true(prolog.succeeds(goal("name_test", ["hello"])), "Atom fact works")
+	prolog.assert_fact(goal("name_test", ["hello"]))
+	assert_true(prolog.solve(goal("name_test", ["hello"])).has_solution(), "Atom fact works")
 
-	# Test call_predicate with arguments
 	prolog.consult_string("""
 		add(X, Y, Z) :- Z is X + Y.
 	""")
 
-	# Note: call_predicate is for predicates without return value
-	# call_function is for getting results
-	var sum_result: Variant = prolog.call_function("add", [10, 20])
-	assert_equal(sum_result, 30, "call_function returns correct result (10 + 20 = 30)")
+	var sum_var := prolog.variable("Z")
+	var sum_sol: PrologSolution = prolog.solve(goal("add", [10, 20, sum_var])).first()
+	assert_equal(sum_sol.get(sum_var), 30, "add/3 binds the result (10 + 20 = 30)")
 
 	teardown_prolog()
 
@@ -444,22 +430,22 @@ func test_euclidean_distance() -> void:
 	""")
 
 	var distance_d := prolog.variable("D")
-	var result1: PrologSolution = prolog.solve_one(goal("distance", ["zone_1", "zone_2", distance_d]))
+	var result1: PrologSolution = prolog.solve(goal("distance", ["zone_1", "zone_2", distance_d])).first()
 	assert_true(result1 != null, "Distance query returns a result")
 	assert_true(abs(result1.get(distance_d) - 5.0) < 0.001, "Distance zone_1 to zone_2 is ~5.0")
 
-	var exact_match := prolog.succeeds(goal("distance", ["zone_1", "zone_2", 5]))
+	var exact_match := prolog.solve(goal("distance", ["zone_1", "zone_2", 5])).has_solution()
 	print("    Exact match (distance = 5): ", exact_match, " (may be false due to float precision)")
 
 	assert_true(result1.get(distance_d) >= 4.99 and result1.get(distance_d) <= 5.01, "Distance within tolerance range [4.99, 5.01]")
 
-	var result2: PrologSolution = prolog.solve_one(goal("distance", ["origin", "point_a", distance_d]))
+	var result2: PrologSolution = prolog.solve(goal("distance", ["origin", "point_a", distance_d])).first()
 	assert_true(result2 != null, "Distance origin to point_a calculated")
 
-	var result3: PrologSolution = prolog.solve_one(goal("distance", ["zone_1", "zone_1", distance_d]))
+	var result3: PrologSolution = prolog.solve(goal("distance", ["zone_1", "zone_1", distance_d])).first()
 	assert_true(abs(result3.get(distance_d)) < 0.001, "Distance from point to itself is 0")
 
-	var result4: Variant = prolog.solve_one(goal("distance", ["zone_1", "zone_3", distance_d]))
+	var result4: Variant = prolog.solve(goal("distance", ["zone_1", "zone_3", distance_d])).first()
 	assert_true(result4 != null, "3D distance calculated")
 
 	teardown_prolog()
@@ -486,41 +472,40 @@ func test_tracking_with_distance() -> void:
 			Dist < 5.
 	""")
 
-	# Add facts dynamically using assert_fact
-	assert_true(prolog.add_fact("at(alien_1, zone_1)"), "Add fact: at(alien_1, zone_1)")
-	assert_true(prolog.add_fact("at(guard_1, zone_2)"), "Add fact: at(guard_1, zone_2)")
-	assert_true(prolog.add_fact("distance(zone_1, zone_2, 3)"), "Add fact: distance(zone_1, zone_2, 3)")
+	assert_true(prolog.assert_fact(goal("at", ["alien_1", "zone_1"])), "Add fact: at(alien_1, zone_1)")
+	assert_true(prolog.assert_fact(goal("at", ["guard_1", "zone_2"])), "Add fact: at(guard_1, zone_2)")
+	assert_true(prolog.assert_fact(goal("distance", ["zone_1", "zone_2", 3])), "Add fact: distance(zone_1, zone_2, 3)")
 
 	# Test 1: can_track should succeed (distance 3 < 5)
-	var can_track_result := prolog.succeeds(goal("can_track", ["alien_1", "guard_1"]))
+	var can_track_result := prolog.solve(goal("can_track", ["alien_1", "guard_1"])).has_solution()
 	assert_true(can_track_result, "can_track(alien_1, guard_1) succeeds (distance 3 < 5)")
 
 	# Test 2: Add a target too far away
-	assert_true(prolog.add_fact("at(guard_2, zone_3)"), "Add fact: at(guard_2, zone_3)")
-	assert_true(prolog.add_fact("distance(zone_1, zone_3, 10)"), "Add fact: distance(zone_1, zone_3, 10)")
+	assert_true(prolog.assert_fact(goal("at", ["guard_2", "zone_3"])), "Add fact: at(guard_2, zone_3)")
+	assert_true(prolog.assert_fact(goal("distance", ["zone_1", "zone_3", 10])), "Add fact: distance(zone_1, zone_3, 10)")
 
 	# Test 3: can_track should fail (distance 10 >= 5)
-	var cannot_track_result := prolog.succeeds(goal("can_track", ["alien_1", "guard_2"]))
+	var cannot_track_result := prolog.solve(goal("can_track", ["alien_1", "guard_2"])).has_solution()
 	assert_false(cannot_track_result, "can_track(alien_1, guard_2) fails (distance 10 >= 5)")
 
 	# Test 4: Add another alien and guard at same location (distance 0 < 5)
-	assert_true(prolog.add_fact("at(alien_2, zone_1)"), "Add fact: at(alien_2, zone_1)")
-	assert_true(prolog.add_fact("at(guard_3, zone_1)"), "Add fact: at(guard_3, zone_1)")
-	assert_true(prolog.add_fact("distance(zone_1, zone_1, 0)"), "Add fact: distance(zone_1, zone_1, 0)")
+	assert_true(prolog.assert_fact(goal("at", ["alien_2", "zone_1"])), "Add fact: at(alien_2, zone_1)")
+	assert_true(prolog.assert_fact(goal("at", ["guard_3", "zone_1"])), "Add fact: at(guard_3, zone_1)")
+	assert_true(prolog.assert_fact(goal("distance", ["zone_1", "zone_1", 0])), "Add fact: distance(zone_1, zone_1, 0)")
 
-	var same_location_result := prolog.succeeds(goal("can_track", ["alien_2", "guard_3"]))
+	var same_location_result := prolog.solve(goal("can_track", ["alien_2", "guard_3"])).has_solution()
 	assert_true(same_location_result, "can_track(alien_2, guard_3) succeeds (same location, distance 0 < 5)")
 
 	# Test 5: Edge case - distance exactly 5 should fail (< 5, not <= 5)
-	assert_true(prolog.add_fact("at(guard_4, zone_4)"), "Add fact: at(guard_4, zone_4)")
-	assert_true(prolog.add_fact("distance(zone_1, zone_4, 5)"), "Add fact: distance(zone_1, zone_4, 5)")
+	assert_true(prolog.assert_fact(goal("at", ["guard_4", "zone_4"])), "Add fact: at(guard_4, zone_4)")
+	assert_true(prolog.assert_fact(goal("distance", ["zone_1", "zone_4", 5])), "Add fact: distance(zone_1, zone_4, 5)")
 
-	var exact_boundary_result := prolog.succeeds(goal("can_track", ["alien_1", "guard_4"]))
+	var exact_boundary_result := prolog.solve(goal("can_track", ["alien_1", "guard_4"])).has_solution()
 	assert_false(exact_boundary_result, "can_track(alien_1, guard_4) fails (distance 5 is not < 5)")
 
 	# Test 6: Verify facts exist
-	assert_true(prolog.succeeds(goal("at", ["alien_1", "zone_1"])), "Fact at(alien_1, zone_1) exists")
-	assert_true(prolog.succeeds(goal("distance", ["zone_1", "zone_2", 3])), "Fact distance(zone_1, zone_2, 3) exists")
+	assert_true(prolog.solve(goal("at", ["alien_1", "zone_1"])).has_solution(), "Fact at(alien_1, zone_1) exists")
+	assert_true(prolog.solve(goal("distance", ["zone_1", "zone_2", 3])).has_solution(), "Fact distance(zone_1, zone_2, 3) exists")
 
 	teardown_prolog()
 
@@ -544,7 +529,7 @@ func test_error_handling() -> void:
 	assert_true(empty_query.is_empty(), "Empty query returns no solutions")
 
 	# Test retract non-existent fact
-	var retract_missing := prolog.retract_fact("nonexistent_fact(x)")
+	var retract_missing := prolog.retract_fact(goal("nonexistent_fact", ["x"]))
 	assert_false(retract_missing, "Retracting non-existent fact returns false")
 
 	# Test consult_string with syntax error - should fail gracefully
@@ -573,36 +558,36 @@ func test_object_solve_api() -> void:
 		parent(bob, ann).
 	"""), "Load family facts")
 
-	var parent := prolog.predicate("parent", 2)
-	assert_true(prolog.succeeds(parent.bind("tom", "bob")), "succeeds parent(tom, bob)")
-	assert_false(prolog.succeeds(parent.bind("bob", "tom")), "succeeds parent(bob, tom) fails")
+	var parent := prolog.predicate("parent")
+	assert_true(prolog.solve(parent.call("tom", "bob")).has_solution(), "has_solution parent(tom, bob)")
+	assert_false(prolog.solve(parent.call("bob", "tom")).has_solution(), "has_solution parent(bob, tom) fails")
 
-	var found := prolog.solve(parent.bind("tom", "bob"))
-	assert_equal(found.size(), 1, "solve returns one PrologSolution for a ground fact")
-	assert_true(prolog.solve(parent.bind("bob", "tom")).is_empty(), "solve is empty when the goal fails")
+	var found := prolog.solve(parent.call("tom", "bob"))
+	assert_equal(found.all().size(), 1, "solve returns one PrologSolution for a ground fact")
+	assert_true(prolog.solve(parent.call("bob", "tom")).has_solution() == false, "solve is empty when the goal fails")
 
 	var child := prolog.variable("Child")
-	var children := prolog.solve_all(parent.bind("tom", child))
-	assert_equal(children.size(), 2, "solve_all returns both children of tom")
+	var children := prolog.solve(parent.call("tom", child)).all()
+	assert_equal(children.size(), 2, "solve().all() returns both children of tom")
 	var names := []
 	for solution in children:
 		assert_true(solution.has(child), "each solution binds the variable object")
 		names.append(solution.get(child))
-	assert_true("bob" in names and "liz" in names, "solve_all binds the child variable")
+	assert_true("bob" in names and "liz" in names, "solve().all() binds the child variable")
 
-	var first_child: PrologSolution = prolog.solve_one(parent.bind("tom", child))
-	assert_true(first_child != null and first_child.has(child), "solve_one returns a PrologSolution")
+	var first_child: PrologSolution = prolog.solve(parent.call("tom", child)).first()
+	assert_true(first_child != null and first_child.has(child), "solve().first() returns a PrologSolution")
 
 	var via := prolog.variable()
 	var grandchild := prolog.variable()
 	assert_true(
-		prolog.succeeds(parent.bind("tom", via).conjunction(parent.bind(via, grandchild))),
+		prolog.solve(parent.call("tom", via).conjunction(parent.call(via, grandchild))).has_solution(),
 		"conjunction of two parent goals succeeds"
 	)
 
-	# A String passed to bind() is always an atom, never a variable
-	assert_true(prolog.succeeds(parent.bind("tom", "bob")), "lowercase strings are atoms")
-	assert_true(prolog.solve(parent.bind("tom", "X")).is_empty(), "uppercase string 'X' is an atom, not a variable")
+	# A String passed to call() is always an atom, never a variable
+	assert_true(prolog.solve(parent.call("tom", "bob")).has_solution(), "lowercase strings are atoms")
+	assert_true(prolog.solve(parent.call("tom", "X")).has_solution() == false, "uppercase string 'X' is an atom, not a variable")
 
 	teardown_prolog()
 
@@ -626,31 +611,31 @@ func test_lists_atoms_and_variants() -> void:
 	"""), "Load list and atom facts")
 
 	var list_var := prolog.variable("L")
-	var nums: PrologSolution = prolog.solve_one(goal("nums", [list_var]))
+	var nums: PrologSolution = prolog.solve(goal("nums", [list_var])).first()
 	assert_true(nums != null, "nums/1 returns a solution")
 	assert_true(nums.get(list_var) is Array, "Prolog list becomes a Godot Array")
 	assert_equal(nums.get(list_var), [1, 2, 3], "List [1, 2, 3] round-trips")
 
-	var empty: PrologSolution = prolog.solve_one(goal("empty_list", [list_var]))
+	var empty: PrologSolution = prolog.solve(goal("empty_list", [list_var])).first()
 	assert_equal(empty.get(list_var), [], "Empty Prolog list becomes []")
 
-	var nested: PrologSolution = prolog.solve_one(goal("nested", [list_var]))
+	var nested: PrologSolution = prolog.solve(goal("nested", [list_var])).first()
 	assert_equal(nested.get(list_var), [["a", "b"], ["c"]], "Nested lists convert recursively")
 
 	# GDScript strings become Prolog atoms (not Prolog strings)
-	assert_true(prolog.succeeds(goal("named", ["hello"])), "Atom hello matches string 'hello'")
-	assert_false(prolog.succeeds(goal("named", ["goodbye"])), "Missing atom fact fails")
+	assert_true(prolog.solve(goal("named", ["hello"])).has_solution(), "Atom hello matches string 'hello'")
+	assert_false(prolog.solve(goal("named", ["goodbye"])).has_solution(), "Missing atom fact fails")
 	assert_true(
-		prolog.succeeds(goal("named", [prolog.atom("hello")])),
+		prolog.solve(goal("named", [prolog.atom("hello")])).has_solution(),
 		"prolog.atom() matches the same atom as a String"
 	)
 
-	# member/2 via call_predicate with a Godot Array
-	assert_true(prolog.call_predicate("member", [2, [1, 2, 3]]), "member/2 accepts a Godot Array")
-	assert_false(prolog.call_predicate("member", [9, [1, 2, 3]]), "member/2 fails for a missing element")
+	assert_true(prolog.solve(goal("member", [2, [1, 2, 3]])).has_solution(), "member/2 accepts a Godot Array")
+	assert_false(prolog.solve(goal("member", [9, [1, 2, 3]])).has_solution(), "member/2 fails for a missing element")
 
-	var list_len: Variant = prolog.call_function("length", [[1, 2, 3, 4]])
-	assert_equal(list_len, 4, "call_function length/2 on a list")
+	var list_n := prolog.variable("N")
+	var list_sol: PrologSolution = prolog.solve(goal("length", [[1, 2, 3, 4], list_n])).first()
+	assert_equal(list_sol.get(list_n), 4, "length/2 binds the list length")
 
 	teardown_prolog()
 
@@ -668,9 +653,9 @@ func test_consult_file_standalone() -> void:
 
 	var loaded := prolog.consult_file("res://fixtures/animals.pl")
 	assert_true(loaded, "consult_file loads tests/fixtures/animals.pl")
-	assert_true(prolog.succeeds(goal("animal", ["dog"])), "Fact from consulted file is available")
-	assert_true(prolog.succeeds(goal("animal", ["cat"])), "Second fact from consulted file is available")
-	assert_false(prolog.succeeds(goal("animal", ["fish"])), "Missing fact from consulted file fails")
+	assert_true(prolog.solve(goal("animal", ["dog"])).has_solution(), "Fact from consulted file is available")
+	assert_true(prolog.solve(goal("animal", ["cat"])).has_solution(), "Second fact from consulted file is available")
+	assert_false(prolog.solve(goal("animal", ["fish"])).has_solution(), "Missing fact from consulted file fails")
 
 	var missing := prolog.consult_file("res://fixtures/does_not_exist.pl")
 	assert_false(missing, "consult_file of a missing file returns false")
@@ -753,24 +738,73 @@ func test_prolog_predicate() -> void:
 		print("  ✗ SKIP: Could not initialize Prolog")
 		return
 
-	var parent := prolog.predicate("parent", 2)
+	var parent := prolog.predicate("parent")
 	assert_true(parent != null, "predicate() creates a PrologPredicate")
 	assert_equal(parent.get_name(), "parent", "predicate name")
-	assert_equal(parent.get_arity(), 2, "predicate arity")
-	assert_equal(parent.as_text(), "parent/2", "predicate debug text")
+	assert_equal(parent.as_text(), "parent", "predicate debug text is the functor")
 
 	var child := prolog.variable("Child")
-	var goal := parent.bind("tom", child)
-	assert_true(goal != null, "bind() with matching arity returns a goal")
-	assert_equal(goal.get_functor(), "parent", "bound goal functor")
-	assert_equal(goal.get_arity(), 2, "bound goal arity")
-	assert_true(goal.get_args()[1] == child, "bind() keeps the variable object")
+	var parent_goal: PrologGoal = parent.call("tom", child)
+	assert_true(parent_goal != null, "call() returns a goal")
+	assert_equal(parent_goal.get_functor(), "parent", "goal functor")
+	assert_equal(parent_goal.get_arity(), 2, "arity comes from call() arguments")
+	assert_true(parent_goal.get_args()[1] == child, "call() keeps the variable object")
 
-	var bad := parent.bind("tom")
-	assert_true(bad == null, "bind() rejects the wrong arity")
+	var unary: PrologGoal = parent.call("tom")
+	assert_true(unary != null and unary.get_arity() == 1, "same predicate object can build parent/1")
 
-	var via_array := parent.bindv(["tom", child])
-	assert_true(via_array != null and via_array.get_functor() == "parent", "bindv() accepts an Array")
+	var via_array: PrologGoal = parent.callv(["tom", child])
+	assert_true(via_array != null and via_array.get_functor() == "parent", "callv() accepts an Array")
+
+	teardown_prolog()
+
+
+func test_named_variables_and_arity() -> void:
+	print("\n[Test Suite: named variables and multi-arg call]")
+
+	if not setup_prolog():
+		print("  ✗ SKIP: Could not initialize Prolog")
+		return
+
+	assert_true(prolog.consult_string("""
+		foo(tom, a, john, b).
+		foo(tom, x, john, y).
+		route(a, b, c, d, e, f).
+	"""), "Load multi-argument facts")
+
+	var a := prolog.variable("A")
+	var b := prolog.variable("B")
+	var other_a := prolog.variable("A")
+	assert_true(a.get_id() != other_a.get_id(), "two variable(\"A\") objects stay distinct")
+
+	var foo := prolog.predicate("foo")
+	var names := []
+	for solution in prolog.solve(foo.call("tom", a, "john", b)):
+		assert_true(solution.has(a) and solution.has(b), "solution is keyed by variable objects")
+		assert_false(solution.has(other_a), "a different variable(\"A\") is not in the solution")
+		names.append([solution.get(a), solution.get(b)])
+	assert_equal(names.size(), 2, "foo/4 yields two solutions")
+	assert_true(["a", "b"] in names and ["x", "y"] in names, "named variables bind positionally")
+
+	var v1 := prolog.variable("P1")
+	var v2 := prolog.variable("P2")
+	var v3 := prolog.variable("P3")
+	var v4 := prolog.variable("P4")
+	var v5 := prolog.variable("P5")
+	var v6 := prolog.variable("P6")
+	var six: PrologSolution = prolog.solve(
+		prolog.predicate("route").call(v1, v2, v3, v4, v5, v6)
+	).first()
+	assert_true(six != null, "route/6 has a solution")
+	assert_equal([six.get(v1), six.get(v2), six.get(v3), six.get(v4), six.get(v5), six.get(v6)],
+		["a", "b", "c", "d", "e", "f"], "six named variables bind in order")
+
+	var animal := prolog.predicate("animal")
+	prolog.assert_fact(animal.call("dog"))
+	prolog.assert_fact(animal.call("cat", "black"))
+	assert_true(prolog.solve(animal.call("dog")).has_solution(), "animal/1 from a shared predicate object")
+	assert_true(prolog.solve(animal.call("cat", "black")).has_solution(), "animal/2 from the same object")
+	assert_false(prolog.solve(animal.call("dog", "black")).has_solution(), "animal/2 does not match animal/1")
 
 	teardown_prolog()
 
@@ -782,11 +816,11 @@ func test_prolog_goal_composition() -> void:
 		print("  ✗ SKIP: Could not initialize Prolog")
 		return
 
-	var parent := prolog.predicate("parent", 2)
+	var parent := prolog.predicate("parent")
 	var child := prolog.variable("Child")
 	var grand := prolog.variable("Grand")
-	var left := parent.bind("tom", child)
-	var right := parent.bind(child, grand)
+	var left: PrologGoal = parent.call("tom", child)
+	var right: PrologGoal = parent.call(child, grand)
 
 	var both := left.conjunction(right)
 	assert_true(both != null, "conjunction() builds a goal")
@@ -799,6 +833,32 @@ func test_prolog_goal_composition() -> void:
 	var not_goal := left.negated()
 	assert_equal(not_goal.get_functor(), "\\+", "negated uses \\+/1")
 	assert_equal(not_goal.get_arity(), 1, "negated wraps one goal")
+
+	assert_true(prolog.consult_string("""
+		parent(tom, bob).
+		parent(bob, ann).
+		animal(dog).
+		animal(cat).
+	"""), "Load composition facts")
+
+	var animal := prolog.predicate("animal")
+
+	assert_true(
+		prolog.solve(parent.call("tom", child).conjunction(parent.call(child, grand))).has_solution(),
+		"conjunction finds tom -> bob -> ann"
+	)
+	assert_true(
+		prolog.solve(animal.call("dog").disjunction(animal.call("unicorn"))).has_solution(),
+		"disjunction succeeds if either goal succeeds"
+	)
+	assert_true(
+		prolog.solve(animal.call("unicorn").negated()).has_solution(),
+		"negated succeeds when the goal fails"
+	)
+	assert_false(
+		prolog.solve(animal.call("dog").negated()).has_solution(),
+		"negated fails when the goal succeeds"
+	)
 
 	teardown_prolog()
 
@@ -839,31 +899,31 @@ func test_solve_prolog_goal() -> void:
 		parent(bob, ann).
 	"""), "Load family facts")
 
-	var parent := prolog.predicate("parent", 2)
+	var parent := prolog.predicate("parent")
 	var child := prolog.variable("Child")
 
-	assert_true(prolog.succeeds(parent.bind("tom", "bob")), "succeeds parent(tom, bob)")
-	assert_false(prolog.succeeds(parent.bind("bob", "tom")), "succeeds fails for missing fact")
-	assert_equal(prolog.solve(parent.bind("tom", "bob")).size(), 1, "solve(goal) returns solutions")
-	assert_true(prolog.solve(parent.bind("bob", "tom")).is_empty(), "solve(goal) is empty when there is no solution")
+	assert_true(prolog.solve(parent.call("tom", "bob")).has_solution(), "has_solution parent(tom, bob)")
+	assert_false(prolog.solve(parent.call("bob", "tom")).has_solution(), "has_solution fails for missing fact")
+	assert_equal(prolog.solve(parent.call("tom", "bob")).all().size(), 1, "solve(goal) returns solutions")
+	assert_true(prolog.solve(parent.call("bob", "tom")).has_solution() == false, "solve(goal) is empty when there is no solution")
 
-	var solutions := prolog.solve_all(parent.bind("tom", child))
-	assert_equal(solutions.size(), 2, "solve_all(goal) returns two children")
+	var solutions := prolog.solve(parent.call("tom", child)).all()
+	assert_equal(solutions.size(), 2, "solve().all() returns two children")
 	var names := []
 	for solution in solutions:
 		assert_true(solution.has(child), "each solution binds the variable object")
 		names.append(solution.get(child))
 	assert_true("bob" in names and "liz" in names, "bindings are bob and liz")
 
-	var first: PrologSolution = prolog.solve_one(parent.bind("tom", child))
-	assert_true(first != null and first.has(child), "solve_one(goal) returns a PrologSolution")
+	var first: PrologSolution = prolog.solve(parent.call("tom", child)).first()
+	assert_true(first != null and first.has(child), "solve().first() returns a PrologSolution")
 
-	var none: Variant = prolog.solve_one(parent.bind("ann", child))
-	assert_true(none == null, "solve_one(goal) is null when there is no solution")
+	var none: Variant = prolog.solve(parent.call("ann", child)).first()
+	assert_true(none == null, "solve().first() is null when there is no solution")
 
 	var grandchild := prolog.variable("Grand")
-	var chain := parent.bind("tom", child).conjunction(parent.bind(child, grandchild))
-	var chained := prolog.solve_all(chain)
+	var chain: PrologGoal = parent.call("tom", child).conjunction(parent.call(child, grandchild))
+	var chained := prolog.solve(chain).all()
 	assert_equal(chained.size(), 1, "conjunction finds tom -> bob -> ann")
 	assert_equal(chained[0].get(child), "bob", "shared variable stays bound across the conjunction")
 	assert_equal(chained[0].get(grandchild), "ann", "second variable is bound")
@@ -883,22 +943,22 @@ func test_atom_versus_string() -> void:
 		msg("hello").
 	"""), "Load atom and string facts")
 
-	assert_true(prolog.succeeds(goal("named", ["hello"])), "String bind() is an atom")
+	assert_true(prolog.solve(goal("named", ["hello"])).has_solution(), "String call() is an atom")
 	assert_false(
-		prolog.succeeds(goal("named", [prolog.string("hello")])),
+		prolog.solve(goal("named", [prolog.string("hello")])).has_solution(),
 		"prolog.string() does not match an atom"
 	)
 	assert_true(
-		prolog.succeeds(goal("msg", [prolog.string("hello")])),
+		prolog.solve(goal("msg", [prolog.string("hello")])).has_solution(),
 		"prolog.string() matches a Prolog string fact"
 	)
-	assert_false(prolog.succeeds(goal("msg", ["hello"])), "atom hello does not match \"hello\"")
+	assert_false(prolog.solve(goal("msg", ["hello"])).has_solution(), "atom hello does not match \"hello\"")
 
 	var value := prolog.variable()
-	var atom_sol: PrologSolution = prolog.solve_one(goal("named", [value]))
+	var atom_sol: PrologSolution = prolog.solve(goal("named", [value])).first()
 	assert_equal(atom_sol.get(value), "hello", "atom comes back as a Godot String")
 
-	var str_sol: PrologSolution = prolog.solve_one(goal("msg", [value]))
+	var str_sol: PrologSolution = prolog.solve(goal("msg", [value])).first()
 	var bound = str_sol.get(value)
 	assert_true(bound is PrologTerm and bound.is_string(), "Prolog string comes back as PrologTerm")
 	assert_equal(bound.get_string(), "hello", "Prolog string contents")
@@ -913,16 +973,16 @@ func test_assert_fact_goal() -> void:
 		print("  ✗ SKIP: Could not initialize Prolog")
 		return
 
-	var score := prolog.predicate("score", 2)
-	assert_true(prolog.assert_fact(score.bind("p1", 10)), "assert_fact adds a goal")
-	assert_true(prolog.succeeds(score.bind("p1", 10)), "asserted goal is queryable")
-	assert_true(prolog.retract_fact(score.bind("p1", 10)), "retract_fact accepts a goal")
-	assert_false(prolog.succeeds(score.bind("p1", 10)), "retracted goal is gone")
+	var score := prolog.predicate("score")
+	assert_true(prolog.assert_fact(score.call("p1", 10)), "assert_fact adds a goal")
+	assert_true(prolog.solve(score.call("p1", 10)).has_solution(), "asserted goal is queryable")
+	assert_true(prolog.retract_fact(score.call("p1", 10)), "retract_fact accepts a goal")
+	assert_false(prolog.solve(score.call("p1", 10)).has_solution(), "retracted goal is gone")
 
-	prolog.assert_fact(score.bind("a", 1))
-	prolog.assert_fact(score.bind("b", 2))
-	assert_true(prolog.retract_all(score.bind(prolog.anonymous(), prolog.anonymous())), "retract_all(goal)")
-	assert_false(prolog.succeeds(score.bind(prolog.anonymous(), prolog.anonymous())), "all score facts removed")
+	prolog.assert_fact(score.call("a", 1))
+	prolog.assert_fact(score.call("b", 2))
+	assert_true(prolog.retract_all(score.call(prolog.anonymous(), prolog.anonymous())), "retract_all(goal)")
+	assert_false(prolog.solve(score.call(prolog.anonymous(), prolog.anonymous())).has_solution(), "all score facts removed")
 
 	teardown_prolog()
 
@@ -941,17 +1001,17 @@ func test_prolog_object() -> void:
 	assert_equal(handle.get_object(), node, "get_object() returns the same Node")
 	assert_true(handle.equals(prolog.object(node)), "same instance id compares equal")
 
-	var at := prolog.predicate("at", 2)
-	assert_true(prolog.assert_fact(at.bind(handle, "zone_1")), "assert a fact with a PrologObject")
-	assert_true(prolog.succeeds(at.bind(handle, "zone_1")), "query with the same handle")
-	assert_true(prolog.succeeds(at.bind(node, "zone_1")), "bind() auto-wraps a Node")
+	var at := prolog.predicate("at")
+	assert_true(prolog.assert_fact(at.call(handle, "zone_1")), "assert a fact with a PrologObject")
+	assert_true(prolog.solve(at.call(handle, "zone_1")).has_solution(), "query with the same handle")
+	assert_true(prolog.solve(at.call(node, "zone_1")).has_solution(), "call() auto-wraps a Node")
 
 	var place := prolog.variable()
-	var solution: PrologSolution = prolog.solve_one(at.bind(handle, place))
+	var solution: PrologSolution = prolog.solve(at.call(handle, place)).first()
 	assert_equal(solution.get(place), "zone_1", "object fact binds other arguments")
 
 	var who := prolog.variable()
-	var found: PrologSolution = prolog.solve_one(at.bind(who, "zone_1"))
+	var found: PrologSolution = prolog.solve(at.call(who, "zone_1")).first()
 	var bound_obj = found.get(who)
 	assert_true(bound_obj is PrologObject, "blob comes back as PrologObject")
 	assert_true(bound_obj.equals(handle), "round-trip keeps the instance id")
@@ -983,7 +1043,8 @@ func test_editor_query() -> void:
 
 	var ground: Array = prolog._editor_query("parent(tom, bob)")
 	assert_equal(ground.size(), 1, "ground success is one empty binding set")
-	assert_true(ground[0].is_empty(), "ground success has no variables")
+	if ground.size() > 0:
+		assert_true(ground[0].is_empty(), "ground success has no variables")
 
 	var bad: Array = prolog._editor_query("this is not valid")
 	assert_true(bad.is_empty(), "parse error returns no solutions")
@@ -1004,15 +1065,16 @@ func test_expose_godot_members() -> void:
 
 	assert_true(prolog.expose_property("Node", "name", "node_name"), "expose Node.name as node_name/2")
 	var name_var := prolog.variable()
-	var named: PrologSolution = prolog.solve_one(prolog.predicate("node_name", 2).bind(node, name_var))
+	var named: PrologSolution = prolog.solve(prolog.predicate("node_name").call(node, name_var)).first()
 	assert_true(named != null, "node_name/2 returns a solution")
-	assert_equal(named.get(name_var), "Player", "reads Node.name")
-	assert_true(prolog.succeeds(prolog.predicate("node_name", 2).bind(node, "Player")), "ground name matches")
-	assert_false(prolog.succeeds(prolog.predicate("node_name", 2).bind(node, "Enemy")), "ground name mismatch fails")
+	if named != null:
+		assert_equal(named.get(name_var), "Player", "reads Node.name")
+	assert_true(prolog.solve(prolog.predicate("node_name").call(node, "Player")).has_solution(), "ground name matches")
+	assert_false(prolog.solve(prolog.predicate("node_name").call(node, "Enemy")).has_solution(), "ground name mismatch fails")
 
 	assert_true(prolog.expose_method("Object", "get_class", "godot_class"), "expose Object.get_class")
 	var class_var := prolog.variable()
-	var typed: PrologSolution = prolog.solve_one(prolog.predicate("godot_class", 2).bind(node, class_var))
+	var typed: PrologSolution = prolog.solve(prolog.predicate("godot_class").call(node, class_var)).first()
 	assert_true(typed != null, "godot_class/2 returns a solution")
 	assert_equal(typed.get(class_var), "Node", "get_class is Node")
 
@@ -1020,20 +1082,20 @@ func test_expose_godot_members() -> void:
 	sprite.position = Vector2(3, 4)
 	assert_true(prolog.expose_property("Node2D", "position", "node2d_position"), "expose Node2D.position")
 	var pos_var := prolog.variable()
-	var placed: PrologSolution = prolog.solve_one(prolog.predicate("node2d_position", 2).bind(sprite, pos_var))
+	var placed: PrologSolution = prolog.solve(prolog.predicate("node2d_position").call(sprite, pos_var)).first()
 	assert_true(placed != null, "node2d_position/2 returns a solution")
 	var pos: Variant = placed.get(pos_var)
 	assert_true(pos is Array and pos.size() == 2, "Vector2 becomes a 2-element list")
 	assert_true(is_equal_approx(float(pos[0]), 3.0) and is_equal_approx(float(pos[1]), 4.0), "position is [3, 4]")
 	assert_false(
-		prolog.succeeds(prolog.predicate("node2d_position", 2).bind(node, prolog.anonymous())),
+		prolog.solve(prolog.predicate("node2d_position").call(node, prolog.anonymous())).has_solution(),
 		"Node is rejected by the Node2D class filter"
 	)
 
 	var pack := Resource.new()
 	pack.resource_name = "loot"
 	assert_true(prolog.expose_property("Resource", "resource_name", "res_name"), "expose Resource.resource_name")
-	assert_true(prolog.succeeds(prolog.predicate("res_name", 2).bind(pack, "loot")), "reads a Resource property")
+	assert_true(prolog.solve(prolog.predicate("res_name").call(pack, "loot")).has_solution(), "reads a Resource property")
 
 	assert_false(prolog.expose_property("Node", "name", "name"), "refuse reserved predicate name/2")
 	assert_false(prolog.expose_property("Node", "name", "NodeName"), "refuse non-lowercase functor")
@@ -1041,7 +1103,7 @@ func test_expose_godot_members() -> void:
 	var exposed: Array = prolog.list_exposed()
 	assert_true(exposed.size() >= 4, "list_exposed() lists the wrappers")
 	assert_true(prolog.unexpose("node_name", 2), "unexpose node_name/2")
-	assert_false(prolog.succeeds(prolog.predicate("node_name", 2).bind(node, "Player")), "wrapper is gone")
+	assert_false(prolog.solve(prolog.predicate("node_name").call(node, "Player")).has_solution(), "wrapper is gone")
 
 	node.free()
 	sprite.free()
@@ -1064,7 +1126,7 @@ func test_prolog_knowledge_and_node() -> void:
 	var kb = kb_script.new()
 	kb.code = "parent(tom, bob)."
 	assert_true(kb.load_into(prolog), "PrologKnowledge.load_into() consults inline code")
-	assert_true(prolog.succeeds(prolog.predicate("parent", 2).bind("tom", "bob")), "resource clauses are queryable")
+	assert_true(prolog.solve(prolog.predicate("parent").call("tom", "bob")).has_solution(), "resource clauses are queryable")
 
 	var host = node_script.new()
 	host.auto_start = false
@@ -1073,7 +1135,7 @@ func test_prolog_knowledge_and_node() -> void:
 	extra.code = "parent(bob, ann)."
 	host.knowledge = extra
 	assert_true(host.start(), "PrologotNode.start() loads its knowledge")
-	assert_true(host.succeeds(host.predicate("parent", 2).bind("bob", "ann")), "node forwards solve API")
+	assert_true(host.solve(host.predicate("parent").call("bob", "ann")).has_solution(), "node forwards solve API")
 
 	host.free()
 	teardown_prolog()
@@ -1107,23 +1169,23 @@ func test_demo_01_basic_queries() -> void:
 	assert_true(consult_result, "Load 01_basic_queries.pl")
 
 	# Test parent facts
-	assert_true(prolog.succeeds(goal("parent", ["tom", "bob"])), "parent(tom, bob) exists")
-	assert_true(prolog.succeeds(goal("parent", ["tom", "liz"])), "parent(tom, liz) exists")
-	assert_true(prolog.succeeds(goal("parent", ["bob", "ann"])), "parent(bob, ann) exists")
-	assert_true(prolog.succeeds(goal("parent", ["bob", "pat"])), "parent(bob, pat) exists")
-	assert_true(prolog.succeeds(goal("parent", ["pat", "jim"])), "parent(pat, jim) exists")
+	assert_true(prolog.solve(goal("parent", ["tom", "bob"])).has_solution(), "parent(tom, bob) exists")
+	assert_true(prolog.solve(goal("parent", ["tom", "liz"])).has_solution(), "parent(tom, liz) exists")
+	assert_true(prolog.solve(goal("parent", ["bob", "ann"])).has_solution(), "parent(bob, ann) exists")
+	assert_true(prolog.solve(goal("parent", ["bob", "pat"])).has_solution(), "parent(bob, pat) exists")
+	assert_true(prolog.solve(goal("parent", ["pat", "jim"])).has_solution(), "parent(pat, jim) exists")
 
 	# Test non-existing relationships
-	assert_false(prolog.succeeds(goal("parent", ["bob", "tom"])), "parent(bob, tom) should not exist")
-	assert_false(prolog.succeeds(goal("parent", ["jim", "pat"])), "parent(jim, pat) should not exist")
+	assert_false(prolog.solve(goal("parent", ["bob", "tom"])).has_solution(), "parent(bob, tom) should not exist")
+	assert_false(prolog.solve(goal("parent", ["jim", "pat"])).has_solution(), "parent(jim, pat) should not exist")
 
 	# Query all children of tom
-	var tom_children := prolog.solve_all(goal("parent", ["tom", prolog.variable("X")]))
+	var tom_children := prolog.solve(goal("parent", ["tom", prolog.variable("X")])).all()
 	assert_equal(tom_children.size(), 2, "Tom has 2 children")
 	print("    Tom's children: ", tom_children)
 
 	# Query all children of bob
-	var bob_children := prolog.solve_all(goal("parent", ["bob", prolog.variable("X")]))
+	var bob_children := prolog.solve(goal("parent", ["bob", prolog.variable("X")])).all()
 	assert_equal(bob_children.size(), 2, "Bob has 2 children")
 
 	teardown_prolog()
@@ -1146,24 +1208,24 @@ func test_demo_02_facts_and_rules() -> void:
 	assert_true(consult_result, "Load 02_facts_and_rules.pl")
 
 	# Test grandparent rule
-	assert_true(prolog.succeeds(goal("grandparent", ["tom", "ann"])), "Tom is grandparent of Ann")
-	assert_true(prolog.succeeds(goal("grandparent", ["tom", "pat"])), "Tom is grandparent of Pat")
-	assert_true(prolog.succeeds(goal("grandparent", ["bob", "jim"])), "Bob is grandparent of Jim")
-	assert_false(prolog.succeeds(goal("grandparent", ["tom", "bob"])), "Tom is NOT grandparent of Bob")
+	assert_true(prolog.solve(goal("grandparent", ["tom", "ann"])).has_solution(), "Tom is grandparent of Ann")
+	assert_true(prolog.solve(goal("grandparent", ["tom", "pat"])).has_solution(), "Tom is grandparent of Pat")
+	assert_true(prolog.solve(goal("grandparent", ["bob", "jim"])).has_solution(), "Bob is grandparent of Jim")
+	assert_false(prolog.solve(goal("grandparent", ["tom", "bob"])).has_solution(), "Tom is NOT grandparent of Bob")
 
 	# Test sibling rule
-	assert_true(prolog.succeeds(goal("sibling", ["bob", "liz"])), "Bob and Liz are siblings")
-	assert_true(prolog.succeeds(goal("sibling", ["ann", "pat"])), "Ann and Pat are siblings")
-	assert_false(prolog.succeeds(goal("sibling", ["bob", "bob"])), "Bob is not sibling of himself")
+	assert_true(prolog.solve(goal("sibling", ["bob", "liz"])).has_solution(), "Bob and Liz are siblings")
+	assert_true(prolog.solve(goal("sibling", ["ann", "pat"])).has_solution(), "Ann and Pat are siblings")
+	assert_false(prolog.solve(goal("sibling", ["bob", "bob"])).has_solution(), "Bob is not sibling of himself")
 
 	# Test ancestor rule (recursive)
-	assert_true(prolog.succeeds(goal("ancestor", ["tom", "bob"])), "Tom is ancestor of Bob")
-	assert_true(prolog.succeeds(goal("ancestor", ["tom", "ann"])), "Tom is ancestor of Ann")
-	assert_true(prolog.succeeds(goal("ancestor", ["tom", "jim"])), "Tom is ancestor of Jim (via bob->pat)")
-	assert_true(prolog.succeeds(goal("ancestor", ["bob", "jim"])), "Bob is ancestor of Jim")
+	assert_true(prolog.solve(goal("ancestor", ["tom", "bob"])).has_solution(), "Tom is ancestor of Bob")
+	assert_true(prolog.solve(goal("ancestor", ["tom", "ann"])).has_solution(), "Tom is ancestor of Ann")
+	assert_true(prolog.solve(goal("ancestor", ["tom", "jim"])).has_solution(), "Tom is ancestor of Jim (via bob->pat)")
+	assert_true(prolog.solve(goal("ancestor", ["bob", "jim"])).has_solution(), "Bob is ancestor of Jim")
 
 	# Query all grandchildren of tom
-	var tom_grandchildren := prolog.solve_all(goal("grandparent", ["tom", prolog.variable("X")]))
+	var tom_grandchildren := prolog.solve(goal("grandparent", ["tom", prolog.variable("X")])).all()
 	assert_true(tom_grandchildren.size() >= 2, "Tom has at least 2 grandchildren")
 	print("    Tom's grandchildren: ", tom_grandchildren)
 
@@ -1187,31 +1249,30 @@ func test_demo_03_dynamic_assertions() -> void:
 	assert_true(consult_result, "Load 03_dynamic_assertions.pl")
 
 	# Initially no game_state facts
-	assert_false(prolog.succeeds(goal("game_state", [prolog.anonymous(), prolog.anonymous()])), "No game_state facts initially")
+	assert_false(prolog.solve(goal("game_state", [prolog.anonymous(), prolog.anonymous()])).has_solution(), "No game_state facts initially")
 
-	# Add game states dynamically
-	assert_true(prolog.add_fact("game_state(player_health, 100)"), "Assert player_health")
-	assert_true(prolog.add_fact("game_state(player_score, 0)"), "Assert player_score")
-	assert_true(prolog.add_fact("game_state(level, 1)"), "Assert level")
+	assert_true(prolog.assert_fact(goal("game_state", ["player_health", 100])), "Assert player_health")
+	assert_true(prolog.assert_fact(goal("game_state", ["player_score", 0])), "Assert player_score")
+	assert_true(prolog.assert_fact(goal("game_state", ["level", 1])), "Assert level")
 
 	# Verify states exist
-	assert_true(prolog.succeeds(goal("game_state", ["player_health", 100])), "player_health is 100")
-	assert_true(prolog.succeeds(goal("game_state", ["player_score", 0])), "player_score is 0")
-	assert_true(prolog.succeeds(goal("game_state", ["level", 1])), "level is 1")
+	assert_true(prolog.solve(goal("game_state", ["player_health", 100])).has_solution(), "player_health is 100")
+	assert_true(prolog.solve(goal("game_state", ["player_score", 0])).has_solution(), "player_score is 0")
+	assert_true(prolog.solve(goal("game_state", ["level", 1])).has_solution(), "level is 1")
 
 	# Update a state (retract and reassert)
-	assert_true(prolog.retract_fact("game_state(player_score, 0)"), "Retract old score")
-	assert_true(prolog.add_fact("game_state(player_score, 100)"), "Assert new score")
-	assert_true(prolog.succeeds(goal("game_state", ["player_score", 100])), "player_score updated to 100")
+	assert_true(prolog.retract_fact(goal("game_state", ["player_score", 0])), "Retract old score")
+	assert_true(prolog.assert_fact(goal("game_state", ["player_score", 100])), "Assert new score")
+	assert_true(prolog.solve(goal("game_state", ["player_score", 100])).has_solution(), "player_score updated to 100")
 
 	# Query all game states
-	var all_states := prolog.solve_all(goal("game_state", [prolog.variable("Key"), prolog.variable("Value")]))
+	var all_states := prolog.solve(goal("game_state", [prolog.variable("Key"), prolog.variable("Value")])).all()
 	assert_equal(all_states.size(), 3, "3 game states exist")
 	print("    Game states: ", all_states)
 
 	# Retract all game states
-	prolog.retract_all("game_state(_, _)")
-	assert_false(prolog.succeeds(goal("game_state", [prolog.anonymous(), prolog.anonymous()])), "All game_state facts removed")
+	prolog.retract_all(goal("game_state", [prolog.anonymous(), prolog.anonymous()]))
+	assert_false(prolog.solve(goal("game_state", [prolog.anonymous(), prolog.anonymous()])).has_solution(), "All game_state facts removed")
 
 	teardown_prolog()
 
@@ -1233,33 +1294,33 @@ func test_demo_04_complex_queries() -> void:
 	assert_true(consult_result, "Load 04_complex_queries.pl")
 
 	# Test enemy facts
-	assert_true(prolog.succeeds(goal("enemy", ["goblin", 10, 5, 2])), "Goblin stats exist")
-	assert_true(prolog.succeeds(goal("enemy", ["orc", 25, 12, 5])), "Orc stats exist")
-	assert_true(prolog.succeeds(goal("enemy", ["dragon", 100, 30, 15])), "Dragon stats exist")
+	assert_true(prolog.solve(goal("enemy", ["goblin", 10, 5, 2])).has_solution(), "Goblin stats exist")
+	assert_true(prolog.solve(goal("enemy", ["orc", 25, 12, 5])).has_solution(), "Orc stats exist")
+	assert_true(prolog.solve(goal("enemy", ["dragon", 100, 30, 15])).has_solution(), "Dragon stats exist")
 
 	# Test weapon facts
-	assert_true(prolog.succeeds(goal("weapon", ["sword", 10])), "Sword damage is 10")
-	assert_true(prolog.succeeds(goal("weapon", ["axe", 15])), "Axe damage is 15")
-	assert_true(prolog.succeeds(goal("weapon", ["bow", 8])), "Bow damage is 8")
+	assert_true(prolog.solve(goal("weapon", ["sword", 10])).has_solution(), "Sword damage is 10")
+	assert_true(prolog.solve(goal("weapon", ["axe", 15])).has_solution(), "Axe damage is 15")
+	assert_true(prolog.solve(goal("weapon", ["bow", 8])).has_solution(), "Bow damage is 8")
 
 	# Test damage calculation: damage = weapon_dmg - defense
 	# Sword (10) vs Goblin (def 2) = 8 damage
-	assert_true(prolog.succeeds(goal("damage", ["sword", "goblin", 8])), "Sword deals 8 damage to goblin")
+	assert_true(prolog.solve(goal("damage", ["sword", "goblin", 8])).has_solution(), "Sword deals 8 damage to goblin")
 	# Axe (15) vs Orc (def 5) = 10 damage
-	assert_true(prolog.succeeds(goal("damage", ["axe", "orc", 10])), "Axe deals 10 damage to orc")
+	assert_true(prolog.solve(goal("damage", ["axe", "orc", 10])).has_solution(), "Axe deals 10 damage to orc")
 	# Bow (8) vs Dragon (def 15) = -7 damage (negative, ineffective)
-	assert_true(prolog.succeeds(goal("damage", ["bow", "dragon", -7])), "Bow deals -7 damage to dragon")
+	assert_true(prolog.solve(goal("damage", ["bow", "dragon", -7])).has_solution(), "Bow deals -7 damage to dragon")
 
 	# Test one_shot_kill: axe (15) vs goblin (10 HP, 2 def) = 13 dmg >= 10 HP
-	assert_true(prolog.succeeds(goal("one_shot_kill", ["axe", "goblin"])), "Axe can one-shot goblin")
+	assert_true(prolog.solve(goal("one_shot_kill", ["axe", "goblin"])).has_solution(), "Axe can one-shot goblin")
 	# Sword (10) vs goblin (10 HP, 2 def) = 8 dmg < 10 HP
-	assert_false(prolog.succeeds(goal("one_shot_kill", ["sword", "goblin"])), "Sword cannot one-shot goblin")
+	assert_false(prolog.solve(goal("one_shot_kill", ["sword", "goblin"])).has_solution(), "Sword cannot one-shot goblin")
 	# No weapon can one-shot dragon
-	assert_false(prolog.succeeds(goal("one_shot_kill", ["sword", "dragon"])), "Sword cannot one-shot dragon")
-	assert_false(prolog.succeeds(goal("one_shot_kill", ["axe", "dragon"])), "Axe cannot one-shot dragon")
+	assert_false(prolog.solve(goal("one_shot_kill", ["sword", "dragon"])).has_solution(), "Sword cannot one-shot dragon")
+	assert_false(prolog.solve(goal("one_shot_kill", ["axe", "dragon"])).has_solution(), "Axe cannot one-shot dragon")
 
 	# Query all enemies (anonymous variables are displayed as "null")
-	var all_enemies := prolog.solve_all(goal("enemy", [prolog.variable("Name"), prolog.anonymous(), prolog.anonymous(), prolog.anonymous()]))
+	var all_enemies := prolog.solve(goal("enemy", [prolog.variable("Name"), prolog.anonymous(), prolog.anonymous(), prolog.anonymous()])).all()
 	assert_equal(all_enemies.size(), 3, "3 enemy types exist")
 	print("    Enemies: ", all_enemies)
 
@@ -1283,28 +1344,28 @@ func test_demo_05_pathfinding() -> void:
 	assert_true(consult_result, "Load 05_pathfinding.pl")
 
 	# Test edge facts
-	assert_true(prolog.succeeds(goal("edge", ["a", "b", 1])), "Edge a->b exists with cost 1")
-	assert_true(prolog.succeeds(goal("edge", ["b", "c", 2])), "Edge b->c exists with cost 2")
-	assert_true(prolog.succeeds(goal("edge", ["e", "f", 1])), "Edge e->f exists with cost 1")
+	assert_true(prolog.solve(goal("edge", ["a", "b", 1])).has_solution(), "Edge a->b exists with cost 1")
+	assert_true(prolog.solve(goal("edge", ["b", "c", 2])).has_solution(), "Edge b->c exists with cost 2")
+	assert_true(prolog.solve(goal("edge", ["e", "f", 1])).has_solution(), "Edge e->f exists with cost 1")
 
 	# Test bidirectional connected predicate
-	assert_true(prolog.succeeds(goal("connected", ["a", "b", 1])), "a connected to b")
-	assert_true(prolog.succeeds(goal("connected", ["b", "a", 1])), "b connected to a (bidirectional)")
+	assert_true(prolog.solve(goal("connected", ["a", "b", 1])).has_solution(), "a connected to b")
+	assert_true(prolog.solve(goal("connected", ["b", "a", 1])).has_solution(), "b connected to a (bidirectional)")
 
 	# Test path finding - simple path a to b
-	assert_true(prolog.succeeds(goal("path", ["a", "b", prolog.anonymous(), prolog.anonymous()])), "Path from a to b exists")
+	assert_true(prolog.solve(goal("path", ["a", "b", prolog.anonymous(), prolog.anonymous()])).has_solution(), "Path from a to b exists")
 
 	# Test path finding - longer path a to f
-	assert_true(prolog.succeeds(goal("path", ["a", "f", prolog.anonymous(), prolog.anonymous()])), "Path from a to f exists")
+	assert_true(prolog.solve(goal("path", ["a", "f", prolog.anonymous(), prolog.anonymous()])).has_solution(), "Path from a to f exists")
 
 	# Query a specific path with cost
-	var path_result: Variant = prolog.solve_one(goal("path", ["a", "f", prolog.variable("Path"), prolog.variable("Cost")]))
+	var path_result: Variant = prolog.solve(goal("path", ["a", "f", prolog.variable("Path"), prolog.variable("Cost")])).first()
 	assert_true(path_result != null, "Found path from a to f")
 	print("    Path a->f: ", path_result)
 
 	# Test that cycle detection works (no infinite loops)
 	# Just verify the query completes without hanging
-	var paths := prolog.solve_all(goal("path", ["a", "e", prolog.variable("Path"), prolog.variable("Cost")]))
+	var paths := prolog.solve(goal("path", ["a", "e", prolog.variable("Path"), prolog.variable("Cost")])).all()
 	assert_true(paths.size() >= 1, "At least one path from a to e")
 	print("    Paths a->e: ", paths)
 
@@ -1328,31 +1389,31 @@ func test_demo_06_ai_behavior() -> void:
 	assert_true(consult_result, "Load 06_ai_behavior.pl")
 
 	# Test state facts
-	assert_true(prolog.succeeds(goal("state", ["patrol"])), "patrol state exists")
-	assert_true(prolog.succeeds(goal("state", ["chase"])), "chase state exists")
-	assert_true(prolog.succeeds(goal("state", ["attack"])), "attack state exists")
-	assert_true(prolog.succeeds(goal("state", ["flee"])), "flee state exists")
+	assert_true(prolog.solve(goal("state", ["patrol"])).has_solution(), "patrol state exists")
+	assert_true(prolog.solve(goal("state", ["chase"])).has_solution(), "chase state exists")
+	assert_true(prolog.solve(goal("state", ["attack"])).has_solution(), "attack state exists")
+	assert_true(prolog.solve(goal("state", ["flee"])).has_solution(), "flee state exists")
 
 	# Test should_* predicates
-	assert_true(prolog.succeeds(goal("should_chase", [5])), "should_chase at distance 5")
-	assert_false(prolog.succeeds(goal("should_chase", [15])), "should NOT chase at distance 15")
-	assert_true(prolog.succeeds(goal("should_attack", [2])), "should_attack at distance 2")
-	assert_false(prolog.succeeds(goal("should_attack", [5])), "should NOT attack at distance 5")
-	assert_true(prolog.succeeds(goal("should_flee", [10])), "should_flee at health 10")
-	assert_false(prolog.succeeds(goal("should_flee", [50])), "should NOT flee at health 50")
+	assert_true(prolog.solve(goal("should_chase", [5])).has_solution(), "should_chase at distance 5")
+	assert_false(prolog.solve(goal("should_chase", [15])).has_solution(), "should NOT chase at distance 15")
+	assert_true(prolog.solve(goal("should_attack", [2])).has_solution(), "should_attack at distance 2")
+	assert_false(prolog.solve(goal("should_attack", [5])).has_solution(), "should NOT attack at distance 5")
+	assert_true(prolog.solve(goal("should_flee", [10])).has_solution(), "should_flee at health 10")
+	assert_false(prolog.solve(goal("should_flee", [50])).has_solution(), "should NOT flee at health 50")
 
 	# Test decide_action - priority: flee > attack > chase > patrol
 	# Low health -> flee (regardless of distance)
-	assert_true(prolog.succeeds(goal("decide_action", ["flee", 10, 2])), "Flee when health=10")
+	assert_true(prolog.solve(goal("decide_action", ["flee", 10, 2])).has_solution(), "Flee when health=10")
 	# Good health, close distance -> attack
-	assert_true(prolog.succeeds(goal("decide_action", ["attack", 100, 2])), "Attack when close")
+	assert_true(prolog.solve(goal("decide_action", ["attack", 100, 2])).has_solution(), "Attack when close")
 	# Good health, medium distance -> chase
-	assert_true(prolog.succeeds(goal("decide_action", ["chase", 100, 5])), "Chase when medium distance")
+	assert_true(prolog.solve(goal("decide_action", ["chase", 100, 5])).has_solution(), "Chase when medium distance")
 	# Good health, far distance -> patrol
-	assert_true(prolog.succeeds(goal("decide_action", ["patrol", 100, 20])), "Patrol when far")
+	assert_true(prolog.solve(goal("decide_action", ["patrol", 100, 20])).has_solution(), "Patrol when far")
 
 	# Query all states
-	var all_states := prolog.solve_all(goal("state", [prolog.variable("S")]))
+	var all_states := prolog.solve(goal("state", [prolog.variable("S")])).all()
 	assert_equal(all_states.size(), 4, "4 AI states exist")
 	print("    AI states: ", all_states)
 

@@ -67,34 +67,23 @@ void Prologot::_bind_methods()
     ClassDB::bind_method(
         D_METHOD("variable", "name"), &Prologot::variable, DEFVAL(String()));
     ClassDB::bind_method(D_METHOD("anonymous"), &Prologot::anonymous);
-    ClassDB::bind_method(D_METHOD("predicate", "name", "arity"),
-                         &Prologot::predicate);
+    ClassDB::bind_method(D_METHOD("predicate", "name"), &Prologot::predicate);
     ClassDB::bind_method(D_METHOD("object", "value"), &Prologot::object);
 
     // High-level structured solving
-    ClassDB::bind_method(D_METHOD("succeeds", "goal"), &Prologot::succeeds);
     ClassDB::bind_method(D_METHOD("solve", "goal"), &Prologot::solve);
-    ClassDB::bind_method(D_METHOD("solve_all", "goal"), &Prologot::solve_all);
-    ClassDB::bind_method(D_METHOD("solve_one", "goal"), &Prologot::solve_one);
 
     // Editor console only (not a game API)
     ClassDB::bind_method(D_METHOD("_editor_query", "goal"),
                          &Prologot::query_text_named);
 
     // Dynamic assertion methods
-    ClassDB::bind_method(D_METHOD("add_fact", "fact"), &Prologot::add_fact);
     ClassDB::bind_method(D_METHOD("assert_fact", "goal"),
                          &Prologot::assert_fact);
-    ClassDB::bind_method(D_METHOD("retract_fact", "fact"),
+    ClassDB::bind_method(D_METHOD("retract_fact", "goal"),
                          &Prologot::retract_fact);
-    ClassDB::bind_method(D_METHOD("retract_all", "functor"),
+    ClassDB::bind_method(D_METHOD("retract_all", "goal"),
                          &Prologot::retract_all);
-
-    // Predicate methods
-    ClassDB::bind_method(D_METHOD("call_predicate", "predicate", "args"),
-                         &Prologot::call_predicate);
-    ClassDB::bind_method(D_METHOD("call_function", "predicate", "args"),
-                         &Prologot::call_function);
 
     // Introspection methods
     ClassDB::bind_method(D_METHOD("predicate_exists", "predicate", "arity"),
@@ -533,6 +522,8 @@ bool Prologot::consult_file(String const& p_filename)
     }
 
     PL_close_query(qid);
+    if (result == 0 && m_last_error.is_empty())
+        m_last_error = "Failed to consult file: " + filename;
     return result != 0; // Non-zero means success in SWI-Prolog API
 }
 
@@ -632,9 +623,9 @@ Ref<PrologVariable> Prologot::anonymous()
     return PrologVariable::create_anonymous();
 }
 
-Ref<PrologPredicate> Prologot::predicate(String const& p_name, int p_arity)
+Ref<PrologPredicate> Prologot::predicate(String const& p_name)
 {
-    return PrologPredicate::create(p_name, p_arity);
+    return PrologPredicate::create(p_name);
 }
 
 Ref<PrologObject> Prologot::object(Object* p_object)
@@ -893,27 +884,9 @@ bool Prologot::apply_clause_predicate(char const* p_name,
     return result != 0;
 }
 
-bool Prologot::succeeds(Ref<PrologGoal> const& p_goal)
+Ref<PrologQuery> Prologot::solve(Ref<PrologGoal> const& p_goal)
 {
-    return !collect_goal_solutions(p_goal).is_empty();
-}
-
-Array Prologot::solve(Ref<PrologGoal> const& p_goal)
-{
-    return collect_goal_solutions(p_goal);
-}
-
-Array Prologot::solve_all(Ref<PrologGoal> const& p_goal)
-{
-    return collect_goal_solutions(p_goal);
-}
-
-Variant Prologot::solve_one(Ref<PrologGoal> const& p_goal)
-{
-    Array results = collect_goal_solutions(p_goal);
-    if (results.is_empty())
-        return Variant();
-    return results[0];
+    return PrologQuery::create(collect_goal_solutions(p_goal));
 }
 
 // =============================================================================
@@ -1090,7 +1063,8 @@ Array Prologot::query_text_named(String const& p_goal)
         PL_close_query(parse_qid);
         return results;
     }
-    PL_close_query(parse_qid);
+    // Keep Term and Bindings. PL_close_query would undo atom_to_term/3.
+    PL_cut_query(parse_qid);
 
     term_t term = args + 1;
     term_t bindings = args + 2;
@@ -1188,215 +1162,14 @@ bool Prologot::assert_fact(Ref<PrologGoal> const& p_goal)
     return apply_clause_predicate("assertz", p_goal, "Assert fact");
 }
 
-bool Prologot::retract_fact(Variant const& p_fact)
+bool Prologot::retract_fact(Ref<PrologGoal> const& p_goal)
 {
-    Ref<PrologGoal> goal = p_fact;
-    if (goal.is_valid())
-        return apply_clause_predicate("retract", goal, "Retract fact");
-
-    if (p_fact.get_type() != Variant::STRING)
-    {
-        push_error("retract_fact() expects a String or a PrologGoal");
-        return false;
-    }
-
-    String fact_string = p_fact;
-    if (!m_initialized)
-        return false;
-
-    // Validate input
-    if (fact_string.is_empty())
-    {
-        m_last_error = "Empty fact";
-        return false;
-    }
-
-    // Remove trailing period if present (users might include it by mistake)
-    String fact = fact_string;
-    if (fact.length() > 0 && fact[fact.length() - 1] == '.')
-    {
-        fact = fact.substr(0, fact.length() - 1);
-    }
-
-    // Parse the fact string into a Prolog term
-    term_t t = PL_new_term_ref();
-    if (!PL_chars_to_term(fact.utf8().get_data(), t))
-    {
-        m_last_error = "Failed to parse fact: " + fact;
-        return false;
-    }
-
-    // Retract the fact using Prolog's built-in retract/1 predicate
-    // retract/1 removes the first clause that unifies with the given term
-    predicate_t pred = PL_predicate("retract", 1, "user");
-
-    // Use exception catching to avoid interactive mode on syntax errors
-    qid_t qid = PL_open_query(NULL, PL_Q_CATCH_EXCEPTION, pred, t);
-    int result = PL_next_solution(qid);
-
-    // Handle exceptions
-    if (result == PL_S_EXCEPTION)
-    {
-        handle_prolog_exception(qid, "Retract fact");
-        PL_close_query(qid);
-        return false;
-    }
-
-    PL_close_query(qid);
-    return result != 0;
+    return apply_clause_predicate("retract", p_goal, "Retract fact");
 }
 
-bool Prologot::retract_all(Variant const& p_pattern)
+bool Prologot::retract_all(Ref<PrologGoal> const& p_goal)
 {
-    Ref<PrologGoal> goal = p_pattern;
-    if (goal.is_valid())
-        return apply_clause_predicate("retractall", goal, "Retract all");
-
-    if (p_pattern.get_type() != Variant::STRING)
-    {
-        push_error("retract_all() expects a String or a PrologGoal");
-        return false;
-    }
-
-    if (!m_initialized)
-        return false;
-
-    // Remove trailing period if present (users might include it by mistake)
-    String functor = p_pattern;
-    if (functor.length() > 0 && functor[functor.length() - 1] == '.')
-    {
-        functor = functor.substr(0, functor.length() - 1);
-    }
-
-    // Build and execute a retractall/1 goal
-    // retractall/1 removes all clauses that unify with the given term
-    String query = String("retractall(") + functor + String(")");
-    return query_text(query);
-}
-
-// =============================================================================
-// Predicate Manipulation
-// =============================================================================
-
-bool Prologot::call_predicate(String const& p_predicate, Array const& p_args)
-{
-    if (!m_initialized)
-        return false;
-
-    // Validate input
-    if (p_predicate.is_empty())
-    {
-        m_last_error = "Empty predicate name";
-        return false;
-    }
-
-    // Allocate term references for all arguments
-    // PL_new_term_refs() allocates a contiguous array of term references
-    term_t t = PL_new_term_refs(p_args.size());
-
-    // Convert each Godot Variant argument to a Prolog term
-    for (int i = 0; i < p_args.size(); i++)
-    {
-        term_t arg = variant_to_term(p_args[i]);
-        // PL_put_term() copies the term into the argument slot
-        // t + i is pointer arithmetic to access the i-th term reference
-        if (!PL_put_term(t + i, arg))
-        {
-            m_last_error = "Failed to convert argument " + String::num_int64(i);
-            return false;
-        }
-    }
-
-    // Create the functor (predicate name + arity)
-    // The functor represents the predicate signature
-    functor_t f = PL_new_functor(PL_new_atom(p_predicate.utf8().get_data()),
-                                 p_args.size());
-
-    // Create the goal term by combining functor with arguments
-    term_t goal = PL_new_term_ref();
-    if (!PL_cons_functor_v(goal, f, t))
-    {
-        m_last_error = "Failed to construct predicate term";
-        return false;
-    }
-
-    // Execute the goal with exception catching to avoid interactive mode
-    qid_t qid = PL_open_query(
-        NULL, PL_Q_CATCH_EXCEPTION, PL_predicate("call", 1, "user"), goal);
-    int result = PL_next_solution(qid);
-
-    // Handle exceptions
-    if (result == PL_S_EXCEPTION)
-    {
-        handle_prolog_exception(qid, "Call predicate");
-        PL_close_query(qid);
-        return false;
-    }
-
-    PL_close_query(qid);
-    return result != 0;
-}
-
-Variant Prologot::call_function(String const& p_predicate, Array const& p_args)
-{
-    if (!m_initialized)
-        return Variant();
-
-    // Validate input
-    if (p_predicate.is_empty())
-    {
-        m_last_error = "Empty predicate name";
-        return Variant();
-    }
-
-    // Allocate term references for arguments plus one extra for the result
-    // The result will be stored in the last term reference
-    term_t t = PL_new_term_refs(p_args.size() + 1);
-
-    // Convert each input argument to a Prolog term
-    for (int i = 0; i < p_args.size(); i++)
-    {
-        term_t arg = variant_to_term(p_args[i]);
-        if (!PL_put_term(t + i, arg))
-        {
-            m_last_error = "Failed to convert argument " + String::num_int64(i);
-            return Variant();
-        }
-    }
-    // Note: t + args.size() is left unbound - Prolog will bind it
-
-    // Create the functor with arity = args.size() + 1 (includes result)
-    functor_t f = PL_new_functor(PL_new_atom(p_predicate.utf8().get_data()),
-                                 p_args.size() + 1);
-    term_t goal = PL_new_term_ref();
-    if (!PL_cons_functor_v(goal, f, t))
-    {
-        m_last_error = "Failed to construct predicate term";
-        return Variant();
-    }
-
-    // Execute the goal with exception catching to avoid interactive mode
-    qid_t qid = PL_open_query(
-        NULL, PL_Q_CATCH_EXCEPTION, PL_predicate("call", 1, "user"), goal);
-    int result = PL_next_solution(qid);
-
-    // Handle exceptions
-    if (result == PL_S_EXCEPTION)
-    {
-        handle_prolog_exception(qid, "Call function");
-        PL_close_query(qid);
-        return Variant();
-    }
-
-    Variant var;
-    if (result)
-    {
-        // Extract and return the result (last argument)
-        var = term_to_variant(t + p_args.size());
-    }
-
-    PL_close_query(qid);
-    return var;
+    return apply_clause_predicate("retractall", p_goal, "Retract all");
 }
 
 // =============================================================================

@@ -22,16 +22,16 @@ This game demonstrates key features of the Prologot API:
 5. ✅ `consult_string()` - Loads daily laws dynamically
 
 ### Queries
-6. ✅ `succeeds()` - Checks if an alien is dangerous
-7. ✅ `solve_all()` - Lists all cargo items of an alien
+6. ✅ `solve().has_solution()` - Checks if an alien is dangerous
+7. ✅ `solve()` - Lists all cargo items of an alien
 
 ### Dynamic Facts
-8. ✅ `assert_fact(predicate.bind(...))` - Adds scanned alien characteristics
+8. ✅ `assert_fact(predicate.call(...))` - Adds scanned alien characteristics
 9. ✅ `retract_all(goal)` - Cleans all facts between each alien
 
 ### Predicates
-10. ✅ `succeeds()` - Verifies if authorization is legal
-11. ✅ `call_function()` - Calculates tax amounts
+10. ✅ `solve().has_solution()` - Verifies if authorization is legal
+11. ✅ `solve().first()` - Calculates tax amounts
 
 ### Introspection
 12. ✅ `predicate_exists()` - Checks if a predicate exists before calling
@@ -114,13 +114,13 @@ res://
    └─> retract_all(goal) - Cleans old facts
 
 2. scan_alien()
-   ├─> assert_fact(predicate.bind(...)) - Adds visa, tentacles, cargo
-   ├─> succeeds() - Checks danger level
-   ├─> call_function() - Calculates tax
+   ├─> assert_fact(predicate.call(...)) - Adds visa, tentacles, cargo
+   ├─> solve().has_solution() - Checks danger level
+   ├─> solve().first() - Calculates tax
    └─> solve() / solution.get() - Lists all cargo
 
 3. make_decision(approve/arrest)
-   └─> succeeds(authorize.bind(name)) - Legal decision?
+   └─> solve(authorize.call(name)).has_solution() - Legal decision?
 ```
 
 ### Knowledge Base
@@ -148,8 +148,8 @@ The game uses a two-tier rule system:
 
 To test each feature:
 
-1. **Scan** an alien → Tests `assert_fact()`, `succeeds()`, `solve()`
-2. **Approve/Arrest** → Tests `succeeds(authorize.bind(...))`
+1. **Scan** an alien → Tests `assert_fact()`, `solve().has_solution()`, `solve()`
+2. **Approve/Arrest** → Tests `solve(authorize.call(...)).has_solution()`
 3. **Observe console** → Shows all Prolog operations
 4. **Process 5 aliens** → Tests day advancement and `consult_string()`
 

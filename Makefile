@@ -57,6 +57,7 @@ help:
 	@$(ECHO) "$(GREEN)Demo commands:$(NC)"
 	@$(ECHO) "  $(YELLOW)make setup-demos$(NC)   - Set up demo and test projects"
 	@$(ECHO) "  $(YELLOW)make run-demo$(NC)      - Run demo in Godot"
+	@$(ECHO) "  $(YELLOW)make run-mini-dungeon$(NC) - Run Mini Dungeon game in Godot"
 	@$(ECHO) "  $(YELLOW)make run-galactic$(NC)  - Run galactic_customs game in Godot"
 	@$(ECHO) ""
 	@$(ECHO) "$(GREEN)Configuration:$(NC)"
@@ -160,7 +161,7 @@ release: check-deps
 clean:
 	@$(ECHO) "$(YELLOW)▶ Cleaning...$(NC)"
 	@rm -fr $(BIN) .sconsign.dblite src/*.os godot-cpp-* .scons_cache
-	@for project in demos/showcases demos/galactic_customs tests; do \
+	@for project in demos/showcases demos/galactic_customs demos/mini_dungeon tests; do \
 		rm -rf $$project/$(BIN); \
 	done
 	@$(ECHO) "$(GREEN)✓ Clean completed$(NC)"
@@ -174,7 +175,7 @@ setup-demos:
 		$(ECHO) "$(RED)✗ Error: $(BIN)/ directory not found. Run 'make debug' or 'make release' first$(NC)"; \
 		exit 1; \
 	fi
-	@for project in demos/showcases demos/galactic_customs; do \
+	@for project in demos/showcases demos/galactic_customs demos/mini_dungeon; do \
 		rm -rf $$project/$(BIN); \
 		[ -d $(BIN) ] && ln -sf ../../$(BIN) $$project/$(BIN) || true; \
 	done
@@ -189,6 +190,10 @@ setup-demos:
 			godot --headless --quit --path $$project 2>&1 | grep -v "^Godot Engine" || true; \
 		fi; \
 	done
+	@if [ -f demos/mini_dungeon/project.godot ] && [ ! -d demos/mini_dungeon/.godot ]; then \
+		$(ECHO) "$(CYAN)  Importing demos/mini_dungeon (first run)...$(NC)"; \
+		godot --headless --import --path demos/mini_dungeon 2>&1 | grep -E "^(ERROR|\[Prologot\]|SCRIPT ERROR)" || true; \
+	fi
 	@$(ECHO) ""
 	@$(ECHO) "$(GREEN)╔════════════════════════════════════════════════════════╗$(NC)"
 	@$(ECHO) "$(GREEN)║  ✓ Demo and test projects ready!                       ║$(NC)"
@@ -196,6 +201,9 @@ setup-demos:
 	@$(ECHO) ""
 	@$(ECHO) "$(CYAN)▶ To run the demo:$(NC)"
 	@$(ECHO) "   $(YELLOW)make run-demo$(NC)"
+	@$(ECHO) ""
+	@$(ECHO) "$(CYAN)▶ To run Mini Dungeon:$(NC)"
+	@$(ECHO) "   $(YELLOW)make run-mini-dungeon$(NC)"
 	@$(ECHO) ""
 	@$(ECHO) "$(CYAN)▶ To run galactic_customs:$(NC)"
 	@$(ECHO) "   $(YELLOW)make run-galactic_customs$(NC)"
@@ -216,6 +224,12 @@ tests: setup-demos
 run-demo: setup-demos
 	@$(ECHO) "$(CYAN)▶ Running demo project...$(NC)"
 	@godot --path demos/showcases
+
+# Run Mini Dungeon
+.PHONY: run-mini-dungeon
+run-mini-dungeon: setup-demos
+	@$(ECHO) "$(CYAN)▶ Running Mini Dungeon...$(NC)"
+	@godot --path demos/mini_dungeon
 
 # Run galactic_customs game
 .PHONY: run-galactic

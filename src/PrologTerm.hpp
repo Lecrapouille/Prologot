@@ -69,7 +69,7 @@ public:
     /**
      * @brief Creates an atom term.
      *
-     * A GDScript String passed to bind() is also an atom. Use this factory
+     * A GDScript String passed to call() is also an atom. Use this factory
      * when you need an explicit PrologTerm object.
      *
      * @param p_name Atom name (e.g. "tom").
@@ -109,7 +109,7 @@ public:
     /**
      * @brief Creates a Prolog string term (distinct from an atom).
      *
-     * A GDScript String sent as a bind() argument is an atom, not a Prolog
+     * A GDScript String sent as a call() argument is an atom, not a Prolog
      * string. Use this factory when you need a quoted Prolog string.
      *
      * @param p_value String contents.
@@ -178,41 +178,71 @@ public:
 
     /**
      * @brief Returns true if this term is an atom.
+     *
+     * @example
+     * print(prolog.atom("tom").is_atom())  # true
      */
     bool is_atom() const { return m_kind == KIND_ATOM; }
 
     /**
      * @brief Returns true if this term is an integer.
+     *
+     * @example
+     * print(prolog.integer(42).is_integer())  # true
      */
     bool is_integer() const { return m_kind == KIND_INTEGER; }
 
     /**
      * @brief Returns true if this term is a float.
+     *
+     * @example
+     * print(prolog.real(3.14).is_float())  # true
      */
     bool is_float() const { return m_kind == KIND_FLOAT; }
 
     /**
      * @brief Returns true if this term is a Prolog string.
+     *
+     * Distinct from an atom: prolog.string("hello") vs the atom hello.
+     *
+     * @example
+     * print(prolog.string("hello").is_string())  # true
+     * print(prolog.atom("hello").is_string())    # false
      */
     bool is_string() const { return m_kind == KIND_STRING; }
 
     /**
      * @brief Returns true if this term is the empty list.
+     *
+     * @example
+     * print(prolog.nil().is_nil())      # true
+     * print(prolog.list([]).is_nil())   # true
      */
     bool is_nil() const { return m_kind == KIND_NIL; }
 
     /**
      * @brief Returns true if this term is a non-empty list.
+     *
+     * @example
+     * print(prolog.list([1, 2]).is_list())  # true
+     * print(prolog.nil().is_list())         # false
      */
     bool is_list() const { return m_kind == KIND_LIST; }
 
     /**
      * @brief Returns true if this term is a compound.
+     *
+     * @example
+     * print(prolog.compound("point", [1, 2]).is_compound())  # true
      */
     bool is_compound() const { return m_kind == KIND_COMPOUND; }
 
     /**
      * @brief Returns true if this term is a PrologVariable.
+     *
+     * @example
+     * print(prolog.variable("X").is_variable())  # true
+     * print(prolog.atom("X").is_variable())      # false
      */
     bool is_variable() const { return m_kind == KIND_VARIABLE; }
 
@@ -226,11 +256,17 @@ public:
 
     /**
      * @brief Returns the integer value (0 if this is not an integer).
+     *
+     * @example
+     * print(prolog.integer(-7).get_integer())  # -7
      */
     int64_t get_integer() const { return m_integer; }
 
     /**
      * @brief Returns the float value (0.0 if this is not a float).
+     *
+     * @example
+     * print(prolog.real(1.5).get_real())  # 1.5
      */
     double get_real() const { return m_real; }
 
@@ -238,11 +274,17 @@ public:
      * @brief Returns the Prolog string contents, or empty if not a string.
      *
      * Bound to GDScript as get_string().
+     *
+     * @example
+     * print(prolog.string("hello").get_string())  # hello
      */
     String get_string_value() const;
 
     /**
      * @brief Returns the functor name, or empty if not a compound.
+     *
+     * @example
+     * print(prolog.compound("point", [1, 2]).get_functor())  # point
      */
     String get_functor() const;
 

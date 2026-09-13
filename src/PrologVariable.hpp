@@ -21,7 +21,7 @@
  * The optional name is for debugging only; it is not how Prologot decides
  * that something is a variable.
  *
- * A String passed to PrologPredicate.bind() is always an atom. Only
+ * A String passed to PrologPredicate.call() is always an atom. Only
  * prolog.variable() / prolog.anonymous() create variables.
  *
  * Anonymous variables (variable() without a name, or anonymous()) are
@@ -29,12 +29,12 @@
  * solutions.
  *
  * @example
- * var parent = prolog.predicate("parent", 2)
+ * var parent = prolog.predicate("parent")
  * var child = prolog.variable("Child")
  * var other = prolog.variable()
  * print(child.get_id() != other.get_id())  # true: two distinct variables
  *
- * for solution in prolog.solve(parent.bind("tom", child)):
+ * for solution in prolog.solve(parent.call("tom", child)):
  *     print(solution.get(child))  # bob, then liz
  */
 class PrologVariable: public PrologTerm
@@ -78,9 +78,9 @@ public:
      * Anonymous variables are omitted from PrologSolution bindings.
      *
      * @example
-     * var parent = prolog.predicate("parent", 2)
+     * var parent = prolog.predicate("parent")
      * # parent(tom, _) : succeed if tom has any child
-     * prolog.succeeds(parent.bind("tom", prolog.anonymous()))
+     * prolog.solve(parent.call("tom", prolog.anonymous())).has_solution()
      */
     static Ref<PrologVariable> create_anonymous();
 
@@ -99,11 +99,27 @@ public:
 
     /**
      * @brief Returns the optional debug name (empty if unnamed or anonymous).
+     *
+     * The name is never used as a solution key. Two variable("X") objects
+     * both report "X" but remain distinct.
+     *
+     * @return Debug name, or empty.
+     *
+     * @example
+     * print(prolog.variable("Child").get_name())  # Child
+     * print(prolog.variable().get_name())         # empty or _N
+     * print(prolog.anonymous().get_name())        # empty
      */
     String get_name() const { return m_name; }
 
     /**
      * @brief Returns true if this was created with anonymous().
+     *
+     * @return true for prolog.anonymous(), false for variable(name).
+     *
+     * @example
+     * print(prolog.anonymous().is_anonymous())     # true
+     * print(prolog.variable("X").is_anonymous())   # false
      */
     bool is_anonymous() const { return m_anonymous; }
 

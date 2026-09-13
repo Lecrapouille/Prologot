@@ -168,7 +168,7 @@ func _on_execute_button_pressed() -> void:
 ###############################################################################
 func execute_basic_queries() -> void:
 	result_display.text += "🔍 Query: parent(tom, bob)\n"
-	var result = prolog.succeeds(prolog.predicate("parent", 2).bind("tom", "bob"))
+	var result = prolog.solve(prolog.predicate("parent").call("tom", "bob")).has_solution()
 	if result:
 		result_display.text += "✓ TRUE\n"
 		result_display.text += "  → Tom is Bob's parent\n\n"
@@ -178,7 +178,7 @@ func execute_basic_queries() -> void:
 	result_display.text += "🔍 Query: parent(tom, X)\n"
 	result_display.text += "  Find all Tom's children\n\n"
 	var child = prolog.variable("X")
-	var children = prolog.solve_all(prolog.predicate("parent", 2).bind("tom", child))
+	var children = prolog.solve(prolog.predicate("parent").call("tom", child)).all()
 	result_display.text += "📋 Solutions found: %d\n" % children.size()
 	for i in range(children.size()):
 		result_display.text += "  %d. %s\n" % [i + 1, format_solution(children[i])]
@@ -190,7 +190,7 @@ func execute_basic_queries() -> void:
 func execute_facts_and_rules() -> void:
 	# Grandparent derived rule based on basic facts
 	result_display.text += "🔍 Query: grandparent(tom, ann)\n"
-	var is_grandparent = prolog.succeeds(prolog.predicate("grandparent", 2).bind("tom", "ann"))
+	var is_grandparent = prolog.solve(prolog.predicate("grandparent").call("tom", "ann")).has_solution()
 	result_display.text += "%s\n" % ("✓ TRUE - Rule matched!" if is_grandparent else "✗ FALSE")
 	result_display.text += "  → Tom is Ann's grandparent\n\n"
 
@@ -198,7 +198,7 @@ func execute_facts_and_rules() -> void:
 	result_display.text += "🔍 Query: ancestor(tom, X)\n"
 	result_display.text += "  Recursive rule test\n\n"
 	var descendant = prolog.variable("X")
-	var descendants = prolog.solve_all(prolog.predicate("ancestor", 2).bind("tom", descendant))
+	var descendants = prolog.solve(prolog.predicate("ancestor").call("tom", descendant)).all()
 	result_display.text += "📋 Descendants: %d\n" % descendants.size()
 	for i in range(descendants.size()):
 		result_display.text += "  %d. %s\n" % [i + 1, format_solution(descendants[i])]
@@ -206,7 +206,7 @@ func execute_facts_and_rules() -> void:
 	# Retrieve siblings
 	result_display.text += "\n🔍 Query: sibling(bob, X)\n"
 	var sibling = prolog.variable("X")
-	var siblings = prolog.solve_all(prolog.predicate("sibling", 2).bind("bob", sibling))
+	var siblings = prolog.solve(prolog.predicate("sibling").call("bob", sibling)).all()
 	result_display.text += "📋 Siblings: %d\n" % siblings.size()
 	for i in range(siblings.size()):
 		result_display.text += "  %d. %s\n" % [i + 1, format_solution(siblings[i])]
@@ -217,17 +217,18 @@ func execute_facts_and_rules() -> void:
 ###############################################################################
 func execute_dynamic_assertions() -> void:
 	result_display.text += "➕ Adding facts:\n"
-	prolog.add_fact("game_state(level, 1)")
-	prolog.add_fact("game_state(score, 0)")
-	prolog.add_fact("game_state(health, 100)")
+	var game_state = prolog.predicate("game_state")
+	prolog.assert_fact(game_state.call("level", 1))
+	prolog.assert_fact(game_state.call("score", 0))
+	prolog.assert_fact(game_state.call("health", 100))
 	result_display.text += "  ✓ game_state(level, 1)\n"
 	result_display.text += "  ✓ game_state(score, 0)\n"
 	result_display.text += "  ✓ game_state(health, 100)\n\n"
 
-	# Query for a single value (solve_one returns PrologSolution or null)
+	# Query for a single value (first() returns PrologSolution or null)
 	result_display.text += "🔍 Query: game_state(level, X)\n"
 	var level_x = prolog.variable("X")
-	var level = prolog.solve_one(prolog.predicate("game_state", 2).bind("level", level_x))
+	var level = prolog.solve(prolog.predicate("game_state").call("level", level_x)).first()
 	if level:
 		result_display.text += "📌 Result = %s\n\n" % format_value(level)
 	else:
@@ -235,14 +236,14 @@ func execute_dynamic_assertions() -> void:
 
 	# Update: remove previous score and add new one
 	result_display.text += "🔄 Updating score:\n"
-	prolog.retract_fact("game_state(score, 0)")
-	prolog.add_fact("game_state(score, 150)")
+	prolog.retract_fact(prolog.predicate("game_state").call("score", 0))
+	prolog.assert_fact(prolog.predicate("game_state").call("score", 150))
 	result_display.text += "  ✗ Retracted: game_state(score, 0)\n"
 	result_display.text += "  ✓ Added: game_state(score, 150)\n\n"
 
 	# Check update
 	var score_x = prolog.variable("X")
-	var score = prolog.solve_one(prolog.predicate("game_state", 2).bind("score", score_x))
+	var score = prolog.solve(prolog.predicate("game_state").call("score", score_x)).first()
 	if score:
 		result_display.text += "📌 Result = %s\n\n" % format_value(score)
 	else:
@@ -250,7 +251,7 @@ func execute_dynamic_assertions() -> void:
 
 	# Cleanup: remove all game_state facts matching the pattern
 	result_display.text += "🗑️  Cleanup: retract_all(game_state(_,_))\n"
-	prolog.retract_all("game_state(_,_)")
+	prolog.retract_all(prolog.predicate("game_state").call(prolog.anonymous(), prolog.anonymous()))
 	result_display.text += "✓ All game_state facts removed\n"
 
 ###############################################################################
@@ -260,20 +261,24 @@ func execute_dynamic_assertions() -> void:
 func execute_complex_queries() -> void:
 	# Predicate test: can this weapon one-shot the enemy?
 	result_display.text += "🎯 one_shot_kill(axe, goblin)\n"
-	var can_kill = prolog.call_predicate("one_shot_kill", ["axe", "goblin"])
+	var can_kill = prolog.solve(prolog.predicate("one_shot_kill").call("axe", "goblin")).has_solution()
 	result_display.text += "%s Can axe one-shot goblin\n\n" % ("✓" if can_kill else "✗")
 
 	# Call function: compute weapon damage
 	result_display.text += "⚔️  damage(sword, orc, D)\n"
-	var damage = prolog.call_function("damage", ["sword", "orc"])
+	var damage_d = prolog.variable("D")
+	var damage_sol = prolog.solve(prolog.predicate("damage").call("sword", "orc", damage_d)).first()
+	var damage = damage_sol.get(damage_d) if damage_sol else null
 	result_display.text += "📊 Damage = %s\n\n" % format_value(damage)
 
 	# Weapon analysis versus a specific enemy
 	result_display.text += "🗡️  Weapon Analysis vs Goblin:\n"
 	result_display.text += "─────────────────────────\n"
 	for weapon in ["sword", "axe", "bow"]:
-		var dmg = prolog.call_function("damage", [weapon, "goblin"])
-		var kills = prolog.call_predicate("one_shot_kill", [weapon, "goblin"])
+		var dmg_var = prolog.variable("D")
+		var dmg_sol = prolog.solve(prolog.predicate("damage").call(weapon, "goblin", dmg_var)).first()
+		var dmg = dmg_sol.get(dmg_var) if dmg_sol else null
+		var kills = prolog.solve(prolog.predicate("one_shot_kill").call(weapon, "goblin")).has_solution()
 		var kill_icon = "💀" if kills else "❌"
 		result_display.text += "  %s %s: %s dmg %s\n" % [
 			kill_icon,
@@ -291,7 +296,7 @@ func execute_pathfinding() -> void:
 	result_display.text += "   From node 'a' to 'f'\n\n"
 	var path_var = prolog.variable("Path")
 	var cost_var = prolog.variable("Cost")
-	var paths = prolog.solve_all(prolog.predicate("path", 4).bind("a", "f", path_var, cost_var))
+	var paths = prolog.solve(prolog.predicate("path").call("a", "f", path_var, cost_var)).all()
 	result_display.text += "📋 Paths found: %d\n\n" % paths.size()
 
 	# Show up to 5 paths (for readability)
@@ -305,7 +310,7 @@ func execute_pathfinding() -> void:
 	var edge_x = prolog.variable("X")
 	var edge_y = prolog.variable("Y")
 	var edge_c = prolog.variable("C")
-	var edges = prolog.solve_all(prolog.predicate("edge", 3).bind(edge_x, edge_y, edge_c))
+	var edges = prolog.solve(prolog.predicate("edge").call(edge_x, edge_y, edge_c)).all()
 	for edge in edges:
 		var formatted = format_solution(edge)
 		result_display.text += "  %s\n" % formatted
@@ -328,7 +333,9 @@ func execute_ai_behavior() -> void:
 
 	# For each scenario, ask Prolog for the action decision
 	for scenario in scenarios:
-		var action = prolog.call_function("decide_action", [scenario["health"], scenario["distance"]])
+		var action_var = prolog.variable("Action")
+		var action_sol = prolog.solve(prolog.predicate("decide_action").call(action_var, scenario["health"], scenario["distance"])).first()
+		var action = action_sol.get(action_var) if action_sol else null
 		var action_str = format_value(action)
 		var action_icon = get_action_icon(action_str)
 

@@ -16,7 +16,7 @@
 - Knowledge base management.
 - Type conversion between Prolog terms and Godot Variants.
 
-You can see **[Use Cases](doc/use-cases.md)** for basic examples and quick start guide.
+Documentation path: **[Getting started](doc/getting-started.md)** → **[Use cases](doc/use-cases.md)** → **[API reference](doc/API.md)**. Prolog veterans: **[Prolog developers](doc/prolog-developers.md)**. Playable object-API demo: **[Mini Dungeon](demos/mini_dungeon/README.md)** (`make run-mini-dungeon`).
 
 ---
 
@@ -24,19 +24,34 @@ You can see **[Use Cases](doc/use-cases.md)** for basic examples and quick start
 
 - **Getting Started**: Follow the **[Installation Guide](doc/installation.md)** to set everything up. The quick way to compile:
 
+### Fedora
+
 ```bash
-# Fedora
-sudo dnf install gcc-c++ make python3-scons pkgconf pl pl-devel
-# Optional: portable static link of libstdc++
-# sudo dnf install libstdc++-static
+sudo dnf install gcc-c++ make python3-scons pkgconf pl pl-devel libstdc++-static
+pip install scons
+```
 
-# Debian / Ubuntu
-# sudo apt-get install g++ make pkg-config swi-prolog swi-prolog-nox
-# pip install scons
+### Debian / Ubuntu
 
+```bash
+sudo apt-get install g++ make pkg-config swi-prolog swi-prolog-nox
+pip install scons
+```
+
+### Prologot compilation
+
+```bash
 git clone https://github.com/Lecrapouille/Prologot.git
 cd Prologot
 make GODOT_CPP=4.5 all
+```
+
+You do not need to pass `-j8` options, the number of cores is found automatically.
+
+- **Mini Dungeon**: A short dungeon crawler whose monster AI is Prolog — **[demos/mini_dungeon](demos/mini_dungeon/README.md)**:
+
+```bash
+make run-mini-dungeon
 ```
 
 - **Try the Demo**: Once built, run the **[Interactive Demo](demos/showcases/README.md)** to see Prologot in action:
@@ -51,9 +66,9 @@ make run-demo
 make run-galactic_customs
 ```
 
-- **Getting started from GDScript**: read **[Getting started](doc/getting-started.md)** (variables, lists, facts, objects). Then fire up the **[Editor Console](doc/editor-console.md)** (`X = bob`, query history). Grab the **[hello_world_prologot.gd](doc/hello_world_prologot.gd)** template and the **[API Reference](doc/API.md)** when you need the details.
+- **Getting started from GDScript**: **[Getting started](doc/getting-started.md)** (concepts → first program → pitfalls). Run **[Mini Dungeon](demos/mini_dungeon/README.md)**, then **[Use cases](doc/use-cases.md)** and **[API reference](doc/API.md)**. Minimal script-only sample: [hello_world_prologot.gd](doc/hello_world_prologot.gd).
 
-- **For Prolog Veterans**: If you're already fluent in Prolog and wondering why we renamed everything, check out the **[Mapping between Prologot and traditional Prolog names](doc/prolog-developers.md)**. We promise it's not just to confuse you.
+- **For Prolog veterans**: **[Note for Prolog developers](doc/prolog-developers.md)** — SWI ↔ Prologot mapping and traps.
 
 ---
 
@@ -75,6 +90,7 @@ Prologot/
 │   ├── prologot_node.gd          # Scene-tree Node (PrologotNode)
 │   └── prolog_knowledge.gd       # Inspectable Resource (PrologKnowledge)
 ├── demos/                        # Demo projects
+│   ├── mini_dungeon/             # Playable dungeon (object API + Prolog AI)
 │   └── showcases/                # Interactive demo project
 │       ├── examples/             # Prolog example files (.pl)
 │       ├── prologot-demos.gd     # Main demo script (UI and logic)

@@ -54,7 +54,7 @@ var aliens_processed: int = 0
 #
 # 2. ALIEN DATABASE (below)
 #    Each alien entry contains facts that will be converted to Prolog facts
-#    at runtime using assert_fact(predicate.bind(...)). The galactic_customs.pl predicates then evaluate these facts.
+#    at runtime using assert_fact(predicate.call(...)). The galactic_customs.pl predicates then evaluate these facts.
 #
 # 3. DAILY MISSIONS (further below)
 #    Each day adds specific rules that use or override the base galactic_customs.pl predicates.
@@ -67,7 +67,7 @@ var aliens_processed: int = 0
 #   threat_level(X, critical) :- has_tentacles(X), has_cargo(X, C), banned_substance(C).
 #   "X has critical threat if X has tentacles AND banned cargo"
 #
-# The game queries these predicates using succeeds(), solve(), and assert_fact().
+# The game queries these predicates using solve().has_solution(), solve(), and assert_fact().
 # =============================================================================
 
 # Alien database with all possible passengers
@@ -390,7 +390,7 @@ func _retract_pred(name: String, arity: int) -> void:
 	var args := []
 	for _i in arity:
 		args.append(prolog.anonymous())
-	prolog.retract_all(prolog.predicate(name, arity).bindv(args))
+	prolog.retract_all(prolog.predicate(name).callv(args))
 
 # =============================================================================
 # Visually displays the current alien
@@ -449,7 +449,7 @@ func scan_alien():
 # =============================================================================
 # PROLOGOT TUTORIAL #5: ASSERT_FACT - ADD DYNAMIC FACTS
 # -----------------------------------------------------------------------------
-# assert_fact(predicate.bind(...)) adds a clause without building a Prolog
+# assert_fact(predicate.call(...)) adds a clause without building a Prolog
 # source string. A String argument is always an atom (zorglub, water, ...).
 # =============================================================================
 func add_alien_facts():
@@ -468,7 +468,7 @@ func add_alien_facts():
 
 
 func _assert_pred(name: String, args: Array) -> void:
-	var goal = prolog.predicate(name, args.size()).bindv(args)
+	var goal = prolog.predicate(name).callv(args)
 	if prolog.assert_fact(goal):
 		log_message("  Added: %s" % goal.as_text())
 	else:
@@ -477,12 +477,12 @@ func _assert_pred(name: String, args: Array) -> void:
 # =============================================================================
 # PROLOGOT TUTORIAL #6: SOLVE - STRUCTURED BOOLEAN GOAL
 # -----------------------------------------------------------------------------
-# succeeds(predicate.bind(...)) tests a ground goal.
+# solve(predicate.call(...)).has_solution() tests a ground goal.
 # Used here to determine if the alien is dangerous.
 # =============================================================================
 func check_alien_status():
 	var alien_name = current_alien.name.to_lower()
-	var is_dangerous = prolog.succeeds(prolog.predicate("dangerous", 1).bind(alien_name))
+	var is_dangerous = prolog.solve(prolog.predicate("dangerous").call(alien_name)).has_solution()
 
 	if is_dangerous:
 		set_alien_color(Color.RED)
@@ -508,29 +508,29 @@ func check_advanced_rules():
 	var alien_name = current_alien.name.to_lower()
 
 	# Check if suspect (from galactic_customs.pl)
-	if prolog.succeeds(prolog.predicate("suspect", 1).bind(alien_name)):
+	if prolog.solve(prolog.predicate("suspect").call(alien_name)).has_solution():
 		log_message("  [WARNING] Alien is SUSPECT (banned cargo or outer planet without visa)")
 
 	# Check threat level (from galactic_customs.pl)
 	var threat_levels = ["critical", "high", "medium", "low"]
 	for level in threat_levels:
-		if prolog.succeeds(prolog.predicate("threat_level", 2).bind(alien_name, level)):
+		if prolog.solve(prolog.predicate("threat_level").call(alien_name, level)).has_solution():
 			log_message("  [THREAT] Threat level: %s" % level.to_upper())
 			break
 
 	# Check quarantine requirement (from galactic_customs.pl)
-	if prolog.succeeds(prolog.predicate("requires_quarantine", 1).bind(alien_name)):
+	if prolog.solve(prolog.predicate("requires_quarantine").call(alien_name)).has_solution():
 		log_message("  [QUARANTINE] Quarantine required (Europa origin or gaseous species)")
 
 	# Check criminal record (from galactic_customs.pl)
-	if prolog.succeeds(prolog.predicate("has_record", 1).bind(alien_name)):
+	if prolog.solve(prolog.predicate("has_record").call(alien_name)).has_solution():
 		log_message("  [CRIMINAL] Has criminal record!")
 
 # =============================================================================
-# PROLOGOT TUTORIAL #7: PREDICATE_EXISTS and CALL_FUNCTION with galactic_customs.pl
+# PROLOGOT TUTORIAL #7: PREDICATE_EXISTS and SOLVE().FIRST()
 # -----------------------------------------------------------------------------
 # - predicate_exists(name, arity): does a predicate exist?
-# - call_function(name, [args]): calls a predicate and returns a value
+# - solve(predicate.call(...)).first(): first PrologSolution, or null
 # Pattern: check existence before calling to avoid errors.
 #
 # Now uses calculate_total_tax/2 from galactic_customs.pl which sums all taxable cargo.
@@ -538,37 +538,41 @@ func check_advanced_rules():
 func check_taxes():
 	var alien_name = current_alien.name.to_lower()
 
-	# Try the comprehensive tax calculation from galactic_customs.pl
 	if prolog.predicate_exists("calculate_total_tax", 2):
-		var total_tax = prolog.call_function("calculate_total_tax", [alien_name])
-		if total_tax != null and total_tax > 0:
-			log_message("  [TAX] Total amount: %s credits" % str(total_tax))
+		var tax_var = prolog.variable("Tax")
+		var tax_sol = prolog.solve(prolog.predicate("calculate_total_tax").call(alien_name, tax_var)).first()
+		if tax_sol != null:
+			var total_tax = tax_sol.get(tax_var)
+			if total_tax != null and total_tax > 0:
+				log_message("  [TAX] Total amount: %s credits" % str(total_tax))
 
-	# Fallback to simple calculate_tax if defined in daily rules
 	elif prolog.predicate_exists("calculate_tax", 2):
-		var tax = prolog.call_function("calculate_tax", [alien_name])
-		if tax != null:
-			log_message("  [TAX] Amount: %s credits" % str(tax))
+		var tax_var = prolog.variable("Tax")
+		var tax_sol = prolog.solve(prolog.predicate("calculate_tax").call(alien_name, tax_var)).first()
+		if tax_sol != null:
+			var tax = tax_sol.get(tax_var)
+			if tax != null:
+				log_message("  [TAX] Amount: %s credits" % str(tax))
 
 # =============================================================================
 # PROLOGOT TUTORIAL #8: SOLVE - ALL SOLUTIONS
 # -----------------------------------------------------------------------------
-# solve(has_cargo.bind(name, item)) returns an Array of PrologSolution.
-# Read a binding with solution.get(variable). Used here to list cargo.
+# solve(has_cargo.call(name, item)) returns a PrologQuery.
+# Iterate it, or use all(). Read a binding with solution.get(variable).
 # =============================================================================
 func list_cargo():
 	var alien_name = current_alien.name.to_lower()
-	var cargo_item = prolog.variable()
-	var all_cargo = prolog.solve(prolog.predicate("has_cargo", 2).bind(alien_name, cargo_item))
-	log_message("  [CARGO] Items detected: %d" % all_cargo.size())
+	var cargo_item = prolog.variable("Item")
+	var all_cargo = prolog.solve(prolog.predicate("has_cargo").call(alien_name, cargo_item))
+	log_message("  [CARGO] Items detected: %d" % all_cargo.all().size())
 	for solution in all_cargo:
 		log_message("    - %s" % str(solution.get(cargo_item)))
 
 # =============================================================================
-# PROLOGOT TUTORIAL #9: SUCCEEDS - CHECK A GROUND GOAL
+# PROLOGOT TUTORIAL #9: HAS_SOLUTION - CHECK A GROUND GOAL
 # -----------------------------------------------------------------------------
-# succeeds(predicate.bind(...)) is the boolean test (if []: is true in GDScript,
-# so do not use solve() as a yes/no check).
+# solve(predicate.call(...)).has_solution() is the boolean test.
+# A PrologQuery is always truthy, so do not write if prolog.solve(goal):.
 # =============================================================================
 func make_decision(is_approve: bool):
 	if processing:
@@ -576,8 +580,8 @@ func make_decision(is_approve: bool):
 	processing = true
 
 	var alien_name = current_alien.name.to_lower()
-	var is_authorized = prolog.succeeds(prolog.predicate("authorize", 1).bind(alien_name))
-	var is_dangerous = prolog.succeeds(prolog.predicate("dangerous", 1).bind(alien_name))
+	var is_authorized = prolog.solve(prolog.predicate("authorize").call(alien_name)).has_solution()
+	var is_dangerous = prolog.solve(prolog.predicate("dangerous").call(alien_name)).has_solution()
 
 	if is_approve:
 		handle_approval(is_authorized)

@@ -1,4 +1,5 @@
-# This demonstrates the basic usage of Prologot in a Godot project.
+# Minimal script-only sample. For a runnable scene with nodes, see:
+#   demos/mini_dungeon/  (make run-mini-dungeon)
 
 extends Node
 
@@ -20,19 +21,19 @@ func _ready():
 		grandparent(X, Z) :- parent(X, Y), parent(Y, Z).
 	""")
 
-	var parent = prolog.predicate("parent", 2)
-	var grandparent = prolog.predicate("grandparent", 2)
+	var parent = prolog.predicate("parent")
+	var grandparent = prolog.predicate("grandparent")
 	var child = prolog.variable("Child")
 	var ancestor = prolog.variable("Ancestor")
 
-	if prolog.succeeds(grandparent.bind("tom", "ann")):
+	if prolog.solve(grandparent.call("tom", "ann")).has_solution():
 		print("Tom is Ann's grandparent!")
 
-	for solution in prolog.solve(parent.bind(ancestor, child)):
+	for solution in prolog.solve(parent.call(ancestor, child)):
 		print("Parent: ", solution.get(ancestor), " -> ", solution.get(child))
 
 	var via = prolog.variable("Via")
-	if prolog.succeeds(parent.bind("tom", via).conjunction(parent.bind(via, "ann"))):
+	if prolog.solve(parent.call("tom", via).conjunction(parent.call(via, "ann"))).has_solution():
 		print("Tom is Ann's grandparent via a conjunction")
 
 func _exit_tree():

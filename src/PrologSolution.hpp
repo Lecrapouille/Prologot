@@ -5,9 +5,9 @@
  * Prologot - SWI-Prolog integration for Godot 4
  *
  * This file defines PrologSolution: one set of variable bindings from
- * solve() / solve_all() / solve_one(). GDScript cannot use solution[child]
- * via _get (keys are StringName only); use get(variable) / has(variable)
- * or the Dictionary returned by get_bindings().
+ * solve(). GDScript cannot use solution[child] via _get (keys are
+ * StringName only); use get(variable) / has(variable) or the Dictionary
+ * returned by get_bindings().
  */
 
 #pragma once
@@ -30,9 +30,9 @@ using namespace godot;
  * Array; compounds stay as PrologTerm or the existing Dictionary form.
  *
  * @example
- * var parent = prolog.predicate("parent", 2)
- * var child = prolog.variable()
- * for solution in prolog.solve(parent.bind("tom", child)):
+ * var parent = prolog.predicate("parent")
+ * var child = prolog.variable("Child")
+ * for solution in prolog.solve(parent.call("tom", child)):
  *     if solution.has(child):
  *         print(solution.get(child))
  *     print(solution.get_bindings()[child])
@@ -84,12 +84,12 @@ public:
      *
      * Object-key indexing (solution[child]) does not work via _get.
      *
-     * @param p_variable The same object passed to bind().
+     * @param p_variable The same object passed to call().
      * @return The bound Variant, or a null Variant.
      *
      * @example
-     * var child = prolog.variable()
-     * var solution = prolog.solve_one(parent.bind("tom", child))
+     * var child = prolog.variable("Child")
+     * var solution = prolog.solve(parent.call("tom", child)).first()
      * print(solution.get(child))  # bob
      */
     Variant get(Ref<PrologVariable> const& p_variable) const;
@@ -97,7 +97,7 @@ public:
     /**
      * @brief Returns true if p_variable has a binding in this solution.
      *
-     * @param p_variable The same object passed to bind().
+     * @param p_variable The same object passed to call().
      * @return true if get() would return a stored value.
      *
      * @example

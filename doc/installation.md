@@ -69,6 +69,7 @@ The simplest way to build the project is using the **Makefile**, which directly 
 | `make release` | Compile the extension in release mode and set up demo and test projects. |
 | `make all` | Build both debug and release versions and set up demo and test projects. |
 | `make run-demo` | Run the demo project in Godot. |
+| `make run-mini-dungeon` | Run the Mini Dungeon game in Godot. |
 | `make run-galactic` | Run the demo game in Godot. |
 
 **Notes:**

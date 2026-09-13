@@ -139,23 +139,14 @@ func variable(name: String = ""):
 func anonymous():
 	return engine.anonymous() if engine else null
 
-func predicate(name: String, arity: int):
-	return engine.predicate(name, arity) if engine else null
+func predicate(name: String):
+	return engine.predicate(name) if engine else null
 
 func object(value):
 	return engine.object(value) if engine else null
 
-func succeeds(goal) -> bool:
-	return engine.succeeds(goal) if engine else false
-
-func solve(goal) -> Array:
-	return engine.solve(goal) if engine else []
-
-func solve_all(goal) -> Array:
-	return engine.solve_all(goal) if engine else []
-
-func solve_one(goal) -> Variant:
-	return engine.solve_one(goal) if engine else null
+func solve(goal):
+	return engine.solve(goal) if engine else null
 
 func consult_file(path: String) -> bool:
 	return engine.consult_file(path) if engine else false

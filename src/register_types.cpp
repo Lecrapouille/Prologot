@@ -13,6 +13,7 @@
 #include "PrologGoal.hpp"
 #include "PrologObject.hpp"
 #include "PrologPredicate.hpp"
+#include "PrologQuery.hpp"
 #include "PrologSolution.hpp"
 #include "PrologTerm.hpp"
 #include "PrologVariable.hpp"
@@ -46,6 +47,7 @@ void initialize_prologot_module(ModuleInitializationLevel p_level)
     ClassDB::register_class<PrologVariable>();
     ClassDB::register_class<PrologGoal>();
     ClassDB::register_class<PrologPredicate>();
+    ClassDB::register_class<PrologQuery>();
     ClassDB::register_class<PrologSolution>();
     ClassDB::register_class<PrologObject>();
     ClassDB::register_class<Prologot>();

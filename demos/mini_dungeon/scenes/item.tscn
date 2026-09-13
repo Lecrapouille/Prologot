@@ -1,0 +1,14 @@
+[gd_scene load_steps=3 format=3 uid="uid://md_item"]
+
+[ext_resource type="Script" path="res://scripts/pickup.gd" id="1_script"]
+[ext_resource type="Script" path="res://ui/procedural_actor.gd" id="2_visual"]
+
+[node name="Item" type="Area2D"]
+collision_layer = 0
+collision_mask = 1
+script = ExtResource("1_script")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+
+[node name="Visual" type="Node2D" parent="."]
+script = ExtResource("2_visual")

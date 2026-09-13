@@ -114,19 +114,6 @@ Variant unwrap_godot_arg(Variant const& p_value)
     return p_value;
 }
 
-String anonymous_pattern(String const& p_predicate, int p_arity)
-{
-    String pattern = p_predicate + String("(");
-    for (int i = 0; i < p_arity; ++i)
-    {
-        if (i > 0)
-            pattern += String(", ");
-        pattern += String("_");
-    }
-    pattern += String(")");
-    return pattern;
-}
-
 bool class_has_named_property(String const& p_class, String const& p_property)
 {
     ClassDBSingleton* cdb = ClassDBSingleton::get_singleton();
@@ -400,7 +387,10 @@ bool Prologot::unexpose(String const& p_predicate, int p_arity)
         }
     }
 
-    retract_all(anonymous_pattern(p_predicate, p_arity));
+    Array args;
+    for (int i = 0; i < p_arity; ++i)
+        args.push_back(PrologVariable::create_anonymous());
+    retract_all(PrologGoal::from_compound(p_predicate, args));
     return found || predicate_exists(p_predicate, p_arity);
 }
 
