@@ -9,6 +9,7 @@
 
 #include "Prologot.hpp"
 #include <cstring>
+#include <deque>
 #include <map>
 #include <string>
 #include <vector>
@@ -185,9 +186,10 @@ bool Prologot::initialize(Dictionary const& p_options)
                    ". I will try to use the default one.");
     }
 
-    // Build argv for PL_initialise
-    // Note: Use std::string storage to keep char* pointers valid
-    std::vector<std::string> string_storage;
+    // Build argv for PL_initialise.
+    // deque (not vector): push_back must not reallocate/move existing strings,
+    // otherwise the c_str() pointers already stored in argv_list dangle (SSO).
+    std::deque<std::string> string_storage;
     std::vector<const char*> argv_list;
     argv_list.push_back("godot");
 
