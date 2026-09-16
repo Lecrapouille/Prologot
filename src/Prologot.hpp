@@ -36,8 +36,10 @@ namespace prologot
  * SWI-Prolog is process-global: PL_initialise / PL_cleanup run once per
  * process. Each Prologot is a handle to that shared engine. Typical flow:
  * initialize(), consult_file() / consult_string(), build a PrologGoal with
- * predicate().call(), then solve(). A PrologQuery is always truthy in
- * GDScript — use has_solution() for a yes/no test.
+ * predicate().call(), then solve(). solve() is lazy: answers are pulled
+ * on demand (has_solution / first / for / all). A PrologQuery is always
+ * truthy in GDScript — use has_solution() for a yes/no test. Full
+ * reading API: PrologQuery and solve() below.
  *
  * @example
  * var p = Prologot.new()
@@ -52,6 +54,8 @@ namespace prologot
  *     print("true")
  * for solution in p.solve(parent.call("tom", child)):
  *     print(solution.get(child))
+ *     if solution.get(child) == "bob":
+ *         break
  * p.cleanup()
  */
 class Prologot: public godot::RefCounted
@@ -435,26 +439,60 @@ public:
     // =========================================================================
 
     /**
-     * @brief Solves a PrologGoal and returns a PrologQuery.
+     * @brief Opens a lazy query for p_goal and returns a PrologQuery.
+     *
+     * Does **not** collect every answer up front. The SWI query
+     * (`PL_open_query`) stays open; each `has_solution()` / `first()` /
+     * `for` step pulls at most one more `PL_next_solution`. Destroying
+     * the PrologQuery (end of a `for`, or a temporary going out of
+     * scope) cuts leftover choice points.
      *
      * Strings passed to PrologPredicate.call() are atoms; only
      * PrologVariable objects are variables. A PrologQuery is always
      * truthy in GDScript — use has_solution() for a yes/no test.
      *
-     * @param p_goal Goal from predicate.call() or conjunction / disjunction /
-     * negated().
+     * Reading API (see PrologQuery for the full write-up):
+     *
+     * - has_solution() — yes / no; at most one pull, then cut.
+     * - first() — one PrologSolution or null; at most one pull, then cut.
+     * - `for sol in query:` — one PrologSolution per turn; `break` cuts
+     *   Prolog. GDScript does not unpack `for via, child in query`.
+     * - all() — Array of every PrologSolution (drains what remains).
+     * - There is no query.values(). Use all() + sol.get(var). A matrix
+     *   (one row per solution) is a GDScript wrapper, not this method.
+     *
+     * Call from the same thread that called initialize(). Do not
+     * cleanup() this handle while the returned query is still open.
+     *
+     * @param p_goal Goal from predicate.call() or conjunction /
+     * disjunction / negated().
+     * @param p_max_solutions 0 = unlimited. Otherwise stop after this
+     * many answers (also applies to all() / a `for` without break).
+     * Even when lazy, all() or an unbounded `for` on an infinite goal
+     * (`between(1, inf, N)`) will not return.
      * @return A PrologQuery (never null; check has_solution()).
      *
      * @example
      * var parent = prolog.predicate("parent")
      * var child = prolog.variable("Child")
+     * var via = prolog.variable("Via")
      * if prolog.solve(parent.call("tom", "bob")).has_solution():
      *     print("true")
-     * for solution in prolog.solve(parent.call("tom", child)):
-     *     print(solution.get(child))
-     * var first = prolog.solve(parent.call("tom", child)).first()
+     * var sol = prolog.solve(parent.call("tom", child)).first()
+     * if sol != null:
+     *     print(sol.get(child))   # bob
+     * for sol in prolog.solve(parent.call("tom", child)):
+     *     print(sol.get(child))   # bob, then liz
+     *     if sol.get(child) == "bob":
+     *         break
+     * for sol in prolog.solve(parent.call("tom", via).conjunction(
+     *         parent.call(via, child))):
+     *     print(sol.get(via), "->", sol.get(child))
+     * print(prolog.solve(parent.call("tom", child)).all().size())  # 2
+     * prolog.solve(between.call(1, 1000000, n), 5).all()
      */
-    godot::Ref<PrologQuery> solve(godot::Ref<PrologGoal> const& p_goal);
+    godot::Ref<PrologQuery> solve(godot::Ref<PrologGoal> const& p_goal,
+                                  int64_t p_max_solutions = 0);
 
     /**
      * @brief Gets the last error message from Prolog.
@@ -690,10 +728,7 @@ private:
      */
     static godot::String resolve_godot_path(godot::String const& p_path);
 
-    /**
-     * @brief Eagerly collects every PrologSolution for p_goal (used by solve()).
-     */
-    godot::Array collect_goal_solutions(godot::Ref<PrologGoal> const& p_goal);
+    friend class PrologQuery;
 
     /**
      * @brief Calls a unary built-in (assertz, retract, retractall) on a goal.

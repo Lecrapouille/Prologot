@@ -672,7 +672,7 @@ func test_lists_atoms_and_variants() -> void:
 
 	var nest_var := prolog.variable("T")
 	var nest8: PrologSolution = prolog.solve(goal("nest", [8, nest_var])).first()
-	var walked := nest8.get(nest_var)
+	var walked: Variant = nest8.get(nest_var)
 	for _i in 8:
 		assert_true(walked is Array and walked.size() == 1, "depth-8 nest is a chain of singleton arrays")
 		walked = walked[0]
@@ -972,6 +972,24 @@ func test_solve_prolog_goal() -> void:
 	assert_equal(chained.size(), 1, "conjunction finds tom -> bob -> ann")
 	assert_equal(chained[0].get(child), "bob", "shared variable stays bound across the conjunction")
 	assert_equal(chained[0].get(grandchild), "ann", "second variable is bound")
+
+	var n := prolog.variable("N")
+	var between := prolog.predicate("between")
+	var first_n: PrologSolution = prolog.solve(between.call(1, 1000000, n)).first()
+	assert_true(first_n != null, "first() on a huge domain returns")
+	assert_equal(first_n.get(n), 1, "first() pulls only the first between/3 answer")
+
+	var seen := 0
+	for sol in prolog.solve(between.call(1, 1000000, n)):
+		seen += 1
+		if seen == 3:
+			break
+	assert_equal(seen, 3, "break stops after three pulls")
+
+	var capped := prolog.solve(between.call(1, 1000000, n), 5).all()
+	assert_equal(capped.size(), 5, "solve(goal, 5) caps all()")
+	assert_equal(capped[0].get(n), 1, "capped first value is 1")
+	assert_equal(capped[4].get(n), 5, "capped last value is 5")
 
 	teardown_prolog()
 

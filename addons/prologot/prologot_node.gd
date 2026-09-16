@@ -145,8 +145,8 @@ func predicate(name: String):
 func object(value):
 	return engine.object(value) if engine else null
 
-func solve(goal):
-	return engine.solve(goal) if engine else null
+func solve(goal, max_solutions: int = 0):
+	return engine.solve(goal, max_solutions) if engine else null
 
 func consult_file(path: String) -> bool:
 	return engine.consult_file(path) if engine else false

@@ -1,6 +1,6 @@
 # Use cases
 
-Recipes for **applying** Prologot in a game. This page assumes you have read [Getting started](getting-started.md) §1–§7 (pipeline, variables, `has_solution()`).
+Recipes for **applying** Prologot in a game. This page assumes you have read [Getting started](getting-started.md) §1–§7 (pipeline, variables, lazy `solve()`).
 
 | Level | Document |
 |-------|----------|
@@ -18,8 +18,8 @@ Every example follows the same shape:
 
 1. **Load** — `consult_file` / `consult_string` (Prolog rules).
 2. **Build** — `predicate(...).call(...)` (GDScript goal).
-3. **Solve** — `solve(...).has_solution()` / `first()` / `for … in`.
-4. **Act** — use bindings in your game code.
+3. **Solve** — `has_solution()` / `first()` / `for … in` / `all()` (see [Getting started §4](getting-started.md#4-the-query-pipeline-and-solve)).
+4. **Act** — use bindings in your game code (`sol.get(var)`).
 
 Examples use the `PrologotEngine` autoload when the plugin is enabled. Replace with a local `Prologot.new()` instance if you prefer — the API is identical.
 

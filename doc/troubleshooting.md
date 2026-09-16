@@ -99,8 +99,10 @@ A `PrologQuery` is always truthy. Use `solve(goal).has_solution()` for a yes/no 
        "table space": "128m",  # Limit table space
        "optimized": true       # Enable optimizations
 ```
-3. Consider using `solve(goal).first()` if you only need the first solution.
+3. `solve()` is lazy: `first()` pulls one answer, `for` + `break` cuts the rest, `solve(goal, n)` caps the stream. Prefer those over `all()` on a huge or infinite domain (`between(1, inf, N)`).
 4. Use `retract_all()` to clean up unused facts.
+
+Do not `cleanup()` the Prologot handle while a `PrologQuery` from `solve()` is still open (a `for` in progress). `has_solution()` / `first()` already cut remaining choice points so a temporary `solve(g).has_solution()` is safe.
 
 ---
 

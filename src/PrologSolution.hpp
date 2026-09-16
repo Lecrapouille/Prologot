@@ -123,6 +123,10 @@ public:
     /**
      * @brief Returns the bound values only (no variable keys).
      *
+     * Flat list for this one solution, in the order variables appeared
+     * in the goal. Not a matrix of all answers — that is a user wrapper
+     * over PrologQuery.all() + get(). Prefer get(variable) in new code.
+     *
      * @example
      * print(solution.values())  # ["bob"]
      */

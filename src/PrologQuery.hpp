@@ -4,42 +4,112 @@
  *
  * Prologot - SWI-Prolog integration for Godot 4
  *
- * This file defines PrologQuery: the result of Prologot.solve().
- * GDScript objects are always truthy, so use has_solution() instead of
- * `if query:`. Iterate the query, or call first() / all().
+ * This file defines PrologQuery: the lazy result of Prologot.solve().
+ * See the class comment below for the full GDScript reading API
+ * (has_solution / first / for / all). There is no query.values().
  */
 
 #pragma once
 
+#include "PrologGoal.hpp"
 #include "PrologSolution.hpp"
+#include <cstdint>
 #include <godot_cpp/classes/ref_counted.hpp>
 #include <godot_cpp/variant/array.hpp>
 #include <godot_cpp/variant/variant.hpp>
+#include <memory>
 
 namespace prologot
 {
 
+class Prologot;
+
 /**
  * @class PrologQuery
- * @brief Eager collection of PrologSolution values returned by solve().
+ * @brief Lazy stream of PrologSolution values returned by solve().
  *
- * Solutions are collected immediately (no open SWI query). A PrologQuery
- * is a RefCounted object, so `if prolog.solve(goal):` is always true.
- * Use has_solution() for a yes/no test, first() for one answer, or
- * iterate / all() for every answer.
+ * solve() opens an SWI query (`PL_open_query` + foreign frame). Each
+ * later call pulls at most one more answer with `PL_next_solution`.
+ * Nothing is collected up front: `first()` is a real solve-one, and a
+ * `break` in GDScript plus destroying this object cuts remaining Prolog
+ * choice points (`PL_cut_query`). An infinite goal such as
+ * `between(1, inf, N)` therefore does not block before the first
+ * `get()`.
  *
- * @example
- * var parent = prolog.predicate("parent")
- * var child = prolog.variable("Child")
- * var query = prolog.solve(parent.call("tom", child))
+ * # How to read answers (GDScript)
  *
- * if query.has_solution():
- *     print(query.first().get(child))  # bob
+ * Several **solutions** = several `PrologSolution` objects (`for` /
+ * `all()` / `first()`). Several **variables of one** solution stay on
+ * that object: `sol.get(foo)` then `sol.get(bar)`. There is no
+ * `get(foo, bar)`. GDScript cannot write `for via, child in query`.
+ * There is no `query.values()` — use `all()` + `sol.get(var)`, or a
+ * small wrapper if you want a matrix (one row per solution).
  *
- * for solution in query:
- *     print(solution.get(child))       # bob, then liz
+ * Knowledge used in the examples:
  *
- * print(query.all().size())            # 2
+ *     parent(tom, bob). parent(tom, liz). parent(bob, ann).
+ *
+ *     var parent = prolog.predicate("parent")
+ *     var child = prolog.variable("Child")
+ *     var via = prolog.variable("Via")
+ *
+ * ## has_solution() — yes / no (at most one pull, then cut)
+ *
+ *     if prolog.solve(parent.call("tom", "bob")).has_solution():
+ *         print("true")
+ *
+ * A ground goal that holds still yields one (empty) PrologSolution, so
+ * this is true. The remaining choice points are cut so a temporary
+ * `solve(g).has_solution()` does not keep Prolog open until the caller
+ * returns. After this call, `all()` / `for` on the **same** object only
+ * see the cached first answer. Open a new `solve()` to search again.
+ *
+ * ## first() — one PrologSolution or null (at most one pull, then cut)
+ *
+ *     var sol = prolog.solve(parent.call("tom", child)).first()
+ *     if sol != null:
+ *         print(sol.get(child))   # bob
+ *
+ * Same cut as has_solution(). Use `for` / `all()` when you need every
+ * answer.
+ *
+ * ## for (`_iter_*`) — one solution per turn; break cuts Prolog
+ *
+ *     for sol in prolog.solve(parent.call("tom", child)):
+ *         print(sol.get(child))   # bob, then liz
+ *         if sol.get(child) == "bob":
+ *             break               # remaining answers are not computed
+ *
+ * Two variables: still one `sol` per turn.
+ *
+ *     for sol in prolog.solve(parent.call("tom", via).conjunction(
+ *             parent.call(via, child))):
+ *         print(sol.get(via), "->", sol.get(child))   # bob -> ann
+ *
+ * `_iter_init` is a single pass from the start of the cache. Relooping
+ * `for` on the same query replays solutions already pulled; it does not
+ * reopen Prolog. After a `break`, `all()` continues and pulls the rest.
+ *
+ * ## all() — Array of every PrologSolution (drains what remains)
+ *
+ *     var sols = prolog.solve(parent.call("tom", child)).all()
+ *     print(sols.size())             # 2
+ *     print(sols[0].get(child))      # bob
+ *
+ * ## Optional cap
+ *
+ *     prolog.solve(between.call(1, 1000000, n), 5).all()   # 5, not 1e6
+ *
+ * `max_solutions` of `0` (default) means unlimited. Even when lazy,
+ * `all()` or a `for` without `break` on an infinite goal will not
+ * return.
+ *
+ * ## Constraints
+ *
+ * Call from the same thread that initialized the engine. Do not
+ * `cleanup()` the Prologot handle while a query is still open. A
+ * PrologQuery is RefCounted, so `if prolog.solve(goal):` is always
+ * true — use has_solution().
  */
 class PrologQuery: public godot::RefCounted
 {
@@ -48,21 +118,21 @@ class PrologQuery: public godot::RefCounted
 public:
 
     /**
-     * @brief Constructs an empty query (no solutions).
+     * @brief Constructs an empty query (no solutions, no open SWI query).
      *
      * Prefer Prologot.solve() from GDScript. Tests may use create().
      */
-    PrologQuery() = default;
+    PrologQuery();
 
     /**
-     * @brief Destructs the query. RefCounted releases it automatically.
+     * @brief Cuts or closes an open SWI query, then releases the frame.
      */
-    ~PrologQuery() override = default;
+    ~PrologQuery() override;
 
     /**
-     * @brief Wraps an Array of PrologSolution as a query.
+     * @brief Wraps an Array of PrologSolution as a finished query.
      *
-     * Used by Prologot.solve() after collect_goal_solutions().
+     * Used by tests. Game code uses Prologot.solve().
      *
      * @param p_solutions Solutions in the order Prolog produced them.
      * @return A new PrologQuery (empty if p_solutions is empty).
@@ -70,97 +140,121 @@ public:
     static godot::Ref<PrologQuery> create(godot::Array const& p_solutions = godot::Array());
 
     /**
+     * @brief Opens an SWI query for p_goal (used by Prologot.solve()).
+     *
+     * @param p_engine Engine that compiled the goal (for errors).
+     * @param p_goal Goal to prove.
+     * @param p_max_solutions 0 = unlimited; otherwise stop after this many.
+     * @return A PrologQuery (never null; may have no solutions).
+     */
+    static godot::Ref<PrologQuery> open(Prologot* p_engine,
+                                        godot::Ref<PrologGoal> const& p_goal,
+                                        int64_t p_max_solutions = 0);
+
+    /**
+     * @brief Cuts every still-open SWI query (last-handle knowledge wipe).
+     */
+    static void abandon_all_open();
+
+    /**
      * @brief Returns true if the query produced at least one solution.
      *
-     * Replaces the former succeeds() API. A ground goal that holds
-     * yields one empty PrologSolution, so this is still true.
+     * Pulls at most one `PL_next_solution`, then cuts remaining choice
+     * points. A temporary `solve(g).has_solution()` therefore does not
+     * keep a query open until the GDScript function ends. A ground goal
+     * that holds yields one empty PrologSolution, so this is still true.
      *
-     * @return true if all() is not empty.
+     * After this call, further iteration on **this** object only sees
+     * the cached first answer. Open a new solve() to search again.
      *
      * @example
-     * var parent = prolog.predicate("parent")
      * if prolog.solve(parent.call("tom", "bob")).has_solution():
-     *     print("tom is a parent of bob")
-     * if not prolog.solve(parent.call("bob", "tom")).has_solution():
-     *     print("the reverse fact is missing")
+     *     print("true")
      */
-    bool has_solution() const;
+    bool has_solution();
 
     /**
      * @brief Returns the first PrologSolution, or null if there is none.
      *
-     * Replaces the former solve_one() API. Later solutions are still
-     * available via iteration or all().
-     *
-     * @return The first PrologSolution, or a null Variant.
+     * Pulls at most one solution, then cuts remaining choice points
+     * (same as has_solution()). This is a real solve-one: later answers
+     * are not computed. Use `for` / `all()` when you need every answer.
      *
      * @example
-     * var parent = prolog.predicate("parent")
-     * var child = prolog.variable("Child")
-     * var solution = prolog.solve(parent.call("tom", child)).first()
-     * if solution != null:
-     *     print(solution.get(child))  # bob
+     * var sol = prolog.solve(parent.call("tom", child)).first()
+     * if sol != null:
+     *     print(sol.get(child))   # bob
      */
-    godot::Variant first() const;
+    godot::Variant first();
 
     /**
-     * @brief Returns every PrologSolution as a Godot Array.
+     * @brief Drains remaining solutions and returns every PrologSolution.
      *
-     * Prefer `for solution in query:` when you only need to walk the
-     * answers. Use all() when you need the size or random access.
+     * Already-pulled answers stay at the front of the array. After a
+     * `break` in `for`, this continues and pulls the rest. After
+     * has_solution() / first(), only the cached first answer remains
+     * (those methods cut). Prefer `for` when you may stop early.
+     *
+     * There is no `query.values()`. Read columns with `sol.get(var)`.
      *
      * @return Array of PrologSolution (empty if the goal failed).
      *
      * @example
-     * var parent = prolog.predicate("parent")
-     * var child = prolog.variable("Child")
-     * var solutions = prolog.solve(parent.call("tom", child)).all()
-     * print(solutions.size())            # 2
-     * print(solutions[0].get(child))     # bob
+     * var sols = prolog.solve(parent.call("tom", child)).all()
+     * print(sols.size())             # 2
+     * print(sols[0].get(child))      # bob
      */
-    godot::Array all() const;
+    godot::Array all();
 
     /**
      * @brief Starts a GDScript `for` loop over the solutions.
      *
-     * Bound as `_iter_init`. Resets the cursor to the first solution.
-     *
-     * @param p_iter Unused iterator state (Godot protocol).
-     * @return true if there is at least one solution.
+     * Bound as `_iter_init`. Pulls the first answer if the cache is
+     * empty. Relooping the same query replays the cache from index 0
+     * and does not reopen Prolog. A `break` leaves the query open so
+     * `all()` can still drain the rest; destroying the query cuts
+     * leftover choice points.
      *
      * @example
-     * for solution in prolog.solve(parent.call("tom", child)):
-     *     print(solution.get(child))
+     * for sol in prolog.solve(parent.call("tom", child)):
+     *     print(sol.get(child))
+     *     if sol.get(child) == "bob":
+     *         break
      */
     bool _iter_init(godot::Variant const& p_iter);
 
     /**
-     * @brief Advances a GDScript `for` loop to the next solution.
+     * @brief Advances a GDScript `for` loop, pulling the next solution.
      *
-     * @param p_iter Unused iterator state (Godot protocol).
-     * @return true if another solution remains.
+     * Bound as `_iter_next`. Returns false when there is no further
+     * answer (or the optional max_solutions cap is reached).
      */
     bool _iter_next(godot::Variant const& p_iter);
 
     /**
-     * @brief Returns the current solution during a GDScript `for` loop.
+     * @brief Returns the current PrologSolution during a GDScript `for`.
      *
-     * @param p_iter Unused iterator state (Godot protocol).
-     * @return The current PrologSolution, or null if the cursor is past the end.
+     * Bound as `_iter_get`. One object per turn; read each variable
+     * with `sol.get(var)`.
      */
     godot::Variant _iter_get(godot::Variant const& p_iter);
 
 protected:
 
-    /**
-     * @brief Binds has_solution / first / all and the `_iter_*` protocol.
-     */
     static void _bind_methods();
 
 private:
 
+    struct State;
+
+    void close_query(bool p_cut_remaining);
+    bool pull_one();
+    bool ensure_count(int p_count);
+
+    std::unique_ptr<State> m_state;
     godot::Array m_solutions;
     int m_iter_index = 0;
+    int64_t m_max_solutions = 0;
 };
 
 } // namespace prologot

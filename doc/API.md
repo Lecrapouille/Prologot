@@ -67,6 +67,8 @@ flowchart LR
 |-------|------|
 | Goals | `predicate(name).call(...)` — not string queries |
 | Success test | `solve(goal).has_solution()` — not `if solve(goal):` |
+| Reading answers | `first()` / `for` / `all()` + `sol.get(var)` — no `query.values()` |
+| Huge / infinite domains | `first()`, `break`, or `solve(goal, n)` — not unbounded `all()` |
 | Variables | `variable()` / `anonymous()` — not `"X"` strings |
 | Bindings | `solution.get(var_object)` — not `solution["X"]` |
 | Arity | From `call()` argument count, not `predicate(name, n)` |
@@ -160,17 +162,92 @@ Optional explicit terms. Most queries pass plain Variants to `call()` directly.
 
 ### Query execution
 
-#### `solve(goal: PrologGoal) -> PrologQuery`
+#### `solve(goal: PrologGoal, max_solutions: int = 0) -> PrologQuery`
 
-Solves `goal` eagerly (all solutions collected). Returns a non-null `PrologQuery`; check `.has_solution()`.
+Opens a lazy SWI query (`PL_open_query`) and returns a non-null `PrologQuery`. Answers are **not** collected up front: each later call pulls at most one `PL_next_solution`. `max_solutions` of `0` means unlimited.
+
+Knowledge used in the examples:
+
+```text
+parent(tom, bob). parent(tom, liz). parent(bob, ann).
+```
 
 ```gdscript
-var q = prolog.solve(parent.call("tom", child))
-q.has_solution()
-q.first()           # PrologSolution or null
-q.all()             # Array of PrologSolution
-for s in q: ...     # iteration protocol
+var parent = prolog.predicate("parent")
+var child = prolog.variable("Child")
+var via = prolog.variable("Via")
 ```
+
+**`has_solution()` — yes / no (at most one pull, then cut)**
+
+```gdscript
+if prolog.solve(parent.call("tom", "bob")).has_solution():
+    print("true")
+```
+
+A ground goal that holds still yields one empty `PrologSolution`. Remaining choice points are cut so a temporary `solve(g).has_solution()` does not keep Prolog open until the caller returns. After this, `all()` / `for` on the **same** object only see that first cached answer.
+
+**`first()` — one `PrologSolution` or `null` (at most one pull, then cut)**
+
+```gdscript
+var sol = prolog.solve(parent.call("tom", child)).first()
+if sol != null:
+    print(sol.get(child))   # bob
+```
+
+This is a real solve-one. Use `for` / `all()` for every answer.
+
+**`for` — one solution per turn; `break` cuts Prolog**
+
+```gdscript
+for sol in prolog.solve(parent.call("tom", child)):
+    print(sol.get(child))   # bob, then liz
+    if sol.get(child) == "bob":
+        break               # remaining answers are not computed
+```
+
+GDScript cannot write `for via, child in query`. Two variables still mean one `sol` per turn:
+
+```gdscript
+for sol in prolog.solve(parent.call("tom", via).conjunction(parent.call(via, child))):
+    print(sol.get(via), "->", sol.get(child))   # bob -> ann
+```
+
+Relooping `for` on the same query replays the cache (what was already pulled) and does not reopen Prolog. After a `break`, `all()` continues and pulls the rest. Destroying the query cuts leftover choice points.
+
+**`all()` — Array of every `PrologSolution`**
+
+```gdscript
+var sols = prolog.solve(parent.call("tom", child)).all()
+print(sols.size())             # 2
+print(sols[0].get(child))      # bob
+```
+
+**No `query.values()`.** Read columns with `sol.get(var)`. A matrix (one row = one solution) is a GDScript wrapper, not part of the engine:
+
+```gdscript
+func as_matrix(query: PrologQuery, cols: Array) -> Array:
+    var rows := []
+    for sol in query:
+        var row := []
+        for col in cols:
+            row.append(sol.get(col))
+        rows.append(row)
+    return rows
+
+print(as_matrix(prolog.solve(parent.call("tom", child)), [child]))
+# [["bob"], ["liz"]]
+```
+
+**Optional cap**
+
+```gdscript
+prolog.solve(between.call(1, 1_000_000, n), 5).all()   # 5 solutions, not a million
+```
+
+Even when lazy, `all()` or a `for` without `break` on an infinite goal will not return.
+
+**Constraints:** same thread as `initialize()`; do not `cleanup()` the handle while a query is still open.
 
 There is **no** public string query API. Editor dock uses internal `_editor_query`.
 
@@ -267,14 +344,18 @@ Built by `call()` or composition. Passed to `solve()` / `assert_fact()` / `retra
 
 ## Class `PrologQuery`
 
-Returned by `solve()`. Always truthy as an object — use `has_solution()`.
+Returned by `solve()`. Always truthy as an object — use `has_solution()`. Solutions are pulled on demand (`PL_next_solution`). Do not `cleanup()` the engine while a query is still open.
+
+Several **solutions** = several `PrologSolution` (`for` / `all()` / `first()`). Several **variables of one** solution: `sol.get(foo)` then `sol.get(bar)`. There is no `get(foo, bar)` and no `query.values()`.
 
 | Method | Description |
 |--------|-------------|
-| `has_solution() -> bool` | At least one solution |
-| `first() -> Variant` | First `PrologSolution` or `null` |
-| `all() -> Array` | All solutions |
-| `_iter_init` / `_iter_next` / `_iter_get` | Godot `for` loop protocol |
+| `has_solution() -> bool` | At least one solution. Pulls at most one, then **cuts** remaining choice points (so `solve(g).has_solution()` does not keep Prolog open). |
+| `first() -> Variant` | First `PrologSolution` or `null`. Pulls at most one, then **cuts**. |
+| `all() -> Array` | Drain remaining solutions into an Array. After `break` in `for`, continues and pulls the rest. After `has_solution()` / `first()`, only the cached first answer remains. |
+| `_iter_init` / `_iter_next` / `_iter_get` | Godot `for`: one pull per turn. Relooping the same object replays the cache. `break` plus destroying the query cuts Prolog. |
+
+Examples and the optional `max_solutions` cap: [Query execution](#query-execution).
 
 ---
 
@@ -287,7 +368,7 @@ One answer. Variable bindings keyed by **object identity**.
 | `get(variable: PrologVariable) -> Variant` | Bound value or `null` |
 | `has(variable: PrologVariable) -> bool` | |
 | `get_bindings() -> Dictionary` | `PrologVariable` → value |
-| `values() -> Array` | Bound values only |
+| `values() -> Array` | Flat values of **this** solution (not a result matrix; no `query.values()`) |
 | `put(variable, value)` | Internal / tests |
 
 Anonymous variables omitted.

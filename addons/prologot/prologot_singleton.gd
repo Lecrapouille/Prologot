@@ -97,11 +97,11 @@ func predicate(name: String):
 func object(value):
 	return engine.object(value) if engine else null
 
-func solve(goal):
+func solve(goal, max_solutions: int = 0):
 	if not engine:
 		push_error("Prologot: Engine not initialized")
 		return null
-	return engine.solve(goal)
+	return engine.solve(goal, max_solutions)
 
 ###############################################################################
 ## Get the last error message from Prolog.

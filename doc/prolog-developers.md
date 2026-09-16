@@ -63,9 +63,10 @@ flowchart TB
 | `goal.conjunction(other)` | `,(G1,G2)` | not `.and()` (keyword) |
 | `goal.disjunction(other)` | `;(G1,G2)` | |
 | `goal.negated()` | `\+ G` | |
-| `solve(goal).has_solution()` | success / `once/1` | replaces old `succeeds()` |
-| `solve(goal)` (iterate) | `findall/3`-style collection | eager, all answers |
-| `solve(goal).first()` | first solution | replaces `solve_one()` |
+| `solve(goal).has_solution()` | success / `once/1` | one pull, then cut |
+| `solve(goal)` (iterate) | `PL_next_solution` on demand | `break` cuts the query |
+| `solve(goal).first()` | first solution | one pull, then cut |
+| `solve(goal, max)` | cap on pulls | `0` = unlimited |
 | `solution.get(Var)` | binding lookup | **object** key, not name |
 | `object(node)` | custom blob | instance id in SWI |
 
@@ -149,13 +150,46 @@ parent.call("tom", child)    # parent/2
 
 ## 8. Success tests and multiple solutions
 
+`solve()` maps to `PL_open_query` + `PL_next_solution` **on demand**. It is not `findall/3`. `first()` is a real solve-one; `break` in `for` is a real cut of the remaining choice points.
+
 | Intent | Prologot idiom | Do **not** use |
 |--------|----------------|----------------|
-| Does it succeed? | `solve(g).has_solution()` | `if solve(g):` |
+| Does it succeed? (`once/1`) | `solve(g).has_solution()` | `if solve(g):` |
 | One answer | `solve(g).first()` | (removed) `solve_one` |
-| All answers | `for s in solve(g):` or `.all()` | (removed) `solve_all` |
+| Stream answers | `for s in solve(g):` — `break` cuts | collecting first, then looping |
+| All answers | `solve(g).all()` | (removed) `solve_all` |
+| Cap the stream | `solve(g, n)` (`0` = unlimited) | hoping `all()` stops alone |
+| Column matrix | your wrapper over `all()` + `get` | `query.values()` (does not exist) |
 
-`PrologQuery` is a RefCounted object — always truthy when non-null.
+```gdscript
+var parent = prolog.predicate("parent")
+var child = prolog.variable("Child")
+var via = prolog.variable("Via")
+
+if prolog.solve(parent.call("tom", "bob")).has_solution():
+    print("true")
+
+var sol = prolog.solve(parent.call("tom", child)).first()
+if sol != null:
+    print(sol.get(child))   # bob
+
+for sol in prolog.solve(parent.call("tom", child)):
+    print(sol.get(child))   # bob, then liz
+    if sol.get(child) == "bob":
+        break
+
+for sol in prolog.solve(parent.call("tom", via).conjunction(parent.call(via, child))):
+    print(sol.get(via), "->", sol.get(child))   # bob -> ann
+
+print(prolog.solve(parent.call("tom", child)).all().size())  # 2
+prolog.solve(between.call(1, 1_000_000, n), 5).all()
+```
+
+`has_solution()` / `first()` pull at most one answer then **cut** (a GDScript temporary must not keep the query open until the function ends). After that, `all()` on the **same** object only has the cached first row. After a `for`+`break`, `all()` continues and pulls the rest. Relooping `for` on the same query replays the cache.
+
+`PrologQuery` is RefCounted — always truthy when non-null. Same thread as `initialize()`. Do not `cleanup()` while a query is open. An unbounded `all()` / `for` on `between(1, inf, N)` still diverges.
+
+Full narrative: [Getting started §4](getting-started.md#4-the-query-pipeline-and-solve).
 
 ---
 
@@ -218,6 +252,7 @@ Cut and meta-predicates in **Prolog source** work as usual. Only GDScript-side g
 - [ ] Every logical variable is `prolog.variable()` / `anonymous()`, never `"X"`.
 - [ ] Same variable object reused wherever Prolog should unify.
 - [ ] Boolean tests use `.has_solution()`, not `if solve(...)`.
+- [ ] Huge domains use `first()`, `break`, or `solve(goal, n)` — not unbounded `all()`.
 - [ ] Bindings read with `.get(var)`, not string keys.
 - [ ] Object facts retracted when nodes leave the tree.
 - [ ] Functor `name/2` not used for expose (SWI reserved); use `node_name/2`.

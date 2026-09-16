@@ -79,11 +79,14 @@ if p.solve(goal):  # wrong — always true when query is non-null
 Use:
 
 ```gdscript
-if p.solve(goal).has_solution():  # yes / no
-var one = p.solve(goal).first()     # first answer or null
-for solution in p.solve(goal):      # every answer
+if p.solve(goal).has_solution():  # yes / no (one pull, then cuts)
+var one = p.solve(goal).first()     # first answer or null (one pull, then cuts)
+for solution in p.solve(goal):      # one answer per turn; break cuts Prolog
     ...
+print(p.solve(goal).all().size())   # every answer (drains)
 ```
+
+Full reading API (two variables, no `query.values()`, `max_solutions`, cache vs cut): [§4](#4-the-query-pipeline-and-solve).
 
 ### Strings are atoms; variables are objects
 
@@ -168,7 +171,7 @@ func _exit_tree() -> void:
 
 ---
 
-## 4. The query pipeline in detail
+## 4. The query pipeline and `solve()`
 
 Every query follows the same five steps:
 
@@ -177,25 +180,104 @@ Every query follows the same five steps:
 | 1 | `p.predicate("parent")` | `PrologPredicate` |
 | 2 | `parent.call("tom", child)` | `PrologGoal` |
 | 3 | `p.solve(goal)` | `PrologQuery` |
-| 4 | `query.has_solution()` / `first()` / `for … in query` | bool / `PrologSolution` / loop |
+| 4 | `query.has_solution()` / `first()` / `for … in query` / `all()` | bool / `PrologSolution` / loop / Array |
 | 5 | `solution.get(child)` | bound value (`String`, `Array`, …) |
 
-**Reading results:**
+`solve()` **opens** an SWI query and returns immediately. It does **not** collect every answer first. Each later call pulls at most one more `PL_next_solution`. That is why `first()` is a real solve-one, and why `break` in a `for` can stop Prolog.
+
+Knowledge used below:
+
+```text
+parent(tom, bob). parent(tom, liz). parent(bob, ann).
+```
 
 ```gdscript
-# One binding
-var first: PrologSolution = p.solve(parent.call("tom", child)).first()
-if first != null:
-    print(first.get(child))
-
-# Every binding
-for solution in p.solve(parent.call("tom", child)):
-    if solution.has(child):
-        print(solution.get(child))
-
-# Count
-print(p.solve(parent.call("tom", child)).all().size())
+var parent = p.predicate("parent")
+var child = p.variable("Child")
+var via = p.variable("Via")
 ```
+
+### `has_solution()` — yes / no (at most one pull, then cut)
+
+```gdscript
+if p.solve(parent.call("tom", "bob")).has_solution():
+    print("true")
+```
+
+A ground goal that holds still produces one (empty) `PrologSolution`, so this is true. Remaining choice points are **cut** so a temporary `solve(g).has_solution()` does not keep Prolog open until the function returns. After this call, `all()` / `for` on the **same** object only see that first cached answer. Open a new `solve()` to search again.
+
+### `first()` — one `PrologSolution` or `null` (at most one pull, then cut)
+
+```gdscript
+var sol = p.solve(parent.call("tom", child)).first()
+if sol != null:
+    print(sol.get(child))   # bob
+```
+
+Same cut as `has_solution()`. Use `for` / `all()` when you need every answer.
+
+### `for` — one solution per turn; `break` cuts Prolog
+
+```gdscript
+for sol in p.solve(parent.call("tom", child)):
+    print(sol.get(child))   # bob, then liz
+    if sol.get(child) == "bob":
+        break               # remaining answers are not computed
+```
+
+GDScript does **not** unpack `for via, child in query`. Two variables still mean one `sol` per turn:
+
+```gdscript
+for sol in p.solve(parent.call("tom", via).conjunction(parent.call(via, child))):
+    print(sol.get(via), "->", sol.get(child))   # bob -> ann
+```
+
+Relooping `for` on the **same** query replays solutions already pulled; it does not reopen Prolog. After a `break`, `all()` on that object continues and pulls the rest. Destroying the query (end of the expression, or the variable going out of scope) cuts leftover choice points.
+
+### `all()` — Array of every `PrologSolution`
+
+```gdscript
+var sols = p.solve(parent.call("tom", child)).all()
+print(sols.size())             # 2
+print(sols[0].get(child))      # bob
+```
+
+Prefer `for` when you may stop early. Use `all()` when you need `size()` or random access.
+
+### No `query.values()` — `get()` per column
+
+There is no `query.values()`. `all()` + `sol.get(var)` is the API. A matrix (one row = one solution) is a wrapper **you** write, not something the engine returns:
+
+```gdscript
+func as_matrix(query: PrologQuery, cols: Array) -> Array:
+    var rows := []
+    for sol in query:
+        var row := []
+        for col in cols:
+            row.append(sol.get(col))
+        rows.append(row)
+    return rows
+
+print(as_matrix(p.solve(parent.call("tom", child)), [child]))
+# [["bob"], ["liz"]]
+```
+
+### Optional cap: `solve(goal, max_solutions)`
+
+`0` (default) means unlimited.
+
+```gdscript
+var n = p.variable("N")
+p.solve(p.predicate("between").call(1, 1_000_000, n), 5).all()  # 5 answers, not a million
+```
+
+Even when lazy, `all()` or a `for` **without** `break` on an infinite goal (`between(1, inf, N)`) will not return. Cap it, or `break`, or use `first()`.
+
+### Constraints
+
+- Same thread as `initialize()`.
+- Do not `cleanup()` the handle while a query is still open.
+- `if p.solve(goal):` is always true (the object is non-null). Use `has_solution()`.
 
 ---
 
@@ -367,6 +449,8 @@ Type `parent(tom, X).` in the dock; bindings appear as `X = bob`. History: Up/Do
 | `parent("tom", x)` syntax error | GDScript limitation | Use `parent.call("tom", x)` |
 | Second `variable("A")` shares bindings | Each call is a new variable | Reuse one object in the goal |
 | Query returns nothing after scene change | Stale object blob | Retract facts or rebuild handles |
+| `all()` / `for` never returns | Infinite (or huge) solution space | `first()`, `break`, or `solve(goal, n)` |
+| `q.has_solution()` then `q.all()` has one row | `has_solution()` / `first()` cut the rest | Open a new `solve()` for every answer |
 
 More pitfalls for Prolog users: [prolog-developers.md](prolog-developers.md).
 
