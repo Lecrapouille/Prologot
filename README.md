@@ -16,7 +16,7 @@
 - Knowledge base management.
 - Type conversion between Prolog terms and Godot Variants.
 
-Documentation path: **[Getting started](doc/getting-started.md)** → **[Use cases](doc/use-cases.md)** → **[API reference](doc/API.md)**. Prolog veterans: **[Prolog developers](doc/prolog-developers.md)**. Playable object-API demo: **[Mini Dungeon](demos/mini_dungeon/README.md)** (`make run-mini-dungeon`).
+Documentation path: **[Glossary](doc/glossary.md)** (atom / term / predicate / goal) → **[Getting started](doc/getting-started.md)** → **[Use cases](doc/use-cases.md)** → **[API reference](doc/API.md)**. Prolog veterans: **[Prolog developers](doc/prolog-developers.md)**. Playable object-API demo: **[Mini Dungeon](demos/mini_dungeon/README.md)** (`make run-mini-dungeon`).
 
 ---
 

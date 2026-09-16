@@ -86,12 +86,14 @@ public:
      * Object-key indexing (solution[child]) does not work via _get.
      *
      * @param p_variable The same object passed to call().
-     * @return The bound Variant, or a null Variant.
+     * @return The bound Variant, or a null Variant. A Prolog atom is a
+     * Godot String (`"bob"`); a Prolog string is a PrologTerm; a Godot
+     * blob is a PrologObject. See term_to_variant.
      *
      * @example
      * var child = prolog.variable("Child")
      * var solution = prolog.solve(parent.call("tom", child)).first()
-     * print(solution.get(child))  # bob
+     * print(solution.get(child) == "bob")  # true
      */
     godot::Variant get(godot::Ref<PrologVariable> const& p_variable) const;
 

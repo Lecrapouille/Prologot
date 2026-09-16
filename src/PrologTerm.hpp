@@ -70,8 +70,10 @@ public:
     /**
      * @brief Creates an atom term.
      *
-     * A GDScript String passed to call() is also an atom. Use this factory
-     * when you need an explicit PrologTerm object.
+     * A GDScript String passed to call() is already an atom. Use this factory
+     * when you need an explicit PrologTerm on the way in (inspection,
+     * as_text). solution.get() never returns this wrapper for an atom: bound
+     * atoms are Godot String (see term_to_variant).
      *
      * @param p_name Atom name (e.g. "tom").
      * @return A term whose get_kind() is "atom".

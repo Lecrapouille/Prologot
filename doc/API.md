@@ -363,7 +363,18 @@ Example: [Use cases — Multiple knowledge bases](use-cases.md#scene-setup).
 
 ## Type conversion
 
-Automatic conversion between Prolog terms and Godot `Variant`s when using `call()` / `solve()`.
+Automatic conversion between Prolog terms and Godot `Variant`s when using `call()` / `solve()`. `Variant` has no atom type; Prologot **does not** wrap atoms in `PrologTerm` on the way out (that would break `v == "bob"` and `match`).
+
+**Retained policy (hybrid):**
+
+| Direction | Rule |
+|-----------|------|
+| Godot → Prolog | `String` is **always an atom**. `"X"` is not a variable. |
+| Prolog → Godot | An **atom** is a Godot `String`. A **Prolog string** is a `PrologTerm`. |
+
+Use `prolog.string()` only when the clause stores a quoted Prolog string. Use `prolog.atom()` only when you need an explicit `PrologTerm` on the way **in** (inspection). Bindings from `solution.get()` never return that wrapper for an atom.
+
+Why, and the two rejected alternatives: [glossary — conversion philosophies](glossary.md#three-conversion-philosophies). Code: `term_to_variant` / `variant_to_term` in `src/PrologConversion.cpp`.
 
 ### Prolog → Godot (typical bindings)
 
@@ -372,10 +383,10 @@ Automatic conversion between Prolog terms and Godot `Variant`s when using `call(
 | Atom | `String` |
 | Integer | `int` |
 | Float | `float` |
-| Prolog string | `PrologTerm` or `String` (context) |
+| Prolog string | `PrologTerm` (`is_string()`), never a Godot `String` |
 | `[]` | empty `Array` |
-| List | `Array` |
-| Compound | `Dictionary` `{functor, args}` or nested |
+| List | `Array` (atoms inside the list are `String`s) |
+| Compound | `Dictionary` `{functor, args}` (`functor` is a `String`) |
 | Godot blob | `PrologObject` |
 | Unbound var | omitted from `PrologSolution` |
 
@@ -392,8 +403,6 @@ Automatic conversion between Prolog terms and Godot `Variant`s when using `call(
 | `PrologVariable` | variable |
 | `PrologTerm` | corresponding term |
 
-Use `prolog.string()` when you need a Prolog string term explicitly.
-
 ### Compound dictionary form
 
 ```gdscript
@@ -404,6 +413,7 @@ Use `prolog.string()` when you need a Prolog string term explicitly.
 
 ## Related documentation
 
+- [Glossary](glossary.md) — atom, term, predicate, goal, `,` / `;` / cut, conversion philosophies
 - [Getting started](getting-started.md) — tutorial and concepts
 - [Prolog developers](prolog-developers.md) — SWI name mapping
 - [Use cases](use-cases.md) — game recipes

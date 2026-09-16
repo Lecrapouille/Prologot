@@ -4,7 +4,7 @@ This guide is the **first stop** after [installation](installation.md). It expla
 
 | If you are… | Read next |
 |-------------|-----------|
-| New to Prolog and Godot | Stay here, then run [Mini Dungeon](../demos/mini_dungeon/README.md) (`make run-mini-dungeon`) |
+| New to Prolog and Godot | Stay here; if *atom / term / goal* are unclear, read the [glossary](glossary.md) first |
 | Already fluent in Prolog | Skim §2, then read [Note for Prolog developers](prolog-developers.md) |
 | Building a game feature | [Use cases](use-cases.md) once you understand §5–§7 |
 | Looking up one method | [API reference](API.md) |
@@ -49,7 +49,7 @@ flowchart LR
 
 ## 2. Core ideas (read this once)
 
-These rules explain most “why doesn’t my query work?” moments.
+Atom, term, fact, rule, predicate, goal, `,` / `;` / cut: [glossary](glossary.md). These rules explain most “why doesn’t my query work?” moments.
 
 ### Queries are objects, not strings
 
@@ -90,8 +90,12 @@ for solution in p.solve(goal):      # every answer
 | In GDScript | In Prolog |
 |-------------|-----------|
 | `"tom"` passed to `call()` | atom `tom` |
+| bound atom from `solution.get(...)` | Godot `String` `"tom"` again |
 | `p.variable("Child")` | logical variable |
 | `"X"` passed to `call()` | atom `X`, **not** a variable |
+| `p.string("hello")` | Prolog string `"hello"` → `PrologTerm` on the way out |
+
+A bound atom is a `String` on purpose (`v == "bob"` works). A quoted Prolog string is not. Policy: [glossary](glossary.md#three-conversion-philosophies).
 
 The name in `variable("Child")` is for debug only. **Solutions are keyed by the variable object**, not by the string `"Child"`.
 
@@ -104,10 +108,12 @@ The name in `variable("Child")` is for debug only. **Solutions are keyed by the 
 `and`, `or`, and `not` are GDScript keywords. Use:
 
 ```gdscript
-goal1.conjunction(goal2)   # ,
-goal1.disjunction(goal2)   # ;
-goal1.negated()            # \+
+goal1.conjunction(goal2)   # ,   AND — both must succeed
+goal1.disjunction(goal2)   # ;   OR  — either may succeed
+goal1.negated()            # \+  not provable
 ```
+
+Cut (`!`) is written in Prolog source, not as a GDScript method. See [glossary — conjunction, disjunction, cut](glossary.md#conjunction-disjunction-and-cut).
 
 ---
 
@@ -368,8 +374,9 @@ More pitfalls for Prolog users: [prolog-developers.md](prolog-developers.md).
 
 ## Where to go next
 
-1. **[Note for Prolog developers](prolog-developers.md)** — map SWI-Prolog names to Prologot, REPL vs object API.
-2. **[Use cases](use-cases.md)** — recipes for AI, dialogue, crafting, pathfinding.
-3. **[API reference](API.md)** — every class, method, and option.
-4. **Mini Dungeon** — `make run-mini-dungeon`, [demos/mini_dungeon](../demos/mini_dungeon/README.md) (nodes as Prolog terms + goblin AI).
-5. **Demos** — `make run-demo`, [Galactic Customs](../demos/galactic_customs/README.md).
+1. **[Glossary](glossary.md)** — Prolog names, connectors, conversion philosophies.
+2. **[Note for Prolog developers](prolog-developers.md)** — map SWI-Prolog names to Prologot, REPL vs object API.
+3. **[Use cases](use-cases.md)** — recipes for AI, dialogue, crafting, pathfinding.
+4. **[API reference](API.md)** — every class, method, and option.
+5. **Mini Dungeon** — `make run-mini-dungeon`, [demos/mini_dungeon](../demos/mini_dungeon/README.md) (nodes as Prolog terms + goblin AI).
+6. **Demos** — `make run-demo`, [Galactic Customs](../demos/galactic_customs/README.md).

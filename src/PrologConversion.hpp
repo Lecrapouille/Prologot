@@ -5,6 +5,17 @@
  * Prologot - SWI-Prolog integration for Godot 4
  *
  * Variant ↔ term_t conversion. Stateless: no Prologot instance required.
+ *
+ * Text policy (hybrid, retained):
+ *   Godot String  → Prolog atom          (never a Prolog string, never a variable)
+ *   Prolog atom   → Godot String         (Variant has no ATOM tag; keep == / match)
+ *   Prolog string → PrologTerm (KIND_STRING), so it is not confused with an atom
+ *
+ * Do not return PrologTerm::make_atom() from term_to_variant: that would make
+ * solution.get() an object and break `v == "bob"` / `match v: "attack"`.
+ * Use prolog.atom() only when the caller wants an explicit PrologTerm.
+ *
+ * See doc/glossary.md § conversion philosophies.
  */
 
 #pragma once
@@ -23,16 +34,41 @@ namespace prologot
 {
 
 /**
- * @brief Converts a Prolog term to a Godot Variant.
+ * @brief Converts a Prolog term to a Godot Variant (solve / get() output).
  *
- * Handles atoms, integers, floats, strings, lists, blobs, and compounds.
+ * Mapping:
+ *   atom            → String
+ *   Prolog string   → PrologTerm (kind string)
+ *   integer / float → int / float
+ *   list / []       → Array
+ *   compound        → Dictionary {functor, args} (functor is a String)
+ *   Godot blob      → PrologObject
+ *   unbound var     → NIL (omitted from PrologSolution)
+ *
+ * Atoms become String on purpose: Godot Variant has no ATOM type, and game
+ * code treats names as String (`== "bob"`, `match`, `"bob" in array`).
  */
 godot::Variant term_to_variant(term_t p_term);
 
 /**
- * @brief Converts a Godot Variant to a Prolog term.
+ * @brief Converts a Godot Variant to a Prolog term (call() input).
  *
- * Handles NIL, bool, int, float, String, Array, vectors, and objects.
+ * Mapping:
+ *   String / StringName → atom          (never a Prolog string, never a variable)
+ *   PrologTerm          → its kind      (atom, string, integer, list, …)
+ *   PrologVariable      → variable
+ *   PrologObject / Node → Godot blob
+ *   int / float         → integer / float
+ *   bool                → atom true / false
+ *   Array               → list ([] if empty)
+ *   Vector2 / Vector2i  → [x, y]
+ *   Vector3 / Vector3i  → [x, y, z]
+ *   Dictionary          → compound if {functor, args}, else []
+ *   NIL / unknown       → []
+ *
+ * A Prolog string must be a PrologTerm from prolog.string() /
+ * PrologTerm::make_string(). "X" is the atom X.
+ *
  * @return The created Prolog term (0 if conversion failed).
  */
 term_t variant_to_term(godot::Variant const& p_var);

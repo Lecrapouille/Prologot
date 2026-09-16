@@ -252,7 +252,9 @@ public:
      * @brief Creates a Prolog atom term.
      *
      * A GDScript String passed to call() is already an atom. Use this
-     * factory when you need an explicit PrologTerm (inspection, as_text).
+     * factory when you need an explicit PrologTerm on the way in
+     * (inspection, as_text). Bound atoms from solution.get() are String,
+     * not this wrapper.
      *
      * @param p_name Atom name (e.g. "tom").
      * @return A PrologTerm whose kind is atom.

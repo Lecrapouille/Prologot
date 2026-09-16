@@ -4,6 +4,7 @@ You already know SWI-Prolog. This page explains **how Prologot reshapes the surf
 
 | Read first | Then |
 |------------|------|
+| New to Prolog vocabulary | [Glossary](glossary.md) — atom, term, goal |
 | New to Prologot entirely | [Getting started](getting-started.md) §1–§4 |
 | Ready to wire rules into a game | [Use cases](use-cases.md) |
 | Need one signature | [API reference](API.md) |
@@ -124,7 +125,9 @@ Named variables (option B): arguments stay **positional**; the name helps `as_te
 | `"hello"` in `call()` | atom `hello` |
 | `prolog.string("hello")` | string `"hello"` |
 
-Bound atoms → Godot `String`. Bound Prolog strings → `PrologTerm`.
+**Retained policy:** bound atoms → Godot `String` (so `== "bob"` and `match` work). Bound Prolog strings → `PrologTerm`. `prolog.atom()` is input-only; `get()` never returns that wrapper for an atom. Alternatives considered: [glossary — conversion philosophies](glossary.md#three-conversion-philosophies).
+
+`,` `;` and cut: [glossary](glossary.md#conjunction-disjunction-and-cut). In GDScript, `,` is `conjunction()`, `;` is `disjunction()`. Cut stays in `.pl` source.
 
 ---
 

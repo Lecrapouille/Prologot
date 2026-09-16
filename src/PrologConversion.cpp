@@ -5,6 +5,11 @@
  * Prologot - SWI-Prolog integration for Godot 4
  *
  * Variant ↔ term_t conversion. Stateless: no Prologot instance required.
+ *
+ * Text policy (see PrologConversion.hpp and doc/glossary.md):
+ *   String → atom on the way in; atom → String on the way out.
+ *   A Prolog string stays a PrologTerm so hello and "hello" stay distinct
+ *   after get(). Do not wrap atoms in PrologTerm::make_atom() here.
  */
 
 #include "PrologConversion.hpp"
@@ -212,7 +217,16 @@ godot::Variant term_to_variant(term_t p_term)
             if (type == PL_BLOB)
                 return godot::Variant();
 
-            // Atom → Godot String. Distinct from a Prolog string.
+            // Retained policy: Prolog atom → Godot String.
+            //
+            // Variant has no ATOM tag. Wrapping in PrologTerm::make_atom()
+            // would keep the Prolog kind, but then solution.get() is an
+            // object: `v == "bob"`, `match v: "attack"`, and `"bob" in names`
+            // all fail (RefCounted identity, not text equality).
+            //
+            // The Prolog kind is dropped on purpose. A Prolog *string*
+            // (PL_STRING below) stays a PrologTerm so it is not this String.
+            // An explicit atom wrapper is only prolog.atom() on the way in.
             char* s;
             if (!PL_get_atom_chars(p_term, &s))
                 return godot::Variant();
@@ -237,7 +251,9 @@ godot::Variant term_to_variant(term_t p_term)
 
         case PL_STRING:
         {
-            // Prolog string → PrologTerm, so it is not confused with an atom.
+            // Prolog string → PrologTerm (kind string), not Godot String.
+            // In SWI, hello and "hello" do not unify. If this returned a
+            // String, get() could not tell it apart from the atom case above.
             char* s;
             size_t len;
             if (!PL_get_string_chars(p_term, &s, &len))
@@ -336,8 +352,9 @@ term_t variant_to_term(godot::Variant const& p_var)
 
         case godot::Variant::STRING:
         case godot::Variant::STRING_NAME:
-            // A GDScript String / StringName is always a Prolog atom.
-            // Use prolog.string() for a Prolog string ("text").
+            // Retained policy: Godot String → Prolog atom.
+            // "X" is the atom X, not a variable. A Prolog string must be
+            // PrologTerm::make_string() / prolog.string().
             if (!PL_put_atom_chars(t, godot::String(p_var).utf8().get_data()))
                 return (term_t)0;
             break;
