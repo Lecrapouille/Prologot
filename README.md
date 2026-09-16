@@ -83,12 +83,13 @@ Prologot/
 │   └── register_types.cpp        # GDExtension registration
 ├── tests/                        # Unit tests
 ├── addons/prologot/              # Godot plugin
-│   ├── plugin.cfg                # Plugin configuration
-│   ├── plugin.gd                 # Plugin entry point
-│   ├── prologot_dock.gd          # Editor dock UI
-│   ├── prologot_singleton.gd     # Global autoload singleton
+│   ├── plugin.cfg / plugin.gd    # EditorPlugin (autoload, dock, types)
+│   ├── prologot_boot.gd          # Shared initialize() + bundled SWI home
+│   ├── prologot_facade.gd        # Forwards solve / consult / atom / …
+│   ├── prologot_singleton.gd     # Autoload PrologotEngine + named KBs
 │   ├── prologot_node.gd          # Scene-tree Node (PrologotNode)
-│   └── prolog_knowledge.gd       # Inspectable Resource (PrologKnowledge)
+│   ├── prolog_knowledge.gd       # Inspectable Resource (PrologKnowledge)
+│   └── prologot_dock.gd          # Editor console UI
 ├── demos/                        # Demo projects
 │   ├── mini_dungeon/             # Playable dungeon (object API + Prolog AI)
 │   └── showcases/                # Interactive demo project

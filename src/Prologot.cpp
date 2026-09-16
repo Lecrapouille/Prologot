@@ -26,6 +26,7 @@
 #endif
 #include <godot_cpp/classes/dir_access.hpp>
 #include <godot_cpp/classes/engine.hpp>
+#include <godot_cpp/classes/os.hpp>
 #include <godot_cpp/classes/file_access.hpp>
 #include <godot_cpp/classes/project_settings.hpp>
 #include <godot_cpp/classes/scene_tree.hpp>
@@ -252,6 +253,21 @@ static std::vector<std::pair<std::string, int>> list_user_predicate_indicators()
     return predicates;
 }
 
+// SWI is process-global and not re-entrant from Godot worker threads.
+bool Prologot::require_main_thread(char const* p_where)
+{
+    godot::OS* os = godot::OS::get_singleton();
+    if (os == nullptr || os->get_thread_caller_id() == os->get_main_thread_id())
+        return true;
+
+    godot::String msg =
+        godot::String("Prologot: ") + p_where +
+        " must run on the Godot main thread (one SWI engine per process; "
+        "Prologot instances are handles, not isolated engines).";
+    godot::UtilityFunctions::push_error(msg);
+    return false;
+}
+
 // After consult/assert, record PIs that were not in p_before (last-handle wipe).
 static void remember_new_predicates(
     std::vector<std::pair<std::string, int>> const& p_before)
@@ -279,6 +295,8 @@ void Prologot::_bind_methods()
                          DEFVAL(godot::Dictionary()));
     godot::ClassDB::bind_method(godot::D_METHOD("cleanup"), &Prologot::cleanup);
     godot::ClassDB::bind_method(godot::D_METHOD("is_initialized"), &Prologot::is_initialized);
+    godot::ClassDB::bind_method(godot::D_METHOD("clear_knowledge"),
+                         &Prologot::clear_knowledge);
 
     // File/code loading methods
     godot::ClassDB::bind_method(godot::D_METHOD("consult_file", "filename"),
@@ -406,6 +424,9 @@ Prologot::set_swi_home_dir(godot::String const& p_home_option)
 
 bool Prologot::initialize(godot::Dictionary const& p_options)
 {
+    if (!require_main_thread("initialize()"))
+        return false;
+
     // Idempotent: if this handle is already attached, return success
     if (m_initialized)
         return true;
@@ -745,6 +766,17 @@ void Prologot::uninstall_exposed()
     m_exposed.clear();
 }
 
+bool Prologot::clear_knowledge()
+{
+    if (!require_main_thread("clear_knowledge()"))
+        return false;
+    if (!m_initialized)
+        return false;
+    PrologQuery::abandon_all_open();
+    reset_user_knowledge();
+    return true;
+}
+
 // Abolish predicates recorded in g_added_predicates. Leaves SWI running.
 void Prologot::reset_user_knowledge()
 {
@@ -763,6 +795,8 @@ void Prologot::reset_user_knowledge()
 
 void Prologot::cleanup()
 {
+    if (!require_main_thread("cleanup()"))
+        return;
     if (!m_initialized)
         return;
 
@@ -803,6 +837,8 @@ bool Prologot::is_initialized() const
 
 bool Prologot::consult_file(godot::String const& p_filename)
 {
+    if (!require_main_thread("consult_file()"))
+        return false;
     if (!m_initialized)
         return false;
 
@@ -856,6 +892,8 @@ bool Prologot::consult_file(godot::String const& p_filename)
 
 bool Prologot::consult_string(godot::String const& p_prolog_code)
 {
+    if (!require_main_thread("consult_string()"))
+        return false;
     if (!m_initialized)
         return false;
 
@@ -976,6 +1014,8 @@ bool Prologot::apply_clause_predicate(char const* p_name,
                                       godot::Ref<PrologGoal> const& p_goal,
                                       godot::String const& p_context)
 {
+    if (!require_main_thread(p_context.utf8().get_data()))
+        return false;
     if (!m_initialized)
         return false;
     if (p_goal.is_null())
@@ -1020,6 +1060,8 @@ bool Prologot::apply_clause_predicate(char const* p_name,
 godot::Ref<PrologQuery> Prologot::solve(godot::Ref<PrologGoal> const& p_goal,
                                         int64_t p_max_solutions)
 {
+    if (!require_main_thread("solve()"))
+        return PrologQuery::create(godot::Array());
     return PrologQuery::open(this, p_goal, p_max_solutions);
 }
 
@@ -1037,6 +1079,8 @@ static godot::String strip_trailing_period(godot::String text)
 
 bool Prologot::query_text(godot::String const& p_goal)
 {
+    if (!require_main_thread("query_text()"))
+        return false;
     if (!m_initialized)
         return false;
 
@@ -1072,6 +1116,8 @@ bool Prologot::query_text(godot::String const& p_goal)
 godot::Array Prologot::query_text_all(godot::String const& p_goal)
 {
     godot::Array results;
+    if (!require_main_thread("query_text_all()"))
+        return results;
     if (!m_initialized)
         return results;
 
@@ -1121,6 +1167,8 @@ godot::Array Prologot::query_text_all(godot::String const& p_goal)
 
 godot::Variant Prologot::query_text_one(godot::String const& p_goal)
 {
+    if (!require_main_thread("query_text_one()"))
+        return godot::Variant();
     if (!m_initialized)
         return godot::Variant();
 
@@ -1160,6 +1208,8 @@ godot::Variant Prologot::query_text_one(godot::String const& p_goal)
 godot::Array Prologot::query_text_named(godot::String const& p_goal)
 {
     godot::Array results;
+    if (!require_main_thread("_editor_query()"))
+        return results;
     if (!m_initialized)
         return results;
 
@@ -1248,6 +1298,8 @@ godot::Array Prologot::query_text_named(godot::String const& p_goal)
 
 bool Prologot::add_fact(godot::String const& p_fact)
 {
+    if (!require_main_thread("add_fact()"))
+        return false;
     if (!m_initialized)
         return false;
 
@@ -1314,6 +1366,8 @@ bool Prologot::retract_all(godot::Ref<PrologGoal> const& p_goal)
 
 bool Prologot::predicate_exists(godot::String const& p_predicate, int p_arity)
 {
+    if (!require_main_thread("predicate_exists()"))
+        return false;
     if (!m_initialized)
         return false;
 
@@ -1328,6 +1382,8 @@ bool Prologot::predicate_exists(godot::String const& p_predicate, int p_arity)
 godot::Array Prologot::list_predicates()
 {
     godot::Array predicates;
+    if (!require_main_thread("list_predicates()"))
+        return predicates;
     if (!m_initialized)
         return predicates;
 

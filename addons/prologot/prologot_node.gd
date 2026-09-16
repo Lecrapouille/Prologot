@@ -1,13 +1,12 @@
 # MIT License
 # Copyright (c) 2024 Lecrapouille <lecrapouille@gmail.com>
 #
-# Prologot - SWI-Prolog integration for Godot 4
-#
 # Scene-tree node: drop it in a scene, assign a PrologKnowledge, query from children.
+# solve / consult / atom / … come from prologot_facade.gd.
 
 @tool
 class_name PrologotNode
-extends Node
+extends "res://addons/prologot/prologot_facade.gd"
 
 const PrologotBoot = preload("res://addons/prologot/prologot_boot.gd")
 
@@ -25,9 +24,6 @@ const PrologotBoot = preload("res://addons/prologot/prologot_boot.gd")
 
 ## Reuse /root/PrologotEngine when the plugin autoload is present.
 @export var use_autoload: bool = true
-
-## The Prologot instance used by this node (autoload or owned).
-var engine: Object = null
 
 var _owns_engine: bool = false
 
@@ -99,70 +95,3 @@ func _consult() -> bool:
 			continue
 		ok = engine.consult_file(path) and ok
 	return ok
-
-
-func atom(name: String):
-	return engine.atom(name) if engine else null
-
-func integer(value: int):
-	return engine.integer(value) if engine else null
-
-func real(value: float):
-	return engine.real(value) if engine else null
-
-func string(value: String):
-	return engine.string(value) if engine else null
-
-func nil():
-	return engine.nil() if engine else null
-
-func list(items: Array):
-	return engine.list(items) if engine else null
-
-func compound(functor: String, args: Array):
-	return engine.compound(functor, args) if engine else null
-
-func variable(name: String = ""):
-	return engine.variable(name) if engine else null
-
-func anonymous():
-	return engine.anonymous() if engine else null
-
-func predicate(name: String):
-	return engine.predicate(name) if engine else null
-
-func object(value):
-	return engine.object(value) if engine else null
-
-func solve(goal, max_solutions: int = 0):
-	return engine.solve(goal, max_solutions) if engine else null
-
-func consult_file(path: String) -> bool:
-	return engine.consult_file(path) if engine else false
-
-func consult_string(code: String) -> bool:
-	return engine.consult_string(code) if engine else false
-
-func assert_fact(goal) -> bool:
-	return engine.assert_fact(goal) if engine else false
-
-func retract_fact(fact) -> bool:
-	return engine.retract_fact(fact) if engine else false
-
-func retract_all(pattern) -> bool:
-	return engine.retract_all(pattern) if engine else false
-
-func expose_property(godot_class: String, property: String, pred: String = "") -> bool:
-	return engine.expose_property(godot_class, property, pred) if engine else false
-
-func expose_method(godot_class: String, method: String, pred: String = "") -> bool:
-	return engine.expose_method(godot_class, method, pred) if engine else false
-
-func unexpose(pred: String, arity: int) -> bool:
-	return engine.unexpose(pred, arity) if engine else false
-
-func list_exposed() -> Array:
-	return engine.list_exposed() if engine else []
-
-func get_last_error() -> String:
-	return engine.get_last_error() if engine else "Engine not initialized"

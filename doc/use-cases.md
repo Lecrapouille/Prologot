@@ -31,7 +31,8 @@ Minimal integration without repeating the full tutorial.
 
 ### Autoload (global engine)
 
-Enable the plugin → `PrologotEngine` autoload is available in every scene.
+Enable the plugin → `/root/PrologotEngine` exists in every running scene
+(not in the editor tree). Same methods as `Prologot` (`consult_*`, `solve`, …).
 
 ```gdscript
 func _ready() -> void:
@@ -40,9 +41,9 @@ func _ready() -> void:
 
 ### PrologotNode (per-scene knowledge)
 
-1. Add a **PrologotNode** to the scene.
+1. Add a **PrologotNode** to the scene (`auto_start` + `use_autoload` on).
 2. Assign a **PrologKnowledge** Resource (`.pl` paths + optional inline code).
-3. Query from siblings:
+3. Query from siblings (or use `PrologotEngine` — same handle if autoload is up):
 
 ```gdscript
 @onready var pl = $Prologot
@@ -71,6 +72,7 @@ PrologotEngine.create_knowledge_base("dialogue", """
 PrologotEngine.switch_knowledge_base("combat")
 # ... later ...
 PrologotEngine.switch_knowledge_base("dialogue")
+# User clauses from "combat" are gone; only "dialogue" remains.
 ```
 
 See [API — PrologotEngine](API.md#prologotengine-singleton-autoload) for `list_knowledge_bases()`.

@@ -16,6 +16,7 @@
 namespace prologot
 {
 
+// Lowercase Prolog identifier: [a-z][A-Za-z0-9_]*.
 static bool is_valid_predicate_name(godot::String const& p_name)
 {
     if (p_name.is_empty())
@@ -37,6 +38,7 @@ static bool is_valid_predicate_name(godot::String const& p_name)
     return true;
 }
 
+// Functors that would shadow SWI syntax or our foreign wrappers.
 static bool is_reserved_predicate(godot::String const& p_name)
 {
     return p_name == "name" || p_name == "is" || p_name == "true" ||
@@ -44,11 +46,13 @@ static bool is_reserved_predicate(godot::String const& p_name)
            p_name == "prologot_property" || p_name == "prologot_method";
 }
 
+// Quote an atom for a generated clause (class / property / method names).
 static godot::String quote_prolog_atom(godot::String const& p_name)
 {
     return godot::String("'") + p_name.replace("'", "''") + godot::String("'");
 }
 
+// `name/2` is reserved in Prolog; expose Node.name as node_name/2 by default.
 static godot::String default_property_predicate(godot::String const& p_property)
 {
     if (p_property == "name")
@@ -56,6 +60,7 @@ static godot::String default_property_predicate(godot::String const& p_property)
     return p_property;
 }
 
+// Atom or Prolog string → Godot String (foreign predicate arguments).
 static bool term_as_string(term_t p_term, godot::String& r_out)
 {
     char* s = nullptr;
@@ -65,6 +70,7 @@ static bool term_as_string(term_t p_term, godot::String& r_out)
     return true;
 }
 
+// Live Godot Object from a godot_object blob, or nullptr if freed / not a blob.
 static godot::Object* object_from_term(term_t p_term)
 {
     godot::Ref<PrologObject> handle = PrologObject::from_swi_term(p_term);
@@ -73,6 +79,7 @@ static godot::Object* object_from_term(term_t p_term)
     return handle->get_object();
 }
 
+// Empty class filter means any Object; otherwise Object.is_class().
 static bool object_matches_class(godot::Object* p_object, godot::String const& p_class)
 {
     if (p_class.is_empty())
@@ -80,18 +87,7 @@ static bool object_matches_class(godot::Object* p_object, godot::String const& p
     return p_object->is_class(p_class);
 }
 
-static bool object_has_property(godot::Object* p_object, godot::String const& p_property)
-{
-    godot::TypedArray<godot::Dictionary> list = p_object->get_property_list();
-    for (int i = 0; i < list.size(); ++i)
-    {
-        godot::Dictionary d = list[i];
-        if (godot::String(d.get("name", "")) == p_property)
-            return true;
-    }
-    return false;
-}
-
+// PrologObject blobs and nested arrays back to native Godot values for callv().
 static godot::Variant unwrap_godot_arg(godot::Variant const& p_value)
 {
     if (p_value.get_type() == godot::Variant::OBJECT)
@@ -114,13 +110,16 @@ static godot::Variant unwrap_godot_arg(godot::Variant const& p_value)
     return p_value;
 }
 
+// ClassDB lookup once at expose_property. Not Object.get_property_list()
+// on each foreign call (that allocates every engine property of a Node).
 static bool class_has_named_property(godot::String const& p_class, godot::String const& p_property)
 {
     godot::ClassDBSingleton* cdb = godot::ClassDBSingleton::get_singleton();
     if (cdb == nullptr || p_class.is_empty() || !cdb->class_exists(p_class))
         return false;
 
-    godot::TypedArray<godot::Dictionary> props = cdb->class_get_property_list(p_class, false);
+    godot::TypedArray<godot::Dictionary> props =
+        cdb->class_get_property_list(p_class, false);
     for (int i = 0; i < props.size(); ++i)
     {
         godot::Dictionary d = props[i];
@@ -130,6 +129,7 @@ static bool class_has_named_property(godot::String const& p_class, godot::String
     return false;
 }
 
+// Resolve arity / has-return from ClassDB (once at expose_method).
 static bool lookup_method(godot::String const& p_class,
                    godot::String const& p_method,
                    int& r_argc,
@@ -181,6 +181,7 @@ static bool lookup_method(godot::String const& p_class,
     return true;
 }
 
+// SWI foreign: prologot_property(Class, Property, Object, Value).
 static foreign_t pl_prologot_property(term_t p_class,
                                term_t p_property,
                                term_t p_object,
@@ -191,6 +192,7 @@ static foreign_t pl_prologot_property(term_t p_class,
                : FALSE;
 }
 
+// SWI foreign: prologot_method(Class, Method, Object, Args, Result).
 static foreign_t pl_prologot_method(term_t p_class,
                              term_t p_method,
                              term_t p_object,
@@ -203,6 +205,7 @@ static foreign_t pl_prologot_method(term_t p_class,
                : FALSE;
 }
 
+// Register the two foreign predicates used by generated expose_* wrappers.
 bool Prologot::register_foreign_predicates()
 {
     if (!PL_register_foreign(
@@ -224,6 +227,8 @@ bool Prologot::expose_property(godot::String const& p_class,
                                godot::String const& p_property,
                                godot::String const& p_predicate)
 {
+    if (!require_main_thread("expose_property()"))
+        return false;
     if (!m_initialized)
     {
         push_error("expose_property() requires an initialized engine");
@@ -290,6 +295,8 @@ bool Prologot::expose_method(godot::String const& p_class,
                              godot::String const& p_method,
                              godot::String const& p_predicate)
 {
+    if (!require_main_thread("expose_method()"))
+        return false;
     if (!m_initialized)
     {
         push_error("expose_method() requires an initialized engine");
@@ -366,6 +373,8 @@ bool Prologot::expose_method(godot::String const& p_class,
 
 bool Prologot::unexpose(godot::String const& p_predicate, int p_arity)
 {
+    if (!require_main_thread("unexpose()"))
+        return false;
     if (!m_initialized)
         return false;
     if (p_predicate.is_empty() || p_arity < 0)
@@ -429,8 +438,8 @@ bool Prologot::foreign_property(term_t p_class,
     godot::Object* obj = object_from_term(p_object);
     if (obj == nullptr || !object_matches_class(obj, class_name))
         return false;
-    if (!object_has_property(obj, property))
-        return false;
+    // Property existence was checked at expose_property() via ClassDB.
+    // Do not call get_property_list() here (allocates the full Node list).
 
     term_t converted = variant_to_term(obj->get(property));
     if (!converted)

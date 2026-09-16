@@ -146,6 +146,17 @@ public:
     bool initialize(godot::Dictionary const& p_options = godot::Dictionary());
 
     /**
+     * @brief Abolishes user predicates added via consult_* / assert_fact.
+     *
+     * Leaves SWI-Prolog running and this handle attached. Bootstrap helpers
+     * and expose_* wrappers installed through add_fact stay unless they
+     * were tracked as added predicates. Open queries are cut first.
+     *
+     * @return false if this handle is not attached or the call is off-thread.
+     */
+    bool clear_knowledge();
+
+    /**
      * @brief Detaches this handle from the process-global Prolog engine.
      *
      * Safe to call multiple times. Does not call PL_cleanup() (that happens
@@ -804,6 +815,13 @@ private:
      * @brief Abolishes user predicates while keeping Prologot bootstrap helpers.
      */
     void reset_user_knowledge();
+
+    /**
+     * @brief Logs and fails if the caller is not the Godot main thread.
+     *
+     * SWI is one process-global engine; Prologot instances are handles.
+     */
+    static bool require_main_thread(char const* p_where);
 
     /**
      * @brief Retracts expose_* wrappers installed by this handle.

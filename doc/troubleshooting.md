@@ -54,8 +54,9 @@ To make your prolog files visible in Godot in `res://` you can add `pl` (or `pro
 
 1. Enable the plugin in **Project → Project Settings → Plugins**
 2. Check **View → Docks** to see if the dock is available
-3. Check the Output panel for initialization errors
+3. Check the Output panel for initialization errors (`Prologot: Editor engine initialized` or a GDExtension / home-path error)
 4. Try reloading the project
+5. Remember the dock and `PrologotEngine` share one SWI process: leftover facts from the console can answer (or pollute) Play-mode queries. Use `clear_knowledge()` or a last-handle `cleanup()` if you need a clean KB.
 
 ---
 

@@ -275,7 +275,7 @@ Even when lazy, `all()` or a `for` **without** `break` on an infinite goal (`bet
 
 ### Constraints
 
-- Same thread as `initialize()`.
+- Godot **main thread** only (`initialize()` / `solve()` / `consult_*`). Off-thread calls log an error and fail.
 - Do not `cleanup()` the handle while a query is still open.
 - `if p.solve(goal):` is always true (the object is non-null). Use `has_solution()`.
 
@@ -416,9 +416,12 @@ Full signatures: [API.md — Exposing Godot members](API.md#exposing-godot-membe
 
 ## 11. Plugin integration (optional)
 
+Enable **Prologot** under **Project → Project Settings → Plugins**. Scripts live
+in `addons/prologot/`. Full file map and exports: [API — Scene integration](API.md#scene-integration-addonsprologot).
+
 ### Autoload `PrologotEngine`
 
-When the plugin is enabled, the singleton exposes the same API:
+Created at runtime (Play). Same query API as `Prologot`:
 
 ```gdscript
 PrologotEngine.consult_string("parent(tom, bob).")
@@ -426,16 +429,24 @@ var parent = PrologotEngine.predicate("parent")
 PrologotEngine.solve(parent.call("tom", "bob")).has_solution()
 ```
 
+Named bases: `create_knowledge_base` **adds**; `switch_knowledge_base` **wipes**
+the user KB then loads the stored source.
+
 ### Scene node + Resource
 
-- **PrologotNode** — drop in a scene; loads knowledge at runtime.
-- **PrologKnowledge** — inspectable Resource (files + inline Prolog).
+- **PrologotNode** — drop in a scene; `start()` loads a `PrologKnowledge` and
+  extra `consult_files`. By default it reuses `PrologotEngine`.
+- **PrologKnowledge** — Resource: `files` then inline `code`.
 
-See [Use cases — Scene setup](use-cases.md#scene-setup) for a minimal pattern.
+See [Use cases — Scene setup](use-cases.md#scene-setup).
 
 ### Editor console
 
-Type `parent(tom, X).` in the dock; bindings appear as `X = bob`. History: Up/Down. Details: [Editor console](editor-console.md).
+A **second** `Prologot` handle, only for the dock. Same SWI process as the
+game, so clauses loaded in the console are still there when you press Play.
+
+Type `parent(tom, X).`; bindings print as `X = bob`. History: Up/Down.
+Details: [Editor console](editor-console.md).
 
 ---
 

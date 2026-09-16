@@ -63,6 +63,7 @@ func run_all_tests() -> void:
 	test_object_solve_api()
 	test_lists_atoms_and_variants()
 	test_consult_file_standalone()
+	test_clear_knowledge()
 	test_prolog_term_factories()
 	test_prolog_variable()
 	test_prolog_predicate()
@@ -705,6 +706,24 @@ func test_consult_file_standalone() -> void:
 	var missing := prolog.consult_file("res://fixtures/does_not_exist.pl")
 	assert_false(missing, "consult_file of a missing file returns false")
 	assert_true(prolog.get_last_error().length() > 0, "Missing file sets get_last_error()")
+
+	teardown_prolog()
+
+
+func test_clear_knowledge() -> void:
+	print("\n[Test Suite: clear_knowledge / switch wipe]")
+
+	if not setup_prolog():
+		print("  ✗ SKIP: Could not initialize Prolog")
+		return
+
+	assert_true(prolog.consult_string("marker_kb(old)."), "load marker_kb(old)")
+	assert_true(prolog.solve(goal("marker_kb", ["old"])).has_solution(), "old marker is present")
+	assert_true(prolog.clear_knowledge(), "clear_knowledge() succeeds")
+	assert_false(prolog.solve(goal("marker_kb", ["old"])).has_solution(), "old marker is gone after wipe")
+	assert_true(prolog.consult_string("marker_kb(new)."), "load marker_kb(new)")
+	assert_true(prolog.solve(goal("marker_kb", ["new"])).has_solution(), "new marker is present")
+	assert_false(prolog.solve(goal("marker_kb", ["old"])).has_solution(), "old marker did not come back")
 
 	teardown_prolog()
 

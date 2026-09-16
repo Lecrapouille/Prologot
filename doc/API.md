@@ -46,6 +46,8 @@ for solution in prolog.solve(parent.call("tom", child)):
 prolog.cleanup()
 ```
 
+Not thread-safe: call `initialize()` / `solve()` / `consult_*` / `cleanup()` only from the Godot **main thread** (`WorkerThreadPool` and other threads `push_error` and fail). SWI is one process-global engine; `Prologot` instances are handles, not isolated engines.
+
 ### Object graph
 
 ```mermaid
@@ -117,6 +119,11 @@ prolog.initialize({"home": "res://bin/linux/swipl", "on error": "print"})
 Detaches this handle. Safe to call multiple times. Does **not** call `PL_cleanup()`
 (that happens when the GDExtension unloads). The last attached handle resets the
 user knowledge base. Must `initialize()` again before use.
+
+#### `clear_knowledge() -> bool`
+
+Abolishes user predicates added via `consult_*` / `assert_fact`. The handle stays
+attached; SWI keeps running. Same-thread as `initialize()`.
 
 #### `is_initialized() -> bool`
 
@@ -249,7 +256,7 @@ prolog.solve(between.call(1, 1_000_000, n), 5).all()   # 5 solutions, not a mill
 
 Even when lazy, `all()` or a `for` without `break` on an infinite goal will not return.
 
-**Constraints:** same thread as `initialize()`; do not `cleanup()` the handle while a query is still open.
+**Constraints:** Godot main thread only (see Overview); do not `cleanup()` the handle while a query is still open.
 
 There is **no** public string query API. Editor dock uses internal `_editor_query`.
 
@@ -414,33 +421,97 @@ Does not keep the node alive.
 
 ---
 
-## Scene integration
+## Scene integration (`addons/prologot`)
+
+The editor plugin is GDScript on top of the GDExtension. Enabling it in
+**Project → Project Settings → Plugins** does four things:
+
+1. Registers the **PrologotEngine** autoload (runtime only; the script is not `@tool`).
+2. Starts a **separate** `Prologot` handle for the [editor console](editor-console.md).
+3. Registers custom types **PrologotNode** and **PrologKnowledge**.
+4. Adds the Prologot Console dock.
+
+SWI-Prolog is still **one engine per process**. The dock handle and the
+autoload are two light handles on that engine. Facts you `consult` in the
+dock stay visible when you press Play, until the last handle cleans up.
+
+| File | Role |
+|------|------|
+| `plugin.gd` | EditorPlugin: autoload, dock handle, custom types |
+| `prologot_boot.gd` | Shared `create_engine()` + bundled `res://bin/<os>/swipl` home |
+| `prologot_facade.gd` | Forwards `atom` / `solve` / `consult_*` / `expose_*` / `clear_knowledge` |
+| `prologot_singleton.gd` | Autoload: facade + named knowledge bases |
+| `prologot_node.gd` | Scene node: facade + Resource / file loading |
+| `prolog_knowledge.gd` | Inspectable Resource (`files` + inline `code`) |
+| `prologot_dock.gd` | Editor console UI |
+
+You can skip the plugin and use `Prologot.new()` + `initialize()` only.
+The plugin is the usual game path.
 
 ### `PrologotNode` (Node)
 
-Exports: `knowledge` (`PrologKnowledge`), `consult_files`, `swipl_home`, `auto_start`, `use_autoload`.
+Drop in a scene. `start()` (from `_ready()` when `auto_start`) attaches an
+engine and loads knowledge. Same query API as `Prologot` / `PrologotEngine`
+via the facade (`predicate`, `solve`, `consult_*`, `assert_fact`, `expose_*`,
+`clear_knowledge`, …).
 
-Forwards `predicate`, `solve`, `consult_*`, `expose_*`, etc. Reuses `/root/PrologotEngine` when present.
+| Export | Default | Meaning |
+|--------|---------|---------|
+| `knowledge` | — | `PrologKnowledge` Resource |
+| `consult_files` | `[]` | Extra `.pl` paths after the Resource |
+| `swipl_home` | `""` | SWI home if this node **creates** an engine |
+| `auto_start` | `true` | Call `start()` from `_ready()` (not in the editor) |
+| `use_autoload` | `true` | Reuse `/root/PrologotEngine.engine` when it is up |
+
+`set_engine(prolog)` injects a handle (tests). If `use_autoload` is off or
+the autoload is missing, the node owns a handle from `prologot_boot.gd` and
+`cleanup()`s it on `_exit_tree()`.
+
+```gdscript
+@onready var pl: PrologotNode = $Prologot
+func _ready() -> void:
+    var hero = pl.predicate("hero")
+    if pl.solve(hero.call($Player)).has_solution():
+        print("hero")
+```
 
 ### `PrologKnowledge` (Resource)
 
-`@export` file list + inline Prolog. `load_into(engine) -> bool`.
+| Export | Meaning |
+|--------|---------|
+| `files` | `.pl` paths consulted in order (`res://`, `user://`, or absolute) |
+| `code` | Inline Prolog, loaded **after** the files |
+
+`load_into(engine) -> bool` — `engine` must already be initialized.
 
 ---
 
 ## PrologotEngine singleton (Autoload)
 
-Same API as `Prologot` via `addons/prologot/prologot_singleton.gd`. Available at runtime when the plugin is enabled.
+Registered as `/root/PrologotEngine` when the plugin is enabled. Created
+on Play, not in the editor tree. Same methods as `Prologot` through
+`prologot_facade.gd` (`consult_file`, `solve`, `predicate`, `clear_knowledge`, …).
 
-**Additional methods:**
+**Named bases** (only on the autoload):
 
 | Method | Description |
 |--------|-------------|
-| `create_knowledge_base(name: String, code: String) -> bool` | Store and load named KB |
-| `switch_knowledge_base(name: String) -> bool` | Reload stored KB |
-| `list_knowledge_bases() -> Array` | Names |
+| `create_knowledge_base(name, code) -> bool` | Store `code` and **add** it (`consult_string`) |
+| `switch_knowledge_base(name) -> bool` | `clear_knowledge()` then consult the stored source |
+| `list_knowledge_bases() -> Array` | Names passed to `create_knowledge_base` (not a SWI dump) |
 
-Example: [Use cases — Multiple knowledge bases](use-cases.md#scene-setup).
+`switch_knowledge_base` **replaces** the user knowledge base: previous mode
+clauses are abolished. `create_knowledge_base` alone does not wipe.
+
+```gdscript
+PrologotEngine.create_knowledge_base("combat", "decide(attack).")
+PrologotEngine.create_knowledge_base("talk", "line(hi).")
+PrologotEngine.switch_knowledge_base("talk")
+# decide/1 is gone; line/1 is loaded.
+```
+
+`_exit_tree` detaches the handle; it does not `PL_cleanup()` (the dock may
+still be attached). Example setup: [Use cases](use-cases.md#scene-setup).
 
 ---
 

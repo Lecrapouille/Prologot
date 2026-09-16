@@ -13,7 +13,11 @@ The plugin adds a **Prologot Console** dock in the editor where you can:
 
 1. **Enable the plugin**: Go to **Project → Project Settings → Plugins** and enable "Prologot"
 2. **Open the dock**: The dock should appear automatically in the bottom-right panel. If not, go to **View → Docks** and look for "Prologot Console"
-3. **Initialize Prolog**: The Prolog engine is automatically initialized when the plugin loads. You should see no errors in the output
+3. **Initialize Prolog**: The plugin creates an editor-only `Prologot` handle
+   (bundled `res://bin/<os>/swipl` when present). SWI is process-global: this
+   handle and the runtime `PrologotEngine` autoload share the same engine.
+   Clauses you load here are still in the KB when you press Play. You should
+   see no errors in the Output panel.
 4. **Load Prolog code**:
    - Use the "Quick Prolog Code" text area to write Prolog code
    - Click "Load Code" to load it into the knowledge base

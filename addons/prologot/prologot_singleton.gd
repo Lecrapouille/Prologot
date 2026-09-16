@@ -3,201 +3,86 @@
 #
 # Prologot - SWI-Prolog integration for Godot 4
 #
-# This singleton provides global access to the Prologot engine.
-# It is automatically registered as an autoload when the plugin is enabled.
+# Runtime autoload registered by the editor plugin as PrologotEngine.
+# consult / solve / atom / … are defined on prologot_facade.gd.
 
-extends Node
+extends "res://addons/prologot/prologot_facade.gd"
 
 const PrologotBoot = preload("res://addons/prologot/prologot_boot.gd")
 
-## Runtime Prologot handle. Created in _ready(); null if the GDExtension failed.
-var engine: Object = null
-
-## Dictionary storing named knowledge bases for easy switching.
-## Keys are knowledge base names (strings), values are Prolog code strings.
-## Allows users to quickly switch between different Prolog knowledge bases.
+## Named Prolog source strings for create / switch / list_knowledge_base.
+## Keys are names, values are Prolog code. switch_knowledge_base() wipes
+## user clauses before loading the chosen source.
 var knowledge_bases: Dictionary = {}
 
+
+###############################################################################
+## Initialize the Prologot singleton.
+##
+## Called when the autoload enters the scene tree (game / F5, not the editor).
+## Instantiates a Prologot handle and attach()es to the process-global SWI
+## engine (same engine as the editor dock if the plugin already started it).
+## engine stays null if the GDExtension failed to load.
+###############################################################################
 func _ready() -> void:
 	engine = PrologotBoot.create_engine()
 
 
+###############################################################################
+## Detach the Prologot handle.
+##
+## Does not call PL_cleanup(): the editor dock may still be attached to the
+## same SWI engine. The last handle in the process resets the user knowledge
+## base (see Prologot.cleanup()).
+###############################################################################
 func _exit_tree() -> void:
-	# Detach this handle. Does not shut down SWI (editor dock may still be attached).
 	if engine:
 		engine.cleanup()
 	engine = null
 
-func atom(name: String):
-	return engine.atom(name) if engine else null
-
-func integer(value: int):
-	return engine.integer(value) if engine else null
-
-func real(value: float):
-	return engine.real(value) if engine else null
-
-func string(value: String):
-	return engine.string(value) if engine else null
-
-func nil():
-	return engine.nil() if engine else null
-
-func list(items: Array):
-	return engine.list(items) if engine else null
-
-func compound(functor: String, args: Array):
-	return engine.compound(functor, args) if engine else null
-
-func variable(name: String = ""):
-	return engine.variable(name) if engine else null
-
-func anonymous():
-	return engine.anonymous() if engine else null
-
-func predicate(name: String):
-	return engine.predicate(name) if engine else null
-
-func object(value):
-	return engine.object(value) if engine else null
-
-func solve(goal, max_solutions: int = 0):
-	if not engine:
-		push_error("Prologot: Engine not initialized")
-		return null
-	return engine.solve(goal, max_solutions)
-
-###############################################################################
-## Get the last error message from Prolog.
-##
-## Retrieves the most recent error message from the Prolog engine, useful for
-## debugging failed queries or operations.
-##
-## @return: The error message string, or "Engine not initialized" if the engine is unavailable
-###############################################################################
-func get_last_error() -> String:
-	if not engine:
-		return "Engine not initialized"
-	return engine.get_last_error()
-
-###############################################################################
-## Load a Prolog file from the given path (supports res:// paths).
-##
-## Loads and executes Prolog code from a file. The file path can be relative to
-## the project root, absolute, or use the res:// protocol. The loaded code
-## becomes part of the current knowledge base.
-##
-## @param path: Path to the Prolog file (e.g., "res://rules/game_logic.pl")
-## @return: true if the file was loaded successfully, false otherwise
-###############################################################################
-func consult_file(path: String) -> bool:
-	if not engine:
-		push_error("Prologot: Engine not initialized")
-		return false
-	return engine.consult_file(path)
-
-
-###############################################################################
-## Load Prolog code from a string.
-##
-## Dynamically loads and executes Prolog code from a string. This is useful for
-## runtime code generation or loading code from external sources (network, etc.).
-## The code is added to the current knowledge base.
-##
-## @param code: Prolog code as a string (facts, rules, etc.)
-## @return: true if the code was loaded successfully, false otherwise
-###############################################################################
-func consult_string(code: String) -> bool:
-	if not engine:
-		push_error("Prologot: Engine not initialized")
-		return false
-	return engine.consult_string(code)
-
-func assert_fact(goal) -> bool:
-	if not engine:
-		push_error("Prologot: Engine not initialized")
-		return false
-	return engine.assert_fact(goal)
-
-###############################################################################
-## Retract a fact from the Prolog knowledge base.
-##
-## Accepts a PrologGoal from predicate.call().
-###############################################################################
-func retract_fact(fact) -> bool:
-	if not engine:
-		push_error("Prologot: Engine not initialized")
-		return false
-	return engine.retract_fact(fact)
-
-func retract_all(pattern) -> bool:
-	if not engine:
-		push_error("Prologot: Engine not initialized")
-		return false
-	return engine.retract_all(pattern)
-
-func expose_property(godot_class: String, property: String, pred: String = "") -> bool:
-	if not engine:
-		push_error("Prologot: Engine not initialized")
-		return false
-	return engine.expose_property(godot_class, property, pred)
-
-func expose_method(godot_class: String, method: String, pred: String = "") -> bool:
-	if not engine:
-		push_error("Prologot: Engine not initialized")
-		return false
-	return engine.expose_method(godot_class, method, pred)
-
-func unexpose(pred: String, arity: int) -> bool:
-	if not engine:
-		push_error("Prologot: Engine not initialized")
-		return false
-	return engine.unexpose(pred, arity)
-
-func list_exposed() -> Array:
-	if not engine:
-		return []
-	return engine.list_exposed()
 
 ###############################################################################
 ## Create and load a named knowledge base.
 ##
-## Stores a Prolog code string under a name and immediately loads it into the
-## engine. This allows switching between different knowledge bases at runtime.
-## Useful for different game modes, scenarios, or AI configurations.
+## Stores a Prolog code string under kb_name and consult_string()s it
+## immediately (adds clauses; does not wipe). Use switch_knowledge_base()
+## to replace the user knowledge base with one of these stored sources.
+## Useful for game modes, scenarios, or AI configurations.
 ##
-## @param kb_name: A unique name to identify this knowledge base
-## @param code: The Prolog code for this knowledge base
-## @return: true if the knowledge base was created and loaded successfully
+## @param kb_name: Unique name for this knowledge base
+## @param code: Prolog source (facts, rules, …)
+## @return: true if the code was stored and consulted
 ###############################################################################
 func create_knowledge_base(kb_name: String, code: String) -> bool:
-	# Store the code for later retrieval
 	knowledge_bases[kb_name] = code
-	# Load it into the engine immediately
 	return consult_string(code)
+
 
 ###############################################################################
 ## Switch to a previously created knowledge base.
 ##
-## Consults a previously stored knowledge base (adds clauses; does not wipe).
+## clear_knowledge() abolishes user predicates added via consult_* /
+## assert_fact, then consult_string()s the stored source. Previous mode
+## clauses are gone. Returns false if kb_name was never created.
 ##
-## @param kb_name: The name of the knowledge base to switch to
-## @return: true if the switch was successful, false if the name doesn't exist
+## @param kb_name: Name passed to create_knowledge_base()
+## @return: true if the wipe and reload succeeded
 ###############################################################################
 func switch_knowledge_base(kb_name: String) -> bool:
-	# Check if the knowledge base exists
-	if kb_name in knowledge_bases:
-		# Load the stored code into the engine
-		return consult_string(knowledge_bases[kb_name])
-	return false
+	if kb_name not in knowledge_bases:
+		return false
+	if not clear_knowledge():
+		return false
+	return consult_string(knowledge_bases[kb_name])
+
 
 ###############################################################################
-## Get the list of available knowledge bases.
+## List stored knowledge base names.
 ##
-## Returns an array of all knowledge base names that have been created.
+## Does not inspect SWI: only names registered with create_knowledge_base().
 ## Useful for UI dropdowns or debugging.
 ##
-## @return: An array of knowledge base name strings
+## @return: Array of knowledge base name strings
 ###############################################################################
 func list_knowledge_bases() -> Array:
 	return knowledge_bases.keys()
