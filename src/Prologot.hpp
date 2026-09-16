@@ -67,28 +67,16 @@ public:
     /**
      * @brief Constructs a new Prologot handle.
      *
-     * Does not start SWI-Prolog. The first live instance becomes the C++
-     * singleton; later constructors do not overwrite it.
+     * Does not start SWI-Prolog. Call initialize() to attach.
      */
     Prologot();
 
     /**
      * @brief Destructs the Prologot handle.
      *
-     * Detaches this handle (see cleanup()). Clears the C++ singleton only
-     * if it still points at this instance. Does not call PL_cleanup().
+     * Detaches this handle (see cleanup()). Does not call PL_cleanup().
      */
     ~Prologot();
-
-    /**
-     * @brief Gets the C++ singleton handle used by foreign predicates.
-     *
-     * The first live instance is recorded; a second Prologot.new() does
-     * not steal it. initialize() claims it only if it is null or detached.
-     *
-     * @return Pointer to the singleton instance, or nullptr if none.
-     */
-    static Prologot* get_singleton();
 
     /**
      * @brief Shuts down the process-global SWI-Prolog engine.
@@ -149,8 +137,8 @@ public:
      * @brief Abolishes user predicates added via consult_* / assert_fact.
      *
      * Leaves SWI-Prolog running and this handle attached. Bootstrap helpers
-     * and expose_* wrappers installed through add_fact stay unless they
-     * were tracked as added predicates. Open queries are cut first.
+     * stay. User clauses and process-global expose_* wrappers are abolished.
+     * Open queries are cut first.
      *
      * @return false if this handle is not attached or the call is off-thread.
      */
@@ -473,7 +461,7 @@ public:
      * cleanup() this handle while the returned query is still open.
      *
      * @param p_goal Goal from predicate.call() or conjunction /
-     * disjunction / negated().
+     * disjunction / negated() / cut().
      * @param p_max_solutions 0 = unlimited. Otherwise stop after this
      * many answers (also applies to all() / a `for` without break).
      * Even when lazy, all() or an unbounded `for` on an infinite goal
@@ -631,9 +619,10 @@ public:
     bool unexpose(godot::String const& p_predicate, int p_arity);
 
     /**
-     * @brief Returns the list of currently exposed members.
+     * @brief Returns the process-global list of exposed members.
      *
-     * Each item is a Dictionary: kind, class, member, predicate, arity.
+     * Shared by every Prologot handle (dock and PrologotEngine see the
+     * same wrappers). Each item: kind, class, member, predicate, arity.
      *
      * @return Array of Dictionaries (empty if nothing is exposed).
      *
@@ -667,8 +656,8 @@ public:
     /**
      * @brief Checks if a predicate exists with the given arity.
      *
-     * This method uses PL_predicate() to look up a predicate. If the predicate
-     * doesn't exist, PL_predicate() returns 0 (NULL).
+     * True if user:Name/Arity appears in current_predicate/1.
+     * Does not create the predicate (unlike PL_predicate / PL_pred).
      *
      * @param p_predicate Name of the predicate to check.
      * @param p_arity Number of arguments the predicate should have.
@@ -824,7 +813,7 @@ private:
     static bool require_main_thread(char const* p_where);
 
     /**
-     * @brief Retracts expose_* wrappers installed by this handle.
+     * @brief Retracts every process-global expose_* wrapper.
      */
     void uninstall_exposed();
 
@@ -840,8 +829,8 @@ private:
     /** Whether this handle is attached to the process-global engine. */
     bool m_initialized;
 
-    /** Wrappers installed by expose_property / expose_method. */
-    std::vector<ExposedBinding> m_exposed;
+    /** Process-global expose_* wrappers (one SWI engine, all handles). */
+    static std::vector<ExposedBinding> s_exposed;
 
     /** Last error message from Prolog. */
     godot::String m_last_error;
@@ -851,13 +840,6 @@ private:
 
     /** Warning handling option: "print", "halt", or "status". */
     godot::String m_on_warning;
-
-    /**
-     * @brief C++ singleton handle used by foreign predicates.
-     *
-     * Never overwritten while it still points at a live instance.
-     */
-    static Prologot* m_singleton;
 };
 
 } // namespace prologot

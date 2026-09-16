@@ -64,6 +64,7 @@ func run_all_tests() -> void:
 	test_lists_atoms_and_variants()
 	test_consult_file_standalone()
 	test_clear_knowledge()
+	test_knowledge_bases_and_facade()
 	test_prolog_term_factories()
 	test_prolog_variable()
 	test_prolog_predicate()
@@ -728,6 +729,68 @@ func test_clear_knowledge() -> void:
 	teardown_prolog()
 
 
+func test_knowledge_bases_and_facade() -> void:
+	print("\n[Test Suite: knowledge bases / facade]")
+
+	var facade_script = load("res://addons/prologot/prologot_facade.gd")
+	var singleton_script = load("res://addons/prologot/prologot_singleton.gd")
+	if facade_script == null or singleton_script == null:
+		print("  ✗ SKIP: addons/prologot not linked into the tests project")
+		return
+
+	var cold = facade_script.new()
+	assert_false(cold.is_initialized(), "facade without engine is not initialized")
+	assert_false(cold.clear_knowledge(), "clear_knowledge fails without engine")
+	assert_false(cold.predicate_exists("parent", 2), "predicate_exists fails without engine")
+	assert_true(cold.list_predicates().is_empty(), "list_predicates is empty without engine")
+	cold.cleanup()
+	cold.free()
+
+	if not setup_prolog():
+		print("  ✗ SKIP: Could not initialize Prolog")
+		return
+
+	var host = singleton_script.new()
+	host.engine = prolog
+
+	assert_true(host.is_initialized(), "injected handle reports initialized")
+	assert_true(host.create_knowledge_base("combat", "kb_flag(combat). kb_act(attack)."),
+		"create_knowledge_base stores and loads combat")
+	assert_true(host.solve(host.predicate("kb_flag").call("combat")).has_solution(),
+		"combat flag is live after create")
+	assert_true(host.predicate_exists("kb_act", 1), "predicate_exists sees kb_act/1")
+	assert_false(host.predicate_exists("never_defined_xyz", 3),
+		"predicate_exists is false for an unknown functor")
+	assert_true(host.list_predicates().size() > 0, "list_predicates is non-empty")
+
+	assert_true(host.create_knowledge_base("talk", "kb_flag(talk). kb_line(hi)."),
+		"create_knowledge_base replaces the live KB")
+	assert_true(host.solve(host.predicate("kb_flag").call("talk")).has_solution(),
+		"talk flag is live after second create")
+	assert_false(host.solve(host.predicate("kb_flag").call("combat")).has_solution(),
+		"combat facts are gone after create(talk)")
+	assert_false(host.solve(host.predicate("kb_act").call("attack")).has_solution(),
+		"kb_act/1 was wiped by create(talk)")
+
+	assert_true(host.switch_knowledge_base("combat"), "switch reloads stored combat")
+	assert_true(host.solve(host.predicate("kb_flag").call("combat")).has_solution(),
+		"combat is live after switch")
+	assert_false(host.solve(host.predicate("kb_flag").call("talk")).has_solution(),
+		"talk facts are gone after switch(combat)")
+	assert_false(host.switch_knowledge_base("missing"), "switch unknown name fails")
+
+	var names: Array = host.list_knowledge_bases()
+	assert_true("combat" in names and "talk" in names, "list_knowledge_bases has both names")
+
+	assert_true(host.clear_knowledge(), "clear_knowledge via facade")
+	assert_false(host.solve(host.predicate("kb_flag").call("combat")).has_solution(),
+		"clear_knowledge wipes the live KB")
+	assert_true("combat" in host.list_knowledge_bases(), "stored names survive clear_knowledge")
+
+	host.free()
+	teardown_prolog()
+
+
 func test_prolog_term_factories() -> void:
 	print("\n[Test Suite: PrologTerm factories]")
 
@@ -900,6 +963,7 @@ func test_prolog_goal_composition() -> void:
 
 	assert_true(prolog.consult_string("""
 		parent(tom, bob).
+		parent(tom, liz).
 		parent(bob, ann).
 		animal(dog).
 		animal(cat).
@@ -923,6 +987,16 @@ func test_prolog_goal_composition() -> void:
 		prolog.solve(animal.call("dog").negated()).has_solution(),
 		"negated fails when the goal succeeds"
 	)
+
+	var cut_child := prolog.variable("CutChild")
+	var cut_goal: PrologGoal = parent.call("tom", cut_child).cut()
+	assert_equal(cut_goal.get_functor(), ",", "cut() is this , !")
+	assert_equal(cut_goal.get_args()[1].as_text(), "!", "right side of cut() is !")
+	var cut_rows: Array = prolog.solve(cut_goal).all()
+	assert_equal(cut_rows.size(), 1, "cut() keeps only the first parent(tom, Child)")
+	assert_equal(cut_rows[0].get(cut_child), "bob", "first child after cut is bob")
+	var all_children: Array = prolog.solve(parent.call("tom", prolog.variable("C"))).all()
+	assert_equal(all_children.size(), 2, "without cut, tom has two children")
 
 	teardown_prolog()
 
@@ -1184,6 +1258,29 @@ func test_expose_godot_members() -> void:
 
 	var exposed: Array = prolog.list_exposed()
 	assert_true(exposed.size() >= 4, "list_exposed() lists the wrappers")
+
+	var other := Prologot.new()
+	assert_true(other.initialize(), "second handle attaches")
+	assert_true(other.list_exposed().size() >= 4, "list_exposed is process-global")
+	assert_true(
+		other.solve(other.predicate("res_name").call(pack, "loot")).has_solution(),
+		"second handle can call a wrapper the first handle exposed"
+	)
+	prolog.cleanup()
+	assert_true(other.is_initialized(), "exposing handle can detach first")
+	assert_true(
+		other.solve(other.predicate("res_name").call(pack, "loot")).has_solution(),
+		"wrappers survive cleanup of the handle that exposed them"
+	)
+	assert_true(other.unexpose("res_name", 2), "any attached handle can unexpose")
+	assert_false(
+		other.solve(other.predicate("res_name").call(pack, "loot")).has_solution(),
+		"unexpose from the other handle removes the wrapper"
+	)
+	assert_true(prolog.initialize(), "first handle re-attaches")
+	assert_true(prolog.list_exposed().size() >= 3, "re-attached handle sees the remaining wrappers")
+	other.cleanup()
+
 	assert_true(prolog.unexpose("node_name", 2), "unexpose node_name/2")
 	assert_false(prolog.solve(prolog.predicate("node_name").call(node, "Player")).has_solution(), "wrapper is gone")
 

@@ -54,7 +54,7 @@ Not thread-safe: call `initialize()` / `solve()` / `consult_*` / `cleanup()` onl
 flowchart LR
   Prologot --> PrologPredicate
   PrologPredicate -->|call| PrologGoal
-  PrologGoal -->|conjunction / disjunction / negated| PrologGoal
+  PrologGoal -->|conjunction / disjunction / negated / cut| PrologGoal
   Prologot -->|solve| PrologQuery
   PrologQuery --> PrologSolution
   PrologSolution -->|get| PrologVariable
@@ -74,7 +74,7 @@ flowchart LR
 | Variables | `variable()` / `anonymous()` — not `"X"` strings |
 | Bindings | `solution.get(var_object)` — not `solution["X"]` |
 | Arity | From `call()` argument count, not `predicate(name, n)` |
-| Composition | `conjunction` / `disjunction` / `negated` |
+| Composition | `conjunction` / `disjunction` / `negated` / `cut` |
 
 ---
 
@@ -280,7 +280,15 @@ prolog.retract_all(parent.call(prolog.anonymous(), prolog.anonymous()))
 
 ### Exposing Godot members
 
-Godot API is **not** auto-exported.
+Godot API is **not** auto-exported. `expose_*` installs a thin Prolog wrapper
+around the foreign predicates `prologot_property/4` and `prologot_method/5`
+(registered at `initialize()`). Game code calls the wrapper (`node_name/2`),
+not those internals.
+
+Wrappers and `list_exposed()` are **process-global** (one SWI engine). The
+editor dock and `PrologotEngine` share the same list. `cleanup()` of one
+handle does not remove them; last-handle cleanup / `clear_knowledge()` does.
+Foreign callbacks talk to SWI + Godot objects, not to a particular handle.
 
 #### `expose_property(class_name: String, property: String, predicate: String = "") -> bool`
 
@@ -309,6 +317,8 @@ Main thread only.
 ### Introspection
 
 #### `predicate_exists(name: String, arity: int) -> bool`
+
+`current_predicate(user:Name/Arity)`. Does not create the predicate.
 
 #### `list_predicates() -> Array`
 
@@ -348,6 +358,7 @@ Built by `call()` or composition. Passed to `solve()` / `assert_fact()` / `retra
 | `conjunction(other: PrologGoal) -> PrologGoal` | `,/2` | Both must succeed |
 | `disjunction(other: PrologGoal) -> PrologGoal` | `;/2` | Either succeeds |
 | `negated() -> PrologGoal` | `\+/1` | Negation as failure |
+| `cut() -> PrologGoal` | `this, !` | Commit; do not backtrack past this point |
 
 ---
 
@@ -439,7 +450,7 @@ dock stay visible when you press Play, until the last handle cleans up.
 |------|------|
 | `plugin.gd` | EditorPlugin: autoload, dock handle, custom types |
 | `prologot_boot.gd` | Shared `create_engine()` + bundled `res://bin/<os>/swipl` home |
-| `prologot_facade.gd` | Forwards `atom` / `solve` / `consult_*` / `expose_*` / `clear_knowledge` |
+| `prologot_facade.gd` | Forwards `atom` / `solve` / `consult_*` / `expose_*` / `clear_knowledge` / `is_initialized` / `cleanup` / `predicate_exists` / `list_predicates` |
 | `prologot_singleton.gd` | Autoload: facade + named knowledge bases |
 | `prologot_node.gd` | Scene node: facade + Resource / file loading |
 | `prolog_knowledge.gd` | Inspectable Resource (`files` + inline `code`) |
@@ -453,7 +464,7 @@ The plugin is the usual game path.
 Drop in a scene. `start()` (from `_ready()` when `auto_start`) attaches an
 engine and loads knowledge. Same query API as `Prologot` / `PrologotEngine`
 via the facade (`predicate`, `solve`, `consult_*`, `assert_fact`, `expose_*`,
-`clear_knowledge`, …).
+`clear_knowledge`, `is_initialized`, `predicate_exists`, …).
 
 | Export | Default | Meaning |
 |--------|---------|---------|
@@ -490,24 +501,28 @@ func _ready() -> void:
 
 Registered as `/root/PrologotEngine` when the plugin is enabled. Created
 on Play, not in the editor tree. Same methods as `Prologot` through
-`prologot_facade.gd` (`consult_file`, `solve`, `predicate`, `clear_knowledge`, …).
+`prologot_facade.gd` (`consult_file`, `solve`, `predicate`, `clear_knowledge`,
+`is_initialized`, `cleanup`, `predicate_exists`, `list_predicates`, …).
 
 **Named bases** (only on the autoload):
 
 | Method | Description |
 |--------|-------------|
-| `create_knowledge_base(name, code) -> bool` | Store `code` and **add** it (`consult_string`) |
+| `create_knowledge_base(name, code) -> bool` | Store `code`, **wipe**, then consult |
 | `switch_knowledge_base(name) -> bool` | `clear_knowledge()` then consult the stored source |
 | `list_knowledge_bases() -> Array` | Names passed to `create_knowledge_base` (not a SWI dump) |
 
-`switch_knowledge_base` **replaces** the user knowledge base: previous mode
-clauses are abolished. `create_knowledge_base` alone does not wipe.
+Both `create_knowledge_base` and `switch_knowledge_base` **replace** the user
+knowledge base. Creating `"talk"` after `"combat"` abolishes combat clauses
+immediately; `switch_knowledge_base("combat")` loads them back from the stored
+source.
 
 ```gdscript
 PrologotEngine.create_knowledge_base("combat", "decide(attack).")
 PrologotEngine.create_knowledge_base("talk", "line(hi).")
-PrologotEngine.switch_knowledge_base("talk")
-# decide/1 is gone; line/1 is loaded.
+# decide/1 is already gone; only line/1 is live.
+PrologotEngine.switch_knowledge_base("combat")
+# line/1 is gone; decide/1 is loaded.
 ```
 
 `_exit_tree` detaches the handle; it does not `PL_cleanup()` (the dock may

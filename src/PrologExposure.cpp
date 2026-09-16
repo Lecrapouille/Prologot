@@ -287,7 +287,7 @@ bool Prologot::expose_property(godot::String const& p_class,
     binding.member = p_property;
     binding.predicate = predicate;
     binding.arity = arity;
-    m_exposed.push_back(binding);
+    s_exposed.push_back(binding);
     return true;
 }
 
@@ -367,7 +367,7 @@ bool Prologot::expose_method(godot::String const& p_class,
     binding.member = p_method;
     binding.predicate = predicate;
     binding.arity = arity;
-    m_exposed.push_back(binding);
+    s_exposed.push_back(binding);
     return true;
 }
 
@@ -381,12 +381,12 @@ bool Prologot::unexpose(godot::String const& p_predicate, int p_arity)
         return false;
 
     bool found = false;
-    for (size_t i = 0; i < m_exposed.size();)
+    for (size_t i = 0; i < s_exposed.size();)
     {
-        if (m_exposed[i].predicate == p_predicate &&
-            m_exposed[i].arity == p_arity)
+        if (s_exposed[i].predicate == p_predicate &&
+            s_exposed[i].arity == p_arity)
         {
-            m_exposed.erase(m_exposed.begin() + static_cast<long>(i));
+            s_exposed.erase(s_exposed.begin() + static_cast<long>(i));
             found = true;
         }
         else
@@ -405,7 +405,7 @@ bool Prologot::unexpose(godot::String const& p_predicate, int p_arity)
 godot::Array Prologot::list_exposed() const
 {
     godot::Array out;
-    for (ExposedBinding const& binding : m_exposed)
+    for (ExposedBinding const& binding : s_exposed)
     {
         godot::Dictionary d;
         d["kind"] = binding.kind;
@@ -423,8 +423,7 @@ bool Prologot::foreign_property(term_t p_class,
                                 term_t p_object,
                                 term_t p_value)
 {
-    Prologot* self = get_singleton();
-    if (self == nullptr || !self->m_initialized)
+    if (PL_is_initialised(nullptr, nullptr) == FALSE)
         return false;
     if (PL_exception(0))
         PL_clear_exception();
@@ -453,8 +452,7 @@ bool Prologot::foreign_method(term_t p_class,
                               term_t p_args,
                               term_t p_result)
 {
-    Prologot* self = get_singleton();
-    if (self == nullptr || !self->m_initialized)
+    if (PL_is_initialised(nullptr, nullptr) == FALSE)
         return false;
 
     godot::String class_name;

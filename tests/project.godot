@@ -8,6 +8,8 @@
 
 config_version=5
 
+; Plugin scripts: tests/addons is a symlink to ../addons (one copy).
+
 [application]
 
 config/name="Prologot Tests"

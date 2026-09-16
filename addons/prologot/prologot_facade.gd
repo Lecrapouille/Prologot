@@ -121,6 +121,36 @@ func clear_knowledge() -> bool:
 
 
 ###############################################################################
+## True if the handle is attached to the process-global SWI engine.
+###############################################################################
+func is_initialized() -> bool:
+	return engine != null and engine.is_initialized()
+
+
+###############################################################################
+## Detach the handle. Does not PL_cleanup(); last handle resets user KB.
+###############################################################################
+func cleanup() -> void:
+	if engine:
+		engine.cleanup()
+
+
+###############################################################################
+## True if functor/arity is defined in the current knowledge base.
+###############################################################################
+func predicate_exists(pred: String, arity: int) -> bool:
+	var e = _engine_or_error()
+	return e.predicate_exists(pred, arity) if e else false
+
+
+###############################################################################
+## current_predicate/1 dump: Array of {functor, args} dictionaries.
+###############################################################################
+func list_predicates() -> Array:
+	return engine.list_predicates() if engine else []
+
+
+###############################################################################
 ## Last error from the Prologot handle, or "Engine not initialized".
 ###############################################################################
 func get_last_error() -> String:

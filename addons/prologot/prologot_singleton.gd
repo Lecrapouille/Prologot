@@ -10,9 +10,9 @@ extends "res://addons/prologot/prologot_facade.gd"
 
 const PrologotBoot = preload("res://addons/prologot/prologot_boot.gd")
 
-## Named Prolog source strings for create / switch / list_knowledge_base.
-## Keys are names, values are Prolog code. switch_knowledge_base() wipes
-## user clauses before loading the chosen source.
+## Named Prolog source strings for create / switch / list_knowledge_bases.
+## Keys are names, values are Prolog code. create_knowledge_base() and
+## switch_knowledge_base() both wipe user clauses before consulting.
 var knowledge_bases: Dictionary = {}
 
 
@@ -44,17 +44,19 @@ func _exit_tree() -> void:
 ###############################################################################
 ## Create and load a named knowledge base.
 ##
-## Stores a Prolog code string under kb_name and consult_string()s it
-## immediately (adds clauses; does not wipe). Use switch_knowledge_base()
-## to replace the user knowledge base with one of these stored sources.
-## Useful for game modes, scenarios, or AI configurations.
+## Stores a Prolog code string under kb_name, clear_knowledge()s the user
+## KB, then consult_string()s the new source. Previous live clauses are
+## gone. Creating a second base does not keep the first one's facts.
+## Use switch_knowledge_base() to reload a stored source later.
 ##
 ## @param kb_name: Unique name for this knowledge base
 ## @param code: Prolog source (facts, rules, …)
-## @return: true if the code was stored and consulted
+## @return: true if the code was stored and the wipe + consult succeeded
 ###############################################################################
 func create_knowledge_base(kb_name: String, code: String) -> bool:
 	knowledge_bases[kb_name] = code
+	if not clear_knowledge():
+		return false
 	return consult_string(code)
 
 

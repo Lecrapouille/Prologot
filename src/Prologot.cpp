@@ -40,13 +40,11 @@
 namespace prologot
 {
 
-Prologot* Prologot::m_singleton = nullptr;
+std::vector<Prologot::ExposedBinding> Prologot::s_exposed;
 
 // Live handles attached via initialize() (not the number of Prologot objects).
 static int g_attach_count = 0;
-// Every constructed Prologot, used to pick a new C++ singleton on destroy.
-static std::vector<Prologot*> g_instances;
-// Predicates added through consult_* / assert_fact; wiped on last cleanup().
+// Predicates added through consult_* / assert_fact / expose_*; last cleanup().
 static std::set<std::pair<std::string, int>> g_added_predicates;
 
 // True after a successful PL_initialise in this process (any handle).
@@ -365,31 +363,11 @@ Prologot::Prologot()
     m_initialized = false;
     m_on_error = "print";
     m_on_warning = "print";
-    g_instances.push_back(this);
-    if (m_singleton == nullptr)
-        m_singleton = this;
 }
 
 Prologot::~Prologot()
 {
     cleanup();
-    auto it = std::find(g_instances.begin(), g_instances.end(), this);
-    if (it != g_instances.end())
-        g_instances.erase(it);
-    if (m_singleton == this)
-    {
-        m_singleton = nullptr;
-        for (Prologot* instance : g_instances)
-        {
-            if (instance->m_initialized)
-            {
-                m_singleton = instance;
-                break;
-            }
-        }
-        if (m_singleton == nullptr && !g_instances.empty())
-            m_singleton = g_instances.front();
-    }
 }
 
 // =============================================================================
@@ -746,24 +724,22 @@ bool Prologot::attach_handle()
 {
     m_initialized = true;
     ++g_attach_count;
-    if (m_singleton == nullptr || !m_singleton->m_initialized)
-        m_singleton = this;
     return true;
 }
 
-// Retract expose_* wrappers installed by this handle (other handles stay).
+// Retract every process-global expose_* wrapper (shared SWI KB).
 void Prologot::uninstall_exposed()
 {
-    if (!pl_engine_is_up() || !m_initialized)
+    if (!pl_engine_is_up())
     {
-        m_exposed.clear();
+        s_exposed.clear();
         return;
     }
 
-    std::vector<ExposedBinding> exposed = m_exposed;
+    std::vector<ExposedBinding> exposed = s_exposed;
     for (ExposedBinding const& binding : exposed)
         unexpose(binding.predicate, binding.arity);
-    m_exposed.clear();
+    s_exposed.clear();
 }
 
 bool Prologot::clear_knowledge()
@@ -791,6 +767,7 @@ void Prologot::reset_user_knowledge()
     for (auto const& pred : g_added_predicates)
         wipe_user_predicate(pred.first.c_str(), pred.second);
     g_added_predicates.clear();
+    uninstall_exposed();
 }
 
 void Prologot::cleanup()
@@ -808,11 +785,8 @@ void Prologot::cleanup()
         PrologQuery::abandon_all_open();
         if (g_attach_count == 0)
             reset_user_knowledge();
-        else
-            uninstall_exposed();
     }
 
-    m_exposed.clear();
     m_initialized = false;
 }
 
@@ -824,6 +798,7 @@ void Prologot::shutdown_engine()
     PL_cleanup(0);
     g_attach_count = 0;
     g_added_predicates.clear();
+    s_exposed.clear();
 }
 
 bool Prologot::is_initialized() const
@@ -1325,6 +1300,8 @@ bool Prologot::add_fact(godot::String const& p_fact)
         return false;
     }
 
+    auto const before = list_user_predicate_indicators();
+
     // Assert the fact using Prolog's built-in assert/1 predicate
     // assert/1 adds the clause at the end of the predicate definition
     predicate_t pred = PL_predicate("assert", 1, "user");
@@ -1342,6 +1319,8 @@ bool Prologot::add_fact(godot::String const& p_fact)
     }
 
     PL_close_query(qid);
+    if (result != 0)
+        remember_new_predicates(before);
     return result != 0;
 }
 
@@ -1371,12 +1350,15 @@ bool Prologot::predicate_exists(godot::String const& p_predicate, int p_arity)
     if (!m_initialized)
         return false;
 
-    // PL_predicate() looks up a predicate by name and arity
-    // Returns 0 (NULL) if the predicate doesn't exist
-    // NULL as module means search in all modules
-    predicate_t pred =
-        PL_predicate(p_predicate.utf8().get_data(), p_arity, NULL);
-    return pred != 0;
+    // PL_predicate() / PL_pred() create the predicate if it is missing.
+    std::string const name = p_predicate.utf8().get_data();
+    int const arity = static_cast<int>(p_arity);
+    for (auto const& pred : list_user_predicate_indicators())
+    {
+        if (pred.first == name && pred.second == arity)
+            return true;
+    }
+    return false;
 }
 
 godot::Array Prologot::list_predicates()
@@ -1450,15 +1432,6 @@ bool Prologot::handle_prolog_exception(qid_t p_qid, godot::String const& p_conte
         return false;
     }
     return false;
-}
-
-// =============================================================================
-// Singleton Access
-// =============================================================================
-
-Prologot* Prologot::get_singleton()
-{
-    return m_singleton;
 }
 
 godot::String Prologot::get_last_error() const

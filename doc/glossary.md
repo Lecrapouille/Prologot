@@ -287,9 +287,14 @@ decide(patrol, _).
 
 Without the cuts, `decide(Action, 40)` can still offer `patrol` as a later answer. With the cuts, once `H > 30` succeeds, Prolog commits to `attack`.
 
-Cut lives in **Prolog source** (`.pl` / `consult_string`). There is no `goal.cut()` in GDScript: `!` cannot be a method name, and a query built in GDScript is usually a question, not a priority rule. Write priority in the knowledge base; ask it from GDScript.
+Write priority rules with `!` in `.pl` / `consult_string`. From GDScript,
+`goal.cut()` builds `goal, !` (commit the choices so far):
 
 ```gdscript
+var child = prolog.variable("Child")
+var first_only = parent.call("tom", child).cut()
+# parent(tom, Child), !  — one answer even if tom has several children
+
 var action = prolog.variable("Action")
 var first = prolog.solve(decide.call(action, 40)).first()
 print(first.get(action))   # attack

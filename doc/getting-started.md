@@ -114,9 +114,10 @@ The name in `variable("Child")` is for debug only. **Solutions are keyed by the 
 goal1.conjunction(goal2)   # ,   AND — both must succeed
 goal1.disjunction(goal2)   # ;   OR  — either may succeed
 goal1.negated()            # \+  not provable
+goal1.cut()                # goal1, !  — commit; no backtrack past here
 ```
 
-Cut (`!`) is written in Prolog source, not as a GDScript method. See [glossary — conjunction, disjunction, cut](glossary.md#conjunction-disjunction-and-cut).
+See [glossary — conjunction, disjunction, cut](glossary.md#conjunction-disjunction-and-cut).
 
 ---
 
@@ -408,7 +409,7 @@ for solution in p.solve(p.predicate("godot_class").call($Player, who)):
     print(solution.get(who))
 ```
 
-`node_name(Obj, Val)` is **relational**: unbound `Val` reads the property; ground `Val` checks equality. There is no implicit setter. Do not use functor `name/2` — SWI-Prolog already has it.
+`node_name(Obj, Val)` is **relational**: unbound `Val` reads the property; ground `Val` checks equality. There is no implicit setter. Do not use functor `name/2` — SWI-Prolog already has it. Wrappers are process-global: the dock and `PrologotEngine` share them.
 
 Full signatures: [API.md — Exposing Godot members](API.md#exposing-godot-members).
 
@@ -429,8 +430,8 @@ var parent = PrologotEngine.predicate("parent")
 PrologotEngine.solve(parent.call("tom", "bob")).has_solution()
 ```
 
-Named bases: `create_knowledge_base` **adds**; `switch_knowledge_base` **wipes**
-the user KB then loads the stored source.
+Named bases: `create_knowledge_base` and `switch_knowledge_base` both **wipe**
+the user KB then consult the (new or stored) source.
 
 ### Scene node + Resource
 

@@ -5,8 +5,8 @@
  * Prologot - SWI-Prolog integration for Godot 4
  *
  * This file defines PrologGoal: an explicit goal built from a predicate
- * call() or from conjunction / disjunction / negation. Game code passes
- * this object to Prologot.solve().
+ * call() or from conjunction / disjunction / negation / cut. Game code
+ * passes this object to Prologot.solve().
  */
 
 #pragma once
@@ -24,11 +24,10 @@ namespace prologot
  * @brief Explicit Prolog goal built from predicates and compositions.
  *
  * A goal is a compound term (parent(tom, Child)) or a composition:
- * conjunction (','/2), disjunction (';'/2), negation (\\+/1).
- * GDScript keywords and/or cannot be method names, so the API uses
- * conjunction() / disjunction() / negated().
- *
- * Cut and meta-predicates are not exposed yet.
+ * conjunction (','/2), disjunction (';'/2), negation (\\+/1),
+ * or cut ('!'/0). GDScript keywords and/or cannot be method names,
+ * so the API uses conjunction() / disjunction() / negated().
+ * cut() appends , ! (commit; do not backtrack past this point).
  *
  * @example
  * var prolog := Prologot.new()
@@ -61,7 +60,7 @@ public:
      *
      * Prefer PrologPredicate.call() from GDScript.
      *
-     * @param p_functor Functor name (e.g. "parent", ",", ";", "\\+").
+     * @param p_functor Functor name (e.g. "parent", ",", ";", "\\+", "!").
      * @param p_args Arguments in order.
      * @return A new PrologGoal.
      */
@@ -171,6 +170,26 @@ public:
      * prolog.solve(parent.call("bob", "tom").negated()).has_solution()
      */
     godot::Ref<PrologGoal> negated() const;
+
+    /**
+     * @brief Returns this , ! (Prolog cut).
+     *
+     * Commits the choices made so far in this query. Later answers
+     * will not backtrack past the cut. Typical use: take the first
+     * matching branch, then continue with more goals.
+     *
+     * @return A conjunction of this goal and !/0.
+     *
+     * @example
+     * var prolog := Prologot.new()
+     * prolog.initialize()
+     * var parent = prolog.predicate("parent")
+     * var child = prolog.variable("Child")
+     * # parent(tom, Child), !  — first child only
+     * var sols = prolog.solve(parent.call("tom", child).cut()).all()
+     * print(sols.size())  # 1
+     */
+    godot::Ref<PrologGoal> cut() const;
 
 protected:
 

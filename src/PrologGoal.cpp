@@ -23,6 +23,7 @@ void PrologGoal::_bind_methods()
     godot::ClassDB::bind_method(godot::D_METHOD("disjunction", "other"),
                          &PrologGoal::disjunction);
     godot::ClassDB::bind_method(godot::D_METHOD("negated"), &PrologGoal::negated);
+    godot::ClassDB::bind_method(godot::D_METHOD("cut"), &PrologGoal::cut);
 }
 
 godot::Ref<PrologGoal> PrologGoal::from_compound(godot::String const& p_functor,
@@ -51,6 +52,9 @@ static godot::String arg_as_text(godot::Variant const& p_value)
 
 godot::String PrologGoal::as_text() const
 {
+    if (m_args.is_empty())
+        return m_functor;
+
     godot::String text = m_functor + godot::String("(");
     for (int i = 0; i < m_args.size(); i++)
     {
@@ -92,6 +96,11 @@ godot::Ref<PrologGoal> PrologGoal::negated() const
     godot::Array args;
     args.push_back(godot::Ref<PrologGoal>(const_cast<PrologGoal*>(this)));
     return from_compound("\\+", args);
+}
+
+godot::Ref<PrologGoal> PrologGoal::cut() const
+{
+    return conjunction(from_compound("!", godot::Array()));
 }
 
 } // namespace prologot

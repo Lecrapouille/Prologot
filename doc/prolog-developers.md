@@ -63,6 +63,7 @@ flowchart TB
 | `goal.conjunction(other)` | `,(G1,G2)` | not `.and()` (keyword) |
 | `goal.disjunction(other)` | `;(G1,G2)` | |
 | `goal.negated()` | `\+ G` | |
+| `goal.cut()` | `,(G, !)` | commit; no backtrack past `!` |
 | `solve(goal).has_solution()` | success / `once/1` | one pull, then cut |
 | `solve(goal)` (iterate) | `PL_next_solution` on demand | `break` cuts the query |
 | `solve(goal).first()` | first solution | one pull, then cut |
@@ -128,7 +129,7 @@ Named variables (option B): arguments stay **positional**; the name helps `as_te
 
 **Retained policy:** bound atoms → Godot `String` (so `== "bob"` and `match` work). Bound Prolog strings → `PrologTerm`. `prolog.atom()` is input-only; `get()` never returns that wrapper for an atom. Alternatives considered: [glossary — conversion philosophies](glossary.md#three-conversion-philosophies).
 
-`,` `;` and cut: [glossary](glossary.md#conjunction-disjunction-and-cut). In GDScript, `,` is `conjunction()`, `;` is `disjunction()`. Cut stays in `.pl` source.
+`,` `;` and cut: [glossary](glossary.md#conjunction-disjunction-and-cut). In GDScript, `,` is `conjunction()`, `;` is `disjunction()`, `!` is `cut()`.
 
 ---
 

@@ -69,6 +69,7 @@ PrologotEngine.create_knowledge_base("dialogue", """
     line(guard, "Halt!").
 """)
 
+# create() already wiped combat from SWI; both sources stay stored.
 PrologotEngine.switch_knowledge_base("combat")
 # ... later ...
 PrologotEngine.switch_knowledge_base("dialogue")
