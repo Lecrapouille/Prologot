@@ -9,6 +9,8 @@
 class_name PrologotNode
 extends Node
 
+const PrologotBoot = preload("res://addons/prologot/prologot_boot.gd")
+
 ## Inspectable knowledge (files + inline Prolog). Assign a PrologKnowledge.
 @export var knowledge: Resource
 
@@ -25,7 +27,7 @@ extends Node
 @export var use_autoload: bool = true
 
 ## The Prologot instance used by this node (autoload or owned).
-var engine = null
+var engine: Object = null
 
 var _owns_engine: bool = false
 
@@ -79,21 +81,8 @@ func _ensure_engine() -> bool:
 			_owns_engine = false
 			return true
 
-	if not ClassDB.class_exists("Prologot"):
-		push_error("PrologotNode: GDExtension not loaded")
-		return false
-
-	engine = ClassDB.instantiate("Prologot")
-	var options := {}
-	var home := swipl_home
-	if home.is_empty():
-		var os_map := {"Linux": "linux", "Windows": "windows", "macOS": "macos"}
-		home = "res://bin/" + os_map.get(OS.get_name(), OS.get_name().to_lower()) + "/swipl"
-	if DirAccess.dir_exists_absolute(home) or DirAccess.dir_exists_absolute(ProjectSettings.globalize_path(home)):
-		options["home"] = home
-	if not engine.initialize(options):
-		push_error("PrologotNode: failed to initialize Prolog")
-		engine = null
+	engine = PrologotBoot.create_engine(swipl_home)
+	if engine == null:
 		return false
 	_owns_engine = true
 	return true

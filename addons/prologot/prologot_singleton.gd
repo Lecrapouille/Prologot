@@ -8,60 +8,24 @@
 
 extends Node
 
-## The Prologot engine instance for executing Prolog queries.
-## This is set to null initially and will be initialized in _ready()
-var engine = null
+const PrologotBoot = preload("res://addons/prologot/prologot_boot.gd")
+
+## Runtime Prologot handle. Created in _ready(); null if the GDExtension failed.
+var engine: Object = null
 
 ## Dictionary storing named knowledge bases for easy switching.
 ## Keys are knowledge base names (strings), values are Prolog code strings.
 ## Allows users to quickly switch between different Prolog knowledge bases.
 var knowledge_bases: Dictionary = {}
 
-# Auto-detect embedded SWI-Prolog home based on OS
-static func _swipl_home() -> String:
-	var _os_map := {"Linux": "linux", "Windows": "windows", "macOS": "macos"}
-	return "res://bin/" + _os_map.get(OS.get_name(), OS.get_name().to_lower()) + "/swipl"
-
-###############################################################################
-## Initialize the Prologot singleton.
-##
-## This function is called automatically when the singleton enters the scene tree.
-## It checks for the Prologot GDExtension, instantiates the engine, and initializes
-## the Prolog runtime. If initialization fails, error messages are logged and
-## the engine remains null.
-###############################################################################
 func _ready() -> void:
-	# Verify that the Prologot GDExtension is loaded and available
-	# The GDExtension must be properly configured in the project
-	if not ClassDB.class_exists("Prologot"):
-		engine = null
-		push_error("Prologot: GDExtension not loaded. Make sure bin/prologot.gdextension exists in your project.")
-		return
+	engine = PrologotBoot.create_engine()
 
-	# Create a new instance of the Prologot engine
-	engine = ClassDB.instantiate("Prologot")
 
-	var swipl_home := _swipl_home()
-	var options := {}
-	if DirAccess.dir_exists_absolute(swipl_home):
-		options["home"] = swipl_home
-
-	if not engine.initialize(options):
-		engine = null
-		push_error("Prologot: Failed to initialize Prolog engine")
-
-###############################################################################
-## Cleanup the Prologot singleton.
-##
-## Called when the singleton is removed from the scene tree. Properly cleans up
-## the Prolog engine resources and releases memory. This is important to prevent
-## memory leaks and ensure clean shutdown.
-###############################################################################
 func _exit_tree() -> void:
+	# Detach this handle. Does not shut down SWI (editor dock may still be attached).
 	if engine:
-		# Clean up Prolog engine resources (terminate SWI-Prolog, free memory, etc.)
 		engine.cleanup()
-	# Ensure engine reference is cleared
 	engine = null
 
 func atom(name: String):
@@ -215,9 +179,7 @@ func create_knowledge_base(kb_name: String, code: String) -> bool:
 ###############################################################################
 ## Switch to a previously created knowledge base.
 ##
-## Switches the active knowledge base by loading a previously stored one.
-## Note: This will replace the current knowledge base. If you need to preserve
-## the current state, consider saving it first.
+## Consults a previously stored knowledge base (adds clauses; does not wipe).
 ##
 ## @param kb_name: The name of the knowledge base to switch to
 ## @return: true if the switch was successful, false if the name doesn't exist

@@ -9,16 +9,14 @@
 @tool
 extends EditorPlugin
 
-## Preloaded reference to the Prologot dock script
 const PrologotDock = preload("res://addons/prologot/prologot_dock.gd")
+const PrologotBoot = preload("res://addons/prologot/prologot_boot.gd")
 
-## Reference to the dock control instance
 var dock: Control
 
-## Prologot engine instance for the editor.
-## This is separate from the runtime singleton - it's only used in the editor
-## for the interactive console dock.
-var editor_engine = null
+## Editor-only Prologot handle for the dock. Distinct from the runtime
+## autoload PrologotEngine, but both attach to the same process-global SWI.
+var editor_engine: Object = null
 
 ###############################################################################
 ## Called when the plugin is enabled/loaded in the editor.
@@ -29,27 +27,17 @@ var editor_engine = null
 ## 3. Creating and adding the interactive console dock to the editor
 ###############################################################################
 func _enter_tree() -> void:
-	# Register the autoload singleton that will be available at runtime
-	# This allows game scripts to access PrologotEngine singleton during gameplay
+	# Runtime autoload (game / F5). Not @tool: it is not created in the editor tree.
 	add_autoload_singleton("PrologotEngine", "res://addons/prologot/prologot_singleton.gd")
 
-	# Create a separate Prologot instance for the editor dock
-	# This allows testing and debugging Prolog code in the editor without
-	# affecting the runtime singleton
-	if ClassDB.class_exists("Prologot"):
-		editor_engine = ClassDB.instantiate("Prologot")
-		if editor_engine.initialize():
-			print("Prologot: Editor engine initialized")
-		else:
-			push_error("Prologot: Failed to initialize editor engine")
-			editor_engine = null
-	else:
-		push_error("Prologot: GDExtension not loaded")
+	# Dock handle. Same bundled SWI home as the autoload; initialize() attaches
+	# if the editor already started SWI, otherwise starts it once.
+	editor_engine = PrologotBoot.create_engine()
+	if editor_engine:
+		print("Prologot: Editor engine initialized")
 
-	# Create the dock control and pass it the editor engine reference
 	dock = PrologotDock.new()
-	dock.engine = editor_engine
-	# Add the dock to the right-bottom dock slot in the editor
+	dock.set_engine(editor_engine)
 	add_control_to_dock(DOCK_SLOT_RIGHT_BL, dock)
 
 	var base := get_editor_interface().get_base_control()
@@ -73,20 +61,22 @@ func _enter_tree() -> void:
 ## Called when the plugin is disabled/unloaded from the editor.
 ##
 ## Cleans up all plugin resources:
-## 1. Shuts down the editor Prologot engine
-## 2. Removes and frees the dock control
-## 3. Removes the autoload singleton registration
+## 1. Removes the dock
+## 2. Detaches the editor Prologot handle (does not PL_cleanup)
+## 3. Unregisters the autoload
 ###############################################################################
 func _exit_tree() -> void:
-	# Cleanup the editor engine and free its resources
+	# Drop the dock reference first so it cannot query a freed handle.
+	if dock:
+		dock.set_engine(null)
+		remove_control_from_docks(dock)
+		dock.queue_free()
+		dock = null
+
+	# Detach this handle only. Does not PL_cleanup(); that is the GDExtension unload.
 	if editor_engine:
 		editor_engine.cleanup()
 		editor_engine = null
-
-	# Remove the dock from the editor and free it
-	if dock:
-		remove_control_from_docks(dock)
-		dock.queue_free()
 
 	remove_custom_type("PrologotNode")
 	remove_custom_type("PrologKnowledge")

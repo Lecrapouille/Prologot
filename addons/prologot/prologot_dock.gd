@@ -28,10 +28,12 @@ var exposed_list: ItemList
 ## Allows users to write Prolog code directly in the editor and load it.
 var code_input: TextEdit
 
-## Prologot engine instance (set by the plugin).
-## This is the Prolog engine used for executing queries in the editor dock.
-## Set by the plugin when the dock is created.
-var engine = null
+## Prologot handle owned by the editor plugin (not the runtime autoload).
+var engine: Object = null
+
+
+func set_engine(value: Object) -> void:
+	engine = value
 
 ## Previous queries for Up/Down history (étape 13).
 var _history: Array[String] = []
