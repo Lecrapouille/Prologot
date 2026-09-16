@@ -76,13 +76,14 @@ flowchart LR
 
 ## Class `Prologot`
 
-Main entry point. One instance = one SWI-Prolog engine.
+Main entry point. SWI-Prolog is process-global; each `Prologot` is a handle.
 
 ### Initialization and cleanup
 
 #### `initialize(options: Dictionary = {}) -> bool`
 
-Starts SWI-Prolog. Idempotent. Bootstraps helpers for `consult_string()`.
+Starts SWI-Prolog the first time in this process, then attaches the handle.
+Idempotent per handle. Bootstraps helpers for `consult_string()` on first start.
 
 **Returns:** `true` on success; on failure call `get_last_error()`.
 
@@ -109,7 +110,9 @@ prolog.initialize({"home": "res://bin/linux/swipl", "on error": "print"})
 
 #### `cleanup() -> void`
 
-Shuts down the engine. Safe to call multiple times. Must `initialize()` again before use.
+Detaches this handle. Safe to call multiple times. Does **not** call `PL_cleanup()`
+(that happens when the GDExtension unloads). The last attached handle resets the
+user knowledge base. Must `initialize()` again before use.
 
 #### `is_initialized() -> bool`
 

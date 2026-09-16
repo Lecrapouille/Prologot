@@ -32,8 +32,9 @@ using namespace godot;
  * @class Prologot
  * @brief Main class providing SWI-Prolog integration for Godot 4.
  *
- * One instance owns one Prolog engine. Typical flow: initialize(),
- * consult_file() / consult_string(), build a PrologGoal with
+ * SWI-Prolog is process-global: PL_initialise / PL_cleanup run once per
+ * process. Each Prologot is a handle to that shared engine. Typical flow:
+ * initialize(), consult_file() / consult_string(), build a PrologGoal with
  * predicate().call(), then solve(). A PrologQuery is always truthy in
  * GDScript — use has_solution() for a yes/no test.
  *
@@ -59,30 +60,38 @@ class Prologot: public RefCounted
 public:
 
     /**
-     * @brief Constructs a new Prologot instance.
+     * @brief Constructs a new Prologot handle.
      *
-     * Initializes the singleton pointer and sets the initialized flag to false.
-     * The Prolog engine is not started until initialize() is called.
+     * Does not start SWI-Prolog. The first live instance becomes the C++
+     * singleton; later constructors do not overwrite it.
      */
     Prologot();
 
     /**
-     * @brief Destructs the Prologot instance.
+     * @brief Destructs the Prologot handle.
      *
-     * Ensures proper cleanup of the Prolog engine and resets the singleton
-     * pointer. This prevents memory leaks and ensures clean shutdown.
+     * Detaches this handle (see cleanup()). Clears the C++ singleton only
+     * if it still points at this instance. Does not call PL_cleanup().
      */
     ~Prologot();
 
     /**
-     * @brief Gets the singleton instance of Prologot.
+     * @brief Gets the C++ singleton handle used by foreign predicates.
      *
-     * This static method provides global access to the Prologot instance.
-     * Useful for accessing Prologot from C++ code without passing references.
+     * The first live instance is recorded; a second Prologot.new() does
+     * not steal it. initialize() claims it only if it is null or detached.
      *
-     * @return Pointer to the singleton instance, or nullptr if not created yet.
+     * @return Pointer to the singleton instance, or nullptr if none.
      */
     static Prologot* get_singleton();
+
+    /**
+     * @brief Shuts down the process-global SWI-Prolog engine.
+     *
+     * Call only when the GDExtension is unloaded. Safe if Prolog was never
+     * started. Do not use this to isolate tests or scene changes.
+     */
+    static void shutdown_engine();
 
     // =========================================================================
     // Initialization and Cleanup
@@ -92,11 +101,11 @@ public:
      * @brief Initializes the SWI-Prolog engine with optional configuration.
      *
      * This method performs the following steps:
-     * 1. Checks if already initialized (idempotent)
-     * 2. Parses the options Dictionary for configuration settings
-     * 3. Sets up the SWI-Prolog home directory if provided
-     * 4. Initializes the Prolog engine with the specified options
-     * 5. Bootstraps helper predicates needed for consult_string()
+     * 1. Checks if this handle is already attached (idempotent)
+     * 2. If SWI-Prolog is already running in this process, attaches to it
+     *    (startup options such as "home" are ignored after the first start)
+     * 3. Otherwise parses options, calls PL_initialise once, and bootstraps
+     *    helper predicates needed for consult_string()
      *
      * The bootstrap predicates enable loading Prolog code from strings by:
      * - Parsing multi-line Prolog code into individual clauses
@@ -142,10 +151,13 @@ public:
     bool initialize(Dictionary const& p_options = Dictionary());
 
     /**
-     * @brief Cleans up and shuts down the Prolog engine.
+     * @brief Detaches this handle from the process-global Prolog engine.
      *
-     * Safe to call multiple times. After cleanup the engine must be
-     * re-initialized before consult / solve.
+     * Safe to call multiple times. Does not call PL_cleanup() (that happens
+     * once when the GDExtension unloads). If this was the last attached
+     * handle, user predicates are abolished so the next initialize() sees
+     * a fresh knowledge base. After cleanup this handle must initialize()
+     * again before consult / solve.
      *
      * @example
      * func _exit_tree():
@@ -179,8 +191,8 @@ public:
      * in the knowledge base. Each new file or code string adds its clauses to
      * the existing knowledge base without removing previous ones. If you need
      * to replace the knowledge base, use retract_all() to remove specific
-     * predicates first, or reinitialize the engine with cleanup() and
-     * initialize().
+     * predicates first, or call cleanup() then initialize() (the last
+     * attached handle resets user predicates without restarting SWI).
      *
      * @param p_filename Path to the Prolog file (.pl) to load.
      * @return true if the file was loaded successfully, false otherwise.
@@ -211,8 +223,8 @@ public:
      * in the knowledge base. Each new code string adds its clauses to the
      * existing knowledge base without removing previous ones. If you need to
      * replace the knowledge base, use retract_all() to remove specific
-     * predicates first, or reinitialize the engine with cleanup() and
-     * initialize().
+     * predicates first, or call cleanup() then initialize() (the last
+     * attached handle resets user predicates without restarting SWI).
      *
      * @param p_prolog_code The Prolog code to load (can be multi-line).
      * @return true if the code was loaded successfully, false otherwise.
@@ -808,6 +820,21 @@ private:
      */
     bool register_foreign_predicates();
 
+    /**
+     * @brief Marks this handle as attached to the already-running engine.
+     */
+    bool attach_handle();
+
+    /**
+     * @brief Abolishes user predicates while keeping Prologot bootstrap helpers.
+     */
+    void reset_user_knowledge();
+
+    /**
+     * @brief Retracts expose_* wrappers installed by this handle.
+     */
+    void uninstall_exposed();
+
     struct ExposedBinding
     {
         String kind;
@@ -817,7 +844,7 @@ private:
         int arity = 0;
     };
 
-    /** Whether the Prolog engine has been initialized. */
+    /** Whether this handle is attached to the process-global engine. */
     bool m_initialized;
 
     /** Wrappers installed by expose_property / expose_method. */
@@ -833,10 +860,9 @@ private:
     String m_on_warning;
 
     /**
-     * @brief Singleton instance pointer for global access.
+     * @brief C++ singleton handle used by foreign predicates.
      *
-     * This static member allows access to the Prologot instance from anywhere
-     * in the codebase without needing to pass references around.
+     * Never overwritten while it still points at a live instance.
      */
     static Prologot* m_singleton;
 };

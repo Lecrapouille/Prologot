@@ -57,8 +57,8 @@ void initialize_prologot_module(ModuleInitializationLevel p_level)
  * @brief Uninitializes the Prologot module.
  *
  * This function is called by Godot when the extension is unloaded.
- * Currently, no cleanup is needed as Prologot handles its own cleanup
- * in the destructor.
+ * Prologot handles detach their handles in destructors; the process-global
+ * SWI-Prolog engine is shut down here, once.
  *
  * @param p_level The initialization level. We only uninitialize at SCENE level.
  */
@@ -69,7 +69,7 @@ void uninitialize_prologot_module(ModuleInitializationLevel p_level)
     {
         return;
     }
-    // No cleanup needed - Prologot destructor handles cleanup
+    Prologot::shutdown_engine();
 }
 
 /**

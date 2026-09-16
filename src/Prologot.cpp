@@ -8,6 +8,7 @@
  */
 
 #include "Prologot.hpp"
+#include <algorithm>
 #include <cstring>
 #include <deque>
 #include <map>
@@ -37,6 +38,32 @@
 // =============================================================================
 
 Prologot* Prologot::m_singleton = nullptr;
+
+namespace
+{
+int g_attach_count = 0;
+std::vector<Prologot*> g_instances;
+
+bool pl_engine_is_up()
+{
+    return PL_is_initialised(nullptr, nullptr) != FALSE;
+}
+
+bool call_prolog_silent(char const* p_goal)
+{
+    term_t t = PL_new_term_ref();
+    if (!PL_chars_to_term(p_goal, t))
+        return false;
+
+    qid_t qid = PL_open_query(
+        NULL, PL_Q_CATCH_EXCEPTION, PL_predicate("call", 1, "system"), t);
+    int result = PL_next_solution(qid);
+    if (result == PL_S_EXCEPTION)
+        PL_clear_exception();
+    PL_close_query(qid);
+    return result != 0 && result != PL_S_EXCEPTION;
+}
+} // namespace
 
 // =============================================================================
 // Godot Method Binding
@@ -116,13 +143,31 @@ Prologot::Prologot()
     m_initialized = false;
     m_on_error = "print";
     m_on_warning = "print";
-    m_singleton = this;
+    g_instances.push_back(this);
+    if (m_singleton == nullptr)
+        m_singleton = this;
 }
 
 Prologot::~Prologot()
 {
     cleanup();
-    m_singleton = nullptr;
+    auto it = std::find(g_instances.begin(), g_instances.end(), this);
+    if (it != g_instances.end())
+        g_instances.erase(it);
+    if (m_singleton == this)
+    {
+        m_singleton = nullptr;
+        for (Prologot* instance : g_instances)
+        {
+            if (instance->m_initialized)
+            {
+                m_singleton = instance;
+                break;
+            }
+        }
+        if (m_singleton == nullptr && !g_instances.empty())
+            m_singleton = g_instances.front();
+    }
 }
 
 // =============================================================================
@@ -157,9 +202,17 @@ Prologot::set_swi_home_dir(String const& p_home_option)
 
 bool Prologot::initialize(Dictionary const& p_options)
 {
-    // Idempotent: if already initialized, return success immediately
+    // Idempotent: if this handle is already attached, return success
     if (m_initialized)
         return true;
+
+    m_on_error = p_options.get("on error", "print");
+    m_on_warning = p_options.get("on warning", "print");
+
+    // SWI-Prolog is process-global: attach to an engine started earlier
+    // in this process (tests, editor dock, another Prologot.new()).
+    if (pl_engine_is_up())
+        return attach_handle();
 
     // Extract other options
     bool quiet = p_options.get("quiet", true);
@@ -174,8 +227,6 @@ bool Prologot::initialize(Dictionary const& p_options)
     String script_file = p_options.get("script file", "");
     String toplevel = p_options.get("toplevel", "");
     Variant goal_var = p_options.get("goal", Variant());
-    m_on_error = p_options.get("on error", "print");
-    m_on_warning = p_options.get("on warning", "print");
 
     // Extract and resolve home directory
     auto [home, error] = set_swi_home_dir(p_options.get("home", ""));
@@ -455,20 +506,78 @@ bool Prologot::initialize(Dictionary const& p_options)
     }
 
     // Mark as initialized only after all steps succeed
+    return attach_handle();
+}
+
+bool Prologot::attach_handle()
+{
     m_initialized = true;
+    ++g_attach_count;
+    if (m_singleton == nullptr || !m_singleton->m_initialized)
+        m_singleton = this;
     return true;
+}
+
+void Prologot::uninstall_exposed()
+{
+    if (!pl_engine_is_up() || !m_initialized)
+    {
+        m_exposed.clear();
+        return;
+    }
+
+    std::vector<ExposedBinding> exposed = m_exposed;
+    for (ExposedBinding const& binding : exposed)
+        unexpose(binding.predicate, binding.arity);
+    m_exposed.clear();
+}
+
+void Prologot::reset_user_knowledge()
+{
+    if (!pl_engine_is_up())
+        return;
+
+    // Keep bootstrap helpers and foreign predicates; drop user clauses.
+    // Do not call PL_cleanup(): restarting SWI in-process is not robust.
+    call_prolog_silent(
+        "catch(abolish_all_tables, _, true), "
+        "forall((current_predicate(user:PI), "
+        "        \\+ predicate_property(user:PI, built_in), "
+        "        \\+ predicate_property(user:PI, foreign), "
+        "        \\+ predicate_property(user:PI, imported_from(_)), "
+        "        PI \\= load_program_from_string/1, "
+        "        PI \\= prologot_load_clauses/1, "
+        "        PI \\= prologot_process_clause/1), "
+        "       catch(abolish(user:PI), _, true))");
 }
 
 void Prologot::cleanup()
 {
-    if (m_initialized)
+    if (!m_initialized)
+        return;
+
+    if (g_attach_count > 0)
+        --g_attach_count;
+
+    if (pl_engine_is_up())
     {
-        // PL_cleanup(0) shuts down the Prolog engine
-        // The argument (0) means normal cleanup
-        PL_cleanup(0);
-        m_initialized = false;
-        m_exposed.clear();
+        if (g_attach_count == 0)
+            reset_user_knowledge();
+        else
+            uninstall_exposed();
     }
+
+    m_exposed.clear();
+    m_initialized = false;
+}
+
+void Prologot::shutdown_engine()
+{
+    if (!pl_engine_is_up())
+        return;
+
+    PL_cleanup(0);
+    g_attach_count = 0;
 }
 
 bool Prologot::is_initialized() const

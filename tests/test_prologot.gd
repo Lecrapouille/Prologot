@@ -139,13 +139,13 @@ func assert_not_empty(value: Variant, message: String) -> void:
 		print("  ✗ FAIL: %s (value is empty)" % message)
 
 
-## Setup a fresh Prolog engine for testing.
+## Attach a Prologot handle. SWI-Prolog itself is process-global.
 func setup_prolog() -> bool:
 	prolog = Prologot.new()
 	return prolog.initialize()
 
 
-## Cleanup the Prolog engine.
+## Detach the handle. The last cleanup() resets the user knowledge base.
 func teardown_prolog() -> void:
 	if prolog:
 		prolog.cleanup()
@@ -182,10 +182,37 @@ func test_initialization() -> void:
 	var reinit_result: bool = prolog.initialize()
 	assert_true(reinit_result, "Re-initialization succeeds (idempotent)")
 
-	# Test 6: Cleanup
-	prolog.cleanup()
-	assert_false(prolog.is_initialized(), "Engine not initialized after cleanup")
+	assert_true(prolog.consult_string("lifecycle_marker(1)."), "consult a marker fact")
+	assert_true(prolog.solve(goal("lifecycle_marker", [1])).has_solution(), "marker is queryable")
 
+	# Test 6: A second handle shares the process-global engine
+	var other := Prologot.new()
+	assert_false(other.is_initialized(), "Second instance starts uninitialized")
+	assert_true(other.initialize(), "Second instance attaches to the running engine")
+	assert_true(other.is_initialized(), "Second instance reports initialized")
+	assert_true(
+		other.solve(other.predicate("lifecycle_marker").call(1)).has_solution(),
+		"Second instance sees the shared knowledge base"
+	)
+
+	# Test 7: cleanup() detaches this handle; last handle resets user predicates
+	prolog.cleanup()
+	assert_false(prolog.is_initialized(), "First handle is detached after cleanup()")
+	assert_true(other.is_initialized(), "Second handle stays initialized")
+	assert_true(
+		other.solve(other.predicate("lifecycle_marker").call(1)).has_solution(),
+		"Shared knowledge remains while another handle is live"
+	)
+
+	other.cleanup()
+	assert_false(other.is_initialized(), "Last handle is detached after cleanup()")
+	assert_true(prolog.initialize(), "Re-attach after last cleanup")
+	assert_false(
+		prolog.solve(goal("lifecycle_marker", [1])).has_solution(),
+		"Last cleanup resets the user knowledge base"
+	)
+
+	prolog.cleanup()
 	prolog = null
 
 
