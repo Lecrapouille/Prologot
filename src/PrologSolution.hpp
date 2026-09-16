@@ -31,6 +31,8 @@ namespace prologot
  * Array; compounds stay as PrologTerm or the existing Dictionary form.
  *
  * @example
+ * var prolog := Prologot.new()
+ * prolog.initialize()
  * var parent = prolog.predicate("parent")
  * var child = prolog.variable("Child")
  * for solution in prolog.solve(parent.call("tom", child)):

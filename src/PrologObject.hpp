@@ -32,6 +32,8 @@ namespace prologot
  * Not thread-safe: use from the Godot main thread only (see étape 17).
  *
  * @example
+ * var prolog := Prologot.new()
+ * prolog.initialize()
  * var player = prolog.object($Player)
  * var at = prolog.predicate("at")
  * prolog.assert_fact(at.call(player, "zone_1"))
@@ -55,6 +57,9 @@ public:
 
     /**
      * @brief Wraps a Godot Object as a Prolog handle.
+     *
+     * C++ entry used by Prologot::object(). From GDScript prefer
+     * prolog.object(node) on an initialized Prologot.
      *
      * @param p_object Node, Resource, or any Object. Null returns null.
      * @return A new PrologObject, or null if p_object is null.

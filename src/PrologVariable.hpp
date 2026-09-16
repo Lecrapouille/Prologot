@@ -32,6 +32,8 @@ namespace prologot
  * solutions.
  *
  * @example
+ * var prolog := Prologot.new()
+ * prolog.initialize()
  * var parent = prolog.predicate("parent")
  * var child = prolog.variable("Child")
  * var other = prolog.variable()
@@ -81,6 +83,8 @@ public:
      * Anonymous variables are omitted from PrologSolution bindings.
      *
      * @example
+     * var prolog := Prologot.new()
+     * prolog.initialize()
      * var parent = prolog.predicate("parent")
      * # parent(tom, _) : succeed if tom has any child
      * prolog.solve(parent.call("tom", prolog.anonymous())).has_solution()

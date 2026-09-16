@@ -29,6 +29,8 @@ namespace prologot
  * variable. callv(Array) is the same with an explicit array.
  *
  * @example
+ * var prolog := Prologot.new()
+ * prolog.initialize()
  * var parent = prolog.predicate("parent")
  * print(parent.as_text())  # parent
  *
@@ -65,6 +67,8 @@ public:
      * @return A reusable PrologPredicate.
      *
      * @example
+     * var prolog := Prologot.new()
+     * prolog.initialize()
      * var parent = prolog.predicate("parent")
      * print(parent.get_name())  # parent
      */
@@ -103,6 +107,8 @@ public:
      * @return A PrologGoal ready for solve(), assert_fact(), or composition.
      *
      * @example
+     * var prolog := Prologot.new()
+     * prolog.initialize()
      * var parent = prolog.predicate("parent")
      * var child = prolog.variable("Child")
      * var goal = parent.callv(["tom", child])
@@ -122,6 +128,8 @@ public:
      * @return A PrologGoal Variant, or null on failure.
      *
      * @example
+     * var prolog := Prologot.new()
+     * prolog.initialize()
      * var parent = prolog.predicate("parent")
      * var child = prolog.variable("Child")
      * var goal: PrologGoal = parent.call("tom", child)

@@ -49,6 +49,8 @@ class Prologot;
  *
  *     parent(tom, bob). parent(tom, liz). parent(bob, ann).
  *
+ *     var prolog := Prologot.new()
+ *     prolog.initialize()
  *     var parent = prolog.predicate("parent")
  *     var child = prolog.variable("Child")
  *     var via = prolog.variable("Via")

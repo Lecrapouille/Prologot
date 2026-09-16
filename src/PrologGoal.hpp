@@ -31,6 +31,8 @@ namespace prologot
  * Cut and meta-predicates are not exposed yet.
  *
  * @example
+ * var prolog := Prologot.new()
+ * prolog.initialize()
  * var parent = prolog.predicate("parent")
  * var via = prolog.variable()
  * var grandchild = prolog.variable()
@@ -132,6 +134,8 @@ public:
      * @return A goal whose functor is ",".
      *
      * @example
+     * var prolog := Prologot.new()
+     * prolog.initialize()
      * var parent = prolog.predicate("parent")
      * var via = prolog.variable()
      * var goal = parent.call("tom", via).conjunction(parent.call(via, "ann"))
@@ -148,6 +152,8 @@ public:
      * @return A goal whose functor is ";".
      *
      * @example
+     * var prolog := Prologot.new()
+     * prolog.initialize()
      * var animal = prolog.predicate("animal")
      * var goal = animal.call("dog").disjunction(animal.call("cat"))
      */
@@ -159,6 +165,8 @@ public:
      * @return A goal whose functor is "\\+".
      *
      * @example
+     * var prolog := Prologot.new()
+     * prolog.initialize()
      * var parent = prolog.predicate("parent")
      * prolog.solve(parent.call("bob", "tom").negated()).has_solution()
      */

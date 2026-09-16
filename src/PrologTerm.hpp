@@ -30,6 +30,8 @@ namespace prologot
  * prolog.nil(), prolog.list(), prolog.compound().
  *
  * @example
+ * var prolog := Prologot.new()
+ * prolog.initialize()
  * var name = prolog.atom("tom")
  * var hp = prolog.integer(42)
  * var items = prolog.list(["sword", "shield"])
