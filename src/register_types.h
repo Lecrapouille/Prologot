@@ -13,7 +13,8 @@
 
 #include <godot_cpp/core/class_db.hpp>
 
-using namespace godot;
+namespace prologot
+{
 
 /**
  * @brief Initializes the Prologot module.
@@ -23,7 +24,7 @@ using namespace godot;
  *
  * @param p_level The initialization level at which this is called.
  */
-void initialize_prologot_module(ModuleInitializationLevel p_level);
+void initialize_prologot_module(godot::ModuleInitializationLevel p_level);
 
 /**
  * @brief Uninitializes the Prologot module.
@@ -33,4 +34,6 @@ void initialize_prologot_module(ModuleInitializationLevel p_level);
  *
  * @param p_level The initialization level at which this is called.
  */
-void uninitialize_prologot_module(ModuleInitializationLevel p_level);
+void uninitialize_prologot_module(godot::ModuleInitializationLevel p_level);
+
+} // namespace prologot

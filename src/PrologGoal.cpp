@@ -8,85 +8,90 @@
 #include "PrologGoal.hpp"
 #include <godot_cpp/core/class_db.hpp>
 
+namespace prologot
+{
+
 void PrologGoal::_bind_methods()
 {
-    ClassDB::bind_method(D_METHOD("get_functor"), &PrologGoal::get_functor);
-    ClassDB::bind_method(D_METHOD("get_args"), &PrologGoal::get_args);
-    ClassDB::bind_method(D_METHOD("get_arity"), &PrologGoal::get_arity);
-    ClassDB::bind_method(D_METHOD("as_text"), &PrologGoal::as_text);
-    ClassDB::bind_method(D_METHOD("to_term"), &PrologGoal::to_term);
-    ClassDB::bind_method(D_METHOD("conjunction", "other"),
+    godot::ClassDB::bind_method(godot::D_METHOD("get_functor"), &PrologGoal::get_functor);
+    godot::ClassDB::bind_method(godot::D_METHOD("get_args"), &PrologGoal::get_args);
+    godot::ClassDB::bind_method(godot::D_METHOD("get_arity"), &PrologGoal::get_arity);
+    godot::ClassDB::bind_method(godot::D_METHOD("as_text"), &PrologGoal::as_text);
+    godot::ClassDB::bind_method(godot::D_METHOD("to_term"), &PrologGoal::to_term);
+    godot::ClassDB::bind_method(godot::D_METHOD("conjunction", "other"),
                          &PrologGoal::conjunction);
-    ClassDB::bind_method(D_METHOD("disjunction", "other"),
+    godot::ClassDB::bind_method(godot::D_METHOD("disjunction", "other"),
                          &PrologGoal::disjunction);
-    ClassDB::bind_method(D_METHOD("negated"), &PrologGoal::negated);
+    godot::ClassDB::bind_method(godot::D_METHOD("negated"), &PrologGoal::negated);
 }
 
-Ref<PrologGoal> PrologGoal::from_compound(String const& p_functor,
-                                          Array const& p_args)
+godot::Ref<PrologGoal> PrologGoal::from_compound(godot::String const& p_functor,
+                                          godot::Array const& p_args)
 {
-    Ref<PrologGoal> goal;
+    godot::Ref<PrologGoal> goal;
     goal.instantiate();
     goal->m_functor = p_functor;
     goal->m_args = p_args;
     return goal;
 }
 
-static String arg_as_text(Variant const& p_value)
+static godot::String arg_as_text(godot::Variant const& p_value)
 {
-    if (p_value.get_type() == Variant::OBJECT)
+    if (p_value.get_type() == godot::Variant::OBJECT)
     {
-        Ref<PrologTerm> term = p_value;
+        godot::Ref<PrologTerm> term = p_value;
         if (term.is_valid())
             return term->as_text();
-        Ref<PrologGoal> goal = p_value;
+        godot::Ref<PrologGoal> goal = p_value;
         if (goal.is_valid())
             return goal->as_text();
     }
-    return String(p_value);
+    return godot::String(p_value);
 }
 
-String PrologGoal::as_text() const
+godot::String PrologGoal::as_text() const
 {
-    String text = m_functor + String("(");
+    godot::String text = m_functor + godot::String("(");
     for (int i = 0; i < m_args.size(); i++)
     {
         if (i > 0)
-            text += String(", ");
+            text += godot::String(", ");
         text += arg_as_text(m_args[i]);
     }
-    text += String(")");
+    text += godot::String(")");
     return text;
 }
 
-Ref<PrologTerm> PrologGoal::to_term() const
+godot::Ref<PrologTerm> PrologGoal::to_term() const
 {
     return PrologTerm::make_compound(m_functor, m_args);
 }
 
-Ref<PrologGoal> PrologGoal::conjunction(Ref<PrologGoal> const& p_other) const
+godot::Ref<PrologGoal> PrologGoal::conjunction(godot::Ref<PrologGoal> const& p_other) const
 {
     if (p_other.is_null())
-        return Ref<PrologGoal>();
-    Array args;
-    args.push_back(Ref<PrologGoal>(const_cast<PrologGoal*>(this)));
+        return godot::Ref<PrologGoal>();
+    godot::Array args;
+    args.push_back(godot::Ref<PrologGoal>(const_cast<PrologGoal*>(this)));
     args.push_back(p_other);
     return from_compound(",", args);
 }
 
-Ref<PrologGoal> PrologGoal::disjunction(Ref<PrologGoal> const& p_other) const
+godot::Ref<PrologGoal> PrologGoal::disjunction(godot::Ref<PrologGoal> const& p_other) const
 {
     if (p_other.is_null())
-        return Ref<PrologGoal>();
-    Array args;
-    args.push_back(Ref<PrologGoal>(const_cast<PrologGoal*>(this)));
+        return godot::Ref<PrologGoal>();
+    godot::Array args;
+    args.push_back(godot::Ref<PrologGoal>(const_cast<PrologGoal*>(this)));
     args.push_back(p_other);
     return from_compound(";", args);
 }
 
-Ref<PrologGoal> PrologGoal::negated() const
+godot::Ref<PrologGoal> PrologGoal::negated() const
 {
-    Array args;
-    args.push_back(Ref<PrologGoal>(const_cast<PrologGoal*>(this)));
+    godot::Array args;
+    args.push_back(godot::Ref<PrologGoal>(const_cast<PrologGoal*>(this)));
     return from_compound("\\+", args);
 }
+
+} // namespace prologot

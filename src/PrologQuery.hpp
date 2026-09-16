@@ -16,7 +16,8 @@
 #include <godot_cpp/variant/array.hpp>
 #include <godot_cpp/variant/variant.hpp>
 
-using namespace godot;
+namespace prologot
+{
 
 /**
  * @class PrologQuery
@@ -40,9 +41,9 @@ using namespace godot;
  *
  * print(query.all().size())            # 2
  */
-class PrologQuery: public RefCounted
+class PrologQuery: public godot::RefCounted
 {
-    GDCLASS(PrologQuery, RefCounted)
+    GDCLASS(PrologQuery, godot::RefCounted)
 
 public:
 
@@ -66,7 +67,7 @@ public:
      * @param p_solutions Solutions in the order Prolog produced them.
      * @return A new PrologQuery (empty if p_solutions is empty).
      */
-    static Ref<PrologQuery> create(Array const& p_solutions = Array());
+    static godot::Ref<PrologQuery> create(godot::Array const& p_solutions = godot::Array());
 
     /**
      * @brief Returns true if the query produced at least one solution.
@@ -100,7 +101,7 @@ public:
      * if solution != null:
      *     print(solution.get(child))  # bob
      */
-    Variant first() const;
+    godot::Variant first() const;
 
     /**
      * @brief Returns every PrologSolution as a Godot Array.
@@ -117,7 +118,7 @@ public:
      * print(solutions.size())            # 2
      * print(solutions[0].get(child))     # bob
      */
-    Array all() const;
+    godot::Array all() const;
 
     /**
      * @brief Starts a GDScript `for` loop over the solutions.
@@ -131,7 +132,7 @@ public:
      * for solution in prolog.solve(parent.call("tom", child)):
      *     print(solution.get(child))
      */
-    bool _iter_init(Variant const& p_iter);
+    bool _iter_init(godot::Variant const& p_iter);
 
     /**
      * @brief Advances a GDScript `for` loop to the next solution.
@@ -139,7 +140,7 @@ public:
      * @param p_iter Unused iterator state (Godot protocol).
      * @return true if another solution remains.
      */
-    bool _iter_next(Variant const& p_iter);
+    bool _iter_next(godot::Variant const& p_iter);
 
     /**
      * @brief Returns the current solution during a GDScript `for` loop.
@@ -147,7 +148,7 @@ public:
      * @param p_iter Unused iterator state (Godot protocol).
      * @return The current PrologSolution, or null if the cursor is past the end.
      */
-    Variant _iter_get(Variant const& p_iter);
+    godot::Variant _iter_get(godot::Variant const& p_iter);
 
 protected:
 
@@ -158,6 +159,8 @@ protected:
 
 private:
 
-    Array m_solutions;
+    godot::Array m_solutions;
     int m_iter_index = 0;
 };
+
+} // namespace prologot

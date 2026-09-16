@@ -8,47 +8,52 @@
 #include "PrologSolution.hpp"
 #include <godot_cpp/core/class_db.hpp>
 
+namespace prologot
+{
+
 void PrologSolution::_bind_methods()
 {
-    ClassDB::bind_method(D_METHOD("put", "variable", "value"),
+    godot::ClassDB::bind_method(godot::D_METHOD("put", "variable", "value"),
                          &PrologSolution::put);
-    ClassDB::bind_method(D_METHOD("get", "variable"), &PrologSolution::get);
-    ClassDB::bind_method(D_METHOD("has", "variable"), &PrologSolution::has);
-    ClassDB::bind_method(D_METHOD("get_bindings"),
+    godot::ClassDB::bind_method(godot::D_METHOD("get", "variable"), &PrologSolution::get);
+    godot::ClassDB::bind_method(godot::D_METHOD("has", "variable"), &PrologSolution::has);
+    godot::ClassDB::bind_method(godot::D_METHOD("get_bindings"),
                          &PrologSolution::get_bindings);
-    ClassDB::bind_method(D_METHOD("values"), &PrologSolution::values);
+    godot::ClassDB::bind_method(godot::D_METHOD("values"), &PrologSolution::values);
 }
 
-Ref<PrologSolution> PrologSolution::create()
+godot::Ref<PrologSolution> PrologSolution::create()
 {
-    Ref<PrologSolution> solution;
+    godot::Ref<PrologSolution> solution;
     solution.instantiate();
     return solution;
 }
 
-void PrologSolution::put(Ref<PrologVariable> const& p_variable,
-                         Variant const& p_value)
+void PrologSolution::put(godot::Ref<PrologVariable> const& p_variable,
+                         godot::Variant const& p_value)
 {
     if (p_variable.is_null())
         return;
     m_bindings[p_variable] = p_value;
 }
 
-Variant PrologSolution::get(Ref<PrologVariable> const& p_variable) const
+godot::Variant PrologSolution::get(godot::Ref<PrologVariable> const& p_variable) const
 {
     if (p_variable.is_null() || !m_bindings.has(p_variable))
-        return Variant();
+        return godot::Variant();
     return m_bindings[p_variable];
 }
 
-bool PrologSolution::has(Ref<PrologVariable> const& p_variable) const
+bool PrologSolution::has(godot::Ref<PrologVariable> const& p_variable) const
 {
     if (p_variable.is_null())
         return false;
     return m_bindings.has(p_variable);
 }
 
-Array PrologSolution::values() const
+godot::Array PrologSolution::values() const
 {
     return m_bindings.values();
 }
+
+} // namespace prologot

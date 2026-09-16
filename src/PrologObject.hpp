@@ -16,7 +16,8 @@
 #include <godot_cpp/classes/ref_counted.hpp>
 #include <godot_cpp/variant/string.hpp>
 
-using namespace godot;
+namespace prologot
+{
 
 /**
  * @class PrologObject
@@ -36,9 +37,9 @@ using namespace godot;
  * prolog.assert_fact(at.call(player, "zone_1"))
  * prolog.solve(at.call(player, "zone_1")).has_solution()
  */
-class PrologObject: public RefCounted
+class PrologObject: public godot::RefCounted
 {
-    GDCLASS(PrologObject, RefCounted)
+    GDCLASS(PrologObject, godot::RefCounted)
 
 public:
 
@@ -62,7 +63,7 @@ public:
      * var player = prolog.object($Player)
      * print(player.is_valid())  # true while the node exists
      */
-    static Ref<PrologObject> create(Object* p_object);
+    static godot::Ref<PrologObject> create(godot::Object* p_object);
 
     /**
      * @brief Wraps a Godot instance id (used when reading a blob back).
@@ -70,7 +71,7 @@ public:
      * @param p_instance_id Godot Object.get_instance_id().
      * @return A handle; is_valid() is false if that id is gone.
      */
-    static Ref<PrologObject> create_from_id(uint64_t p_instance_id);
+    static godot::Ref<PrologObject> create_from_id(uint64_t p_instance_id);
 
     /**
      * @brief Registers the SWI-Prolog blob type. Call after PL_initialise().
@@ -95,7 +96,7 @@ public:
      * @param p_term Term that may hold a godot_object blob.
      * @return A PrologObject, or null if the term is not our blob.
      */
-    static Ref<PrologObject> from_swi_term(term_t p_term);
+    static godot::Ref<PrologObject> from_swi_term(term_t p_term);
 
     /**
      * @brief Returns the live Godot object, or null if it was freed.
@@ -108,7 +109,7 @@ public:
      * $Player.free()
      * print(handle.get_object())             # null
      */
-    Object* get_object() const;
+    godot::Object* get_object() const;
 
     /**
      * @brief Returns true if ObjectDB still has this instance id.
@@ -144,7 +145,7 @@ public:
      * @example
      * print(prolog.object($Player).get_class_name())  # Node
      */
-    String get_class_name() const;
+    godot::String get_class_name() const;
 
     /**
      * @brief Returns true if both handles refer to the same instance id.
@@ -157,7 +158,7 @@ public:
      * var b = prolog.object($Player)
      * print(a.equals(b))  # true
      */
-    bool equals(Ref<PrologObject> const& p_other) const;
+    bool equals(godot::Ref<PrologObject> const& p_other) const;
 
     /**
      * @brief Debug label, e.g. Player:<Node#123> or <freed#123>.
@@ -167,7 +168,7 @@ public:
      * @example
      * print(prolog.object($Player).as_text())
      */
-    String as_text() const;
+    godot::String as_text() const;
 
 protected:
 
@@ -180,3 +181,5 @@ private:
 
     uint64_t m_instance_id = 0;
 };
+
+} // namespace prologot

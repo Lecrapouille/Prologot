@@ -13,10 +13,12 @@
 #pragma once
 
 #include "PrologGoal.hpp"
+#include <gdextension_interface.h>
 #include <godot_cpp/classes/ref_counted.hpp>
 #include <godot_cpp/variant/string.hpp>
 
-using namespace godot;
+namespace prologot
+{
 
 /**
  * @class PrologPredicate
@@ -35,9 +37,9 @@ using namespace godot;
  * for solution in prolog.solve(goal):
  *     print(solution.get(child))
  */
-class PrologPredicate: public RefCounted
+class PrologPredicate: public godot::RefCounted
 {
-    GDCLASS(PrologPredicate, RefCounted)
+    GDCLASS(PrologPredicate, godot::RefCounted)
 
 public:
 
@@ -66,7 +68,7 @@ public:
      * var parent = prolog.predicate("parent")
      * print(parent.get_name())  # parent
      */
-    static Ref<PrologPredicate> create(String const& p_name);
+    static godot::Ref<PrologPredicate> create(godot::String const& p_name);
 
     /**
      * @brief Returns the functor name stored on this predicate.
@@ -78,7 +80,7 @@ public:
      * @example
      * print(prolog.predicate("member").get_name())  # member
      */
-    String get_name() const { return m_name; }
+    godot::String get_name() const { return m_name; }
 
     /**
      * @brief Returns the functor name for debug and the REPL.
@@ -88,7 +90,7 @@ public:
      * @example
      * print(prolog.predicate("parent").as_text())  # parent
      */
-    String as_text() const;
+    godot::String as_text() const;
 
     /**
      * @brief Builds a PrologGoal from an argument Array.
@@ -106,7 +108,7 @@ public:
      * var goal = parent.callv(["tom", child])
      * print(goal.as_text())  # parent(tom, Child)
      */
-    Ref<PrologGoal> make_goal(Array const& p_args) const;
+    godot::Ref<PrologGoal> make_goal(godot::Array const& p_args) const;
 
     /**
      * @brief Vararg entry bound to GDScript as call(arg1, arg2, ...).
@@ -126,7 +128,7 @@ public:
      * if prolog.solve(goal).has_solution():
      *     print("tom has a child")
      */
-    Variant make_goal_varargs(Variant const** p_args,
+    godot::Variant make_goal_varargs(godot::Variant const** p_args,
                               GDExtensionInt p_arg_count,
                               GDExtensionCallError& r_error);
 
@@ -139,5 +141,7 @@ protected:
 
 private:
 
-    String m_name;
+    godot::String m_name;
 };
+
+} // namespace prologot

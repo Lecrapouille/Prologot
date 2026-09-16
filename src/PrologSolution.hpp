@@ -18,7 +18,8 @@
 #include <godot_cpp/variant/dictionary.hpp>
 #include <godot_cpp/variant/variant.hpp>
 
-using namespace godot;
+namespace prologot
+{
 
 /**
  * @class PrologSolution
@@ -37,9 +38,9 @@ using namespace godot;
  *         print(solution.get(child))
  *     print(solution.get_bindings()[child])
  */
-class PrologSolution: public RefCounted
+class PrologSolution: public godot::RefCounted
 {
-    GDCLASS(PrologSolution, RefCounted)
+    GDCLASS(PrologSolution, godot::RefCounted)
 
 public:
 
@@ -60,7 +61,7 @@ public:
      *
      * @return A new PrologSolution.
      */
-    static Ref<PrologSolution> create();
+    static godot::Ref<PrologSolution> create();
 
     /**
      * @brief Stores a binding for a variable.
@@ -77,7 +78,7 @@ public:
      * solution.put(child, "bob")
      * print(solution.get(child))  # bob
      */
-    void put(Ref<PrologVariable> const& p_variable, Variant const& p_value);
+    void put(godot::Ref<PrologVariable> const& p_variable, godot::Variant const& p_value);
 
     /**
      * @brief Returns the value bound to p_variable, or null if unbound.
@@ -92,7 +93,7 @@ public:
      * var solution = prolog.solve(parent.call("tom", child)).first()
      * print(solution.get(child))  # bob
      */
-    Variant get(Ref<PrologVariable> const& p_variable) const;
+    godot::Variant get(godot::Ref<PrologVariable> const& p_variable) const;
 
     /**
      * @brief Returns true if p_variable has a binding in this solution.
@@ -104,7 +105,7 @@ public:
      * print(solution.has(child))   # true
      * print(solution.has(unused))  # false
      */
-    bool has(Ref<PrologVariable> const& p_variable) const;
+    bool has(godot::Ref<PrologVariable> const& p_variable) const;
 
     /**
      * @brief Returns the Dictionary of bindings keyed by PrologVariable.
@@ -115,7 +116,7 @@ public:
      * @example
      * print(solution.get_bindings()[child])  # bob
      */
-    Dictionary get_bindings() const { return m_bindings; }
+    godot::Dictionary get_bindings() const { return m_bindings; }
 
     /**
      * @brief Returns the bound values only (no variable keys).
@@ -123,7 +124,7 @@ public:
      * @example
      * print(solution.values())  # ["bob"]
      */
-    Array values() const;
+    godot::Array values() const;
 
 protected:
 
@@ -134,5 +135,7 @@ protected:
 
 private:
 
-    Dictionary m_bindings;
+    godot::Dictionary m_bindings;
 };
+
+} // namespace prologot

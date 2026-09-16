@@ -33,19 +33,20 @@
 // Static Member Initialization
 // =============================================================================
 
+namespace prologot
+{
+
 Prologot* Prologot::m_singleton = nullptr;
 
-namespace
-{
-int g_attach_count = 0;
-std::vector<Prologot*> g_instances;
+static int g_attach_count = 0;
+static std::vector<Prologot*> g_instances;
 
-bool pl_engine_is_up()
+static bool pl_engine_is_up()
 {
     return PL_is_initialised(nullptr, nullptr) != FALSE;
 }
 
-bool call_prolog_silent(char const* p_goal)
+static bool call_prolog_silent(char const* p_goal)
 {
     term_t t = PL_new_term_ref();
     if (!PL_chars_to_term(p_goal, t))
@@ -59,7 +60,6 @@ bool call_prolog_silent(char const* p_goal)
     PL_close_query(qid);
     return result != 0 && result != PL_S_EXCEPTION;
 }
-} // namespace
 
 // =============================================================================
 // Godot Method Binding
@@ -68,66 +68,66 @@ bool call_prolog_silent(char const* p_goal)
 void Prologot::_bind_methods()
 {
     // Initialization methods
-    ClassDB::bind_method(D_METHOD("initialize", "options"),
+    godot::ClassDB::bind_method(godot::D_METHOD("initialize", "options"),
                          &Prologot::initialize,
-                         DEFVAL(Dictionary()));
-    ClassDB::bind_method(D_METHOD("cleanup"), &Prologot::cleanup);
-    ClassDB::bind_method(D_METHOD("is_initialized"), &Prologot::is_initialized);
+                         DEFVAL(godot::Dictionary()));
+    godot::ClassDB::bind_method(godot::D_METHOD("cleanup"), &Prologot::cleanup);
+    godot::ClassDB::bind_method(godot::D_METHOD("is_initialized"), &Prologot::is_initialized);
 
     // File/code loading methods
-    ClassDB::bind_method(D_METHOD("consult_file", "filename"),
+    godot::ClassDB::bind_method(godot::D_METHOD("consult_file", "filename"),
                          &Prologot::consult_file);
-    ClassDB::bind_method(D_METHOD("consult_string", "prolog_code"),
+    godot::ClassDB::bind_method(godot::D_METHOD("consult_string", "prolog_code"),
                          &Prologot::consult_string);
 
-    ClassDB::bind_method(D_METHOD("atom", "name"), &Prologot::atom);
-    ClassDB::bind_method(D_METHOD("integer", "value"), &Prologot::integer);
-    ClassDB::bind_method(D_METHOD("real", "value"), &Prologot::real);
-    ClassDB::bind_method(D_METHOD("string", "value"), &Prologot::string);
-    ClassDB::bind_method(D_METHOD("nil"), &Prologot::nil);
-    ClassDB::bind_method(D_METHOD("list", "items"), &Prologot::list);
-    ClassDB::bind_method(D_METHOD("compound", "functor", "args"),
+    godot::ClassDB::bind_method(godot::D_METHOD("atom", "name"), &Prologot::atom);
+    godot::ClassDB::bind_method(godot::D_METHOD("integer", "value"), &Prologot::integer);
+    godot::ClassDB::bind_method(godot::D_METHOD("real", "value"), &Prologot::real);
+    godot::ClassDB::bind_method(godot::D_METHOD("string", "value"), &Prologot::string);
+    godot::ClassDB::bind_method(godot::D_METHOD("nil"), &Prologot::nil);
+    godot::ClassDB::bind_method(godot::D_METHOD("list", "items"), &Prologot::list);
+    godot::ClassDB::bind_method(godot::D_METHOD("compound", "functor", "args"),
                          &Prologot::compound);
-    ClassDB::bind_method(
-        D_METHOD("variable", "name"), &Prologot::variable, DEFVAL(String()));
-    ClassDB::bind_method(D_METHOD("anonymous"), &Prologot::anonymous);
-    ClassDB::bind_method(D_METHOD("predicate", "name"), &Prologot::predicate);
-    ClassDB::bind_method(D_METHOD("object", "value"), &Prologot::object);
+    godot::ClassDB::bind_method(
+        godot::D_METHOD("variable", "name"), &Prologot::variable, DEFVAL(godot::String()));
+    godot::ClassDB::bind_method(godot::D_METHOD("anonymous"), &Prologot::anonymous);
+    godot::ClassDB::bind_method(godot::D_METHOD("predicate", "name"), &Prologot::predicate);
+    godot::ClassDB::bind_method(godot::D_METHOD("object", "value"), &Prologot::object);
 
     // High-level structured solving
-    ClassDB::bind_method(D_METHOD("solve", "goal"), &Prologot::solve);
+    godot::ClassDB::bind_method(godot::D_METHOD("solve", "goal"), &Prologot::solve);
 
     // Editor console only (not a game API)
-    ClassDB::bind_method(D_METHOD("_editor_query", "goal"),
+    godot::ClassDB::bind_method(godot::D_METHOD("_editor_query", "goal"),
                          &Prologot::query_text_named);
 
     // Dynamic assertion methods
-    ClassDB::bind_method(D_METHOD("assert_fact", "goal"),
+    godot::ClassDB::bind_method(godot::D_METHOD("assert_fact", "goal"),
                          &Prologot::assert_fact);
-    ClassDB::bind_method(D_METHOD("retract_fact", "goal"),
+    godot::ClassDB::bind_method(godot::D_METHOD("retract_fact", "goal"),
                          &Prologot::retract_fact);
-    ClassDB::bind_method(D_METHOD("retract_all", "goal"),
+    godot::ClassDB::bind_method(godot::D_METHOD("retract_all", "goal"),
                          &Prologot::retract_all);
 
     // Introspection methods
-    ClassDB::bind_method(D_METHOD("predicate_exists", "predicate", "arity"),
+    godot::ClassDB::bind_method(godot::D_METHOD("predicate_exists", "predicate", "arity"),
                          &Prologot::predicate_exists);
-    ClassDB::bind_method(D_METHOD("list_predicates"),
+    godot::ClassDB::bind_method(godot::D_METHOD("list_predicates"),
                          &Prologot::list_predicates);
-    ClassDB::bind_method(
-        D_METHOD("expose_property", "class_name", "property", "predicate"),
+    godot::ClassDB::bind_method(
+        godot::D_METHOD("expose_property", "class_name", "property", "predicate"),
         &Prologot::expose_property,
-        DEFVAL(String()));
-    ClassDB::bind_method(
-        D_METHOD("expose_method", "class_name", "method", "predicate"),
+        DEFVAL(godot::String()));
+    godot::ClassDB::bind_method(
+        godot::D_METHOD("expose_method", "class_name", "method", "predicate"),
         &Prologot::expose_method,
-        DEFVAL(String()));
-    ClassDB::bind_method(D_METHOD("unexpose", "predicate", "arity"),
+        DEFVAL(godot::String()));
+    godot::ClassDB::bind_method(godot::D_METHOD("unexpose", "predicate", "arity"),
                          &Prologot::unexpose);
-    ClassDB::bind_method(D_METHOD("list_exposed"), &Prologot::list_exposed);
+    godot::ClassDB::bind_method(godot::D_METHOD("list_exposed"), &Prologot::list_exposed);
 
     // Error handling
-    ClassDB::bind_method(D_METHOD("get_last_error"), &Prologot::get_last_error);
+    godot::ClassDB::bind_method(godot::D_METHOD("get_last_error"), &Prologot::get_last_error);
 }
 
 // =============================================================================
@@ -170,7 +170,7 @@ Prologot::~Prologot()
 // Initialization and Cleanup
 // =============================================================================
 
-String Prologot::resolve_godot_path(String const& p_path)
+godot::String Prologot::resolve_godot_path(godot::String const& p_path)
 {
     if (p_path.begins_with("res://") || p_path.begins_with("user://"))
     {
@@ -179,24 +179,24 @@ String Prologot::resolve_godot_path(String const& p_path)
     return p_path;
 }
 
-std::pair<String, String>
-Prologot::set_swi_home_dir(String const& p_home_option)
+std::pair<godot::String, godot::String>
+Prologot::set_swi_home_dir(godot::String const& p_home_option)
 {
     if (p_home_option.is_empty())
         return std::make_pair("", ""); // Use system default SWI-Prolog
 
-    String path = resolve_godot_path(p_home_option);
+    godot::String path = resolve_godot_path(p_home_option);
 
     if (!godot::FileAccess::file_exists(path + "/boot.prc"))
     {
-        String out_error = "boot.prc not found in: " + path;
+        godot::String out_error = "boot.prc not found in: " + path;
         return std::make_pair("", out_error);
     }
 
     return std::make_pair(path, "");
 }
 
-bool Prologot::initialize(Dictionary const& p_options)
+bool Prologot::initialize(godot::Dictionary const& p_options)
 {
     // Idempotent: if this handle is already attached, return success
     if (m_initialized)
@@ -216,13 +216,13 @@ bool Prologot::initialize(Dictionary const& p_options)
     bool traditional = p_options.get("traditional", false);
     bool threads = p_options.get("threads", true);
     bool packs = p_options.get("packs", true);
-    String stack_limit = p_options.get("stack limit", "");
-    String table_space = p_options.get("table space", "");
-    String shared_table_space = p_options.get("shared table space", "");
-    String init_file = p_options.get("init file", "");
-    String script_file = p_options.get("script file", "");
-    String toplevel = p_options.get("toplevel", "");
-    Variant goal_var = p_options.get("goal", Variant());
+    godot::String stack_limit = p_options.get("stack limit", "");
+    godot::String table_space = p_options.get("table space", "");
+    godot::String shared_table_space = p_options.get("shared table space", "");
+    godot::String init_file = p_options.get("init file", "");
+    godot::String script_file = p_options.get("script file", "");
+    godot::String toplevel = p_options.get("toplevel", "");
+    godot::Variant goal_var = p_options.get("goal", godot::Variant());
 
     // Extract and resolve home directory
     auto [home, error] = set_swi_home_dir(p_options.get("home", ""));
@@ -311,9 +311,9 @@ bool Prologot::initialize(Dictionary const& p_options)
     }
 
     // Goals (-g can be repeated)
-    if (goal_var.get_type() == Variant::STRING)
+    if (goal_var.get_type() == godot::Variant::STRING)
     {
-        String goal = goal_var;
+        godot::String goal = goal_var;
         if (!goal.is_empty())
         {
             argv_list.push_back("-g");
@@ -321,12 +321,12 @@ bool Prologot::initialize(Dictionary const& p_options)
             argv_list.push_back(string_storage.back().c_str());
         }
     }
-    else if (goal_var.get_type() == Variant::ARRAY)
+    else if (goal_var.get_type() == godot::Variant::ARRAY)
     {
-        Array goals = goal_var;
+        godot::Array goals = goal_var;
         for (int i = 0; i < goals.size(); i++)
         {
-            String goal = goals[i];
+            godot::String goal = goals[i];
             argv_list.push_back("-g");
             string_storage.push_back(goal.utf8().get_data());
             argv_list.push_back(string_storage.back().c_str());
@@ -336,12 +336,12 @@ bool Prologot::initialize(Dictionary const& p_options)
     // Prolog flags (-D name=value)
     if (p_options.has("prolog flags"))
     {
-        Dictionary flags = p_options.get("prolog flags", Dictionary());
-        Array keys = flags.keys();
+        godot::Dictionary flags = p_options.get("prolog flags", godot::Dictionary());
+        godot::Array keys = flags.keys();
         for (int i = 0; i < keys.size(); i++)
         {
-            String key = keys[i];
-            String value = flags[key];
+            godot::String key = keys[i];
+            godot::String value = flags[key];
             argv_list.push_back("-D");
             string_storage.push_back((key + "=" + value).utf8().get_data());
             argv_list.push_back(string_storage.back().c_str());
@@ -351,12 +351,12 @@ bool Prologot::initialize(Dictionary const& p_options)
     // File search paths (-p alias=path)
     if (p_options.has("file search paths"))
     {
-        Dictionary paths = p_options.get("file search paths", Dictionary());
-        Array keys = paths.keys();
+        godot::Dictionary paths = p_options.get("file search paths", godot::Dictionary());
+        godot::Array keys = paths.keys();
         for (int i = 0; i < keys.size(); i++)
         {
-            String alias = keys[i];
-            String path = paths[alias];
+            godot::String alias = keys[i];
+            godot::String path = paths[alias];
             argv_list.push_back("-p");
             string_storage.push_back((alias + "=" + path).utf8().get_data());
             argv_list.push_back(string_storage.back().c_str());
@@ -366,10 +366,10 @@ bool Prologot::initialize(Dictionary const& p_options)
     // Custom arguments
     if (p_options.has("custom args"))
     {
-        Array custom_args = p_options.get("custom args", Array());
+        godot::Array custom_args = p_options.get("custom args", godot::Array());
         for (int i = 0; i < custom_args.size(); i++)
         {
-            string_storage.push_back(String(custom_args[i]).utf8().get_data());
+            string_storage.push_back(godot::String(custom_args[i]).utf8().get_data());
             argv_list.push_back(string_storage.back().c_str());
         }
     }
@@ -405,7 +405,7 @@ bool Prologot::initialize(Dictionary const& p_options)
         char* home_path;
         if (PL_get_chars(flag_args + 1, &home_path, CVT_ATOM | CVT_STRING))
         {
-            UtilityFunctions::print("[Prologot] SWI-Prolog HOME: ", home_path);
+            godot::UtilityFunctions::print("[Prologot] SWI-Prolog HOME: ", home_path);
         }
     }
 
@@ -453,8 +453,8 @@ bool Prologot::initialize(Dictionary const& p_options)
         // Parse the Prolog code string into a term
         if (!PL_chars_to_term(predicates[i], clause))
         {
-            m_last_error = String("Failed to parse bootstrap predicate: ") +
-                           String(predicates[i]);
+            m_last_error = godot::String("Failed to parse bootstrap predicate: ") +
+                           godot::String(predicates[i]);
             PL_cleanup(0); // Clean up on failure
             return false;
         }
@@ -477,21 +477,21 @@ bool Prologot::initialize(Dictionary const& p_options)
                         ex, &msg, CVT_WRITE | BUF_DISCARDABLE | REP_UTF8))
                 {
                     m_last_error =
-                        String("Failed to assert bootstrap predicate: ") +
-                        String(msg);
+                        godot::String("Failed to assert bootstrap predicate: ") +
+                        godot::String(msg);
                 }
                 else
                 {
                     m_last_error =
-                        String("Failed to assert bootstrap predicate: ") +
-                        String(predicates[i]);
+                        godot::String("Failed to assert bootstrap predicate: ") +
+                        godot::String(predicates[i]);
                 }
             }
             else
             {
                 m_last_error =
-                    String("Failed to assert bootstrap predicate: ") +
-                    String(predicates[i]);
+                    godot::String("Failed to assert bootstrap predicate: ") +
+                    godot::String(predicates[i]);
             }
             PL_close_query(qid);
             PL_cleanup(0); // Clean up on failure
@@ -585,7 +585,7 @@ bool Prologot::is_initialized() const
 // File and Code Consultation
 // =============================================================================
 
-bool Prologot::consult_file(String const& p_filename)
+bool Prologot::consult_file(godot::String const& p_filename)
 {
     if (!m_initialized)
         return false;
@@ -599,7 +599,7 @@ bool Prologot::consult_file(String const& p_filename)
 
     // Convert res:// and user:// paths to absolute filesystem paths
     // SWI-Prolog doesn't understand Godot's virtual filesystem paths
-    String filename = resolve_godot_path(p_filename);
+    godot::String filename = resolve_godot_path(p_filename);
 
     // Get a handle to Prolog's built-in consult/1 predicate
     // "user" module is the default module for user-defined predicates
@@ -634,7 +634,7 @@ bool Prologot::consult_file(String const& p_filename)
     return result != 0; // Non-zero means success in SWI-Prolog API
 }
 
-bool Prologot::consult_string(String const& p_prolog_code)
+bool Prologot::consult_string(godot::String const& p_prolog_code)
 {
     if (!m_initialized)
         return false;
@@ -685,57 +685,57 @@ bool Prologot::consult_string(String const& p_prolog_code)
 // Structured term factories
 // =============================================================================
 
-Ref<PrologTerm> Prologot::atom(String const& p_name)
+godot::Ref<PrologTerm> Prologot::atom(godot::String const& p_name)
 {
     return PrologTerm::make_atom(p_name);
 }
 
-Ref<PrologTerm> Prologot::integer(int64_t p_value)
+godot::Ref<PrologTerm> Prologot::integer(int64_t p_value)
 {
     return PrologTerm::make_integer(p_value);
 }
 
-Ref<PrologTerm> Prologot::real(double p_value)
+godot::Ref<PrologTerm> Prologot::real(double p_value)
 {
     return PrologTerm::make_real(p_value);
 }
 
-Ref<PrologTerm> Prologot::string(String const& p_value)
+godot::Ref<PrologTerm> Prologot::string(godot::String const& p_value)
 {
     return PrologTerm::make_string(p_value);
 }
 
-Ref<PrologTerm> Prologot::nil()
+godot::Ref<PrologTerm> Prologot::nil()
 {
     return PrologTerm::make_nil();
 }
 
-Ref<PrologTerm> Prologot::list(Array const& p_items)
+godot::Ref<PrologTerm> Prologot::list(godot::Array const& p_items)
 {
     return PrologTerm::make_list(p_items);
 }
 
-Ref<PrologTerm> Prologot::compound(String const& p_functor, Array const& p_args)
+godot::Ref<PrologTerm> Prologot::compound(godot::String const& p_functor, godot::Array const& p_args)
 {
     return PrologTerm::make_compound(p_functor, p_args);
 }
 
-Ref<PrologVariable> Prologot::variable(String const& p_name)
+godot::Ref<PrologVariable> Prologot::variable(godot::String const& p_name)
 {
     return PrologVariable::create(p_name);
 }
 
-Ref<PrologVariable> Prologot::anonymous()
+godot::Ref<PrologVariable> Prologot::anonymous()
 {
     return PrologVariable::create_anonymous();
 }
 
-Ref<PrologPredicate> Prologot::predicate(String const& p_name)
+godot::Ref<PrologPredicate> Prologot::predicate(godot::String const& p_name)
 {
     return PrologPredicate::create(p_name);
 }
 
-Ref<PrologObject> Prologot::object(Object* p_object)
+godot::Ref<PrologObject> Prologot::object(godot::Object* p_object)
 {
     return PrologObject::create(p_object);
 }
@@ -744,9 +744,9 @@ Ref<PrologObject> Prologot::object(Object* p_object)
 // High-level solving (structured terms)
 // =============================================================================
 
-Array Prologot::collect_goal_solutions(Ref<PrologGoal> const& p_goal)
+godot::Array Prologot::collect_goal_solutions(godot::Ref<PrologGoal> const& p_goal)
 {
-    Array results;
+    godot::Array results;
     if (!m_initialized || p_goal.is_null())
         return results;
 
@@ -755,10 +755,10 @@ Array Prologot::collect_goal_solutions(Ref<PrologGoal> const& p_goal)
 
     fid_t frame = PL_open_foreign_frame();
     std::map<int64_t, term_t> vars;
-    std::vector<Ref<PrologVariable>> order;
+    std::vector<godot::Ref<PrologVariable>> order;
     term_t goal = PL_new_term_ref();
-    String error;
-    if (!PrologConversion::compile_goal(p_goal, goal, vars, order, &error))
+    godot::String error;
+    if (!compile_goal(p_goal, goal, vars, order, &error))
     {
         if (!error.is_empty())
             m_last_error = error;
@@ -782,13 +782,13 @@ Array Prologot::collect_goal_solutions(Ref<PrologGoal> const& p_goal)
         if (!result)
             break;
 
-        Ref<PrologSolution> solution = PrologSolution::create();
-        for (Ref<PrologVariable> const& variable : order)
+        godot::Ref<PrologSolution> solution = PrologSolution::create();
+        for (godot::Ref<PrologVariable> const& variable : order)
         {
             auto it = vars.find(variable->get_id());
             if (it != vars.end())
                 solution->put(
-                    variable, PrologConversion::term_to_variant(it->second));
+                    variable, term_to_variant(it->second));
         }
         results.push_back(solution);
     }
@@ -799,25 +799,25 @@ Array Prologot::collect_goal_solutions(Ref<PrologGoal> const& p_goal)
 }
 
 bool Prologot::apply_clause_predicate(char const* p_name,
-                                      Ref<PrologGoal> const& p_goal,
-                                      String const& p_context)
+                                      godot::Ref<PrologGoal> const& p_goal,
+                                      godot::String const& p_context)
 {
     if (!m_initialized)
         return false;
     if (p_goal.is_null())
     {
-        m_last_error = p_context + String(": missing PrologGoal");
+        m_last_error = p_context + godot::String(": missing PrologGoal");
         return false;
     }
 
     std::map<int64_t, term_t> vars;
-    std::vector<Ref<PrologVariable>> order;
+    std::vector<godot::Ref<PrologVariable>> order;
     term_t term = PL_new_term_ref();
-    String error;
-    if (!PrologConversion::compile_goal(p_goal, term, vars, order, &error))
+    godot::String error;
+    if (!compile_goal(p_goal, term, vars, order, &error))
     {
         m_last_error = error.is_empty()
-                           ? p_context + String(": failed to compile goal")
+                           ? p_context + godot::String(": failed to compile goal")
                            : error;
         return false;
     }
@@ -835,7 +835,7 @@ bool Prologot::apply_clause_predicate(char const* p_name,
     return result != 0;
 }
 
-Ref<PrologQuery> Prologot::solve(Ref<PrologGoal> const& p_goal)
+godot::Ref<PrologQuery> Prologot::solve(godot::Ref<PrologGoal> const& p_goal)
 {
     return PrologQuery::create(collect_goal_solutions(p_goal));
 }
@@ -844,19 +844,19 @@ Ref<PrologQuery> Prologot::solve(Ref<PrologGoal> const& p_goal)
 // Low-level queries (Prolog source text, editor/REPL)
 // =============================================================================
 
-static String strip_trailing_period(String text)
+static godot::String strip_trailing_period(godot::String text)
 {
     if (text.length() > 0 && text[text.length() - 1] == '.')
         text = text.substr(0, text.length() - 1);
     return text;
 }
 
-bool Prologot::query_text(String const& p_goal)
+bool Prologot::query_text(godot::String const& p_goal)
 {
     if (!m_initialized)
         return false;
 
-    String goal = strip_trailing_period(p_goal);
+    godot::String goal = strip_trailing_period(p_goal);
     if (goal.is_empty())
     {
         m_last_error = "Empty query";
@@ -885,20 +885,20 @@ bool Prologot::query_text(String const& p_goal)
     return result != 0;
 }
 
-Array Prologot::query_text_all(String const& p_goal)
+godot::Array Prologot::query_text_all(godot::String const& p_goal)
 {
-    Array results;
+    godot::Array results;
     if (!m_initialized)
         return results;
 
-    String goal = strip_trailing_period(p_goal);
+    godot::String goal = strip_trailing_period(p_goal);
     if (goal.is_empty())
     {
         m_last_error = "Empty query";
         return results;
     }
 
-    String findall_goal =
+    godot::String findall_goal =
         "findall(" + goal + ", " + goal + ", PrologotResults__)";
 
     term_t t = PL_new_term_ref();
@@ -927,7 +927,7 @@ Array Prologot::query_text_all(String const& p_goal)
             term_t head = PL_new_term_ref();
             term_t tail = PL_copy_term_ref(findall_term);
             while (PL_get_list(tail, head, tail))
-                results.push_back(PrologConversion::term_to_variant(head));
+                results.push_back(term_to_variant(head));
         }
     }
 
@@ -935,23 +935,23 @@ Array Prologot::query_text_all(String const& p_goal)
     return results;
 }
 
-Variant Prologot::query_text_one(String const& p_goal)
+godot::Variant Prologot::query_text_one(godot::String const& p_goal)
 {
     if (!m_initialized)
-        return Variant();
+        return godot::Variant();
 
-    String goal = strip_trailing_period(p_goal);
+    godot::String goal = strip_trailing_period(p_goal);
     if (goal.is_empty())
     {
         m_last_error = "Empty query";
-        return Variant();
+        return godot::Variant();
     }
 
     term_t t = PL_new_term_ref();
     if (!PL_chars_to_term(goal.utf8().get_data(), t))
     {
         m_last_error = "Failed to parse query: " + goal;
-        return Variant();
+        return godot::Variant();
     }
 
     qid_t qid = PL_open_query(
@@ -962,24 +962,24 @@ Variant Prologot::query_text_one(String const& p_goal)
     {
         handle_prolog_exception(qid, "Query one");
         PL_close_query(qid);
-        return Variant();
+        return godot::Variant();
     }
 
-    Variant var;
+    godot::Variant var;
     if (result)
-        var = PrologConversion::term_to_variant(t);
+        var = term_to_variant(t);
 
     PL_close_query(qid);
     return var;
 }
 
-Array Prologot::query_text_named(String const& p_goal)
+godot::Array Prologot::query_text_named(godot::String const& p_goal)
 {
-    Array results;
+    godot::Array results;
     if (!m_initialized)
         return results;
 
-    String goal = strip_trailing_period(p_goal);
+    godot::String goal = strip_trailing_period(p_goal);
     if (goal.begins_with("?-"))
         goal = goal.substr(2).strip_edges();
     if (goal.is_empty())
@@ -1035,7 +1035,7 @@ Array Prologot::query_text_named(String const& p_goal)
         if (!result)
             break;
 
-        Dictionary dict;
+        godot::Dictionary dict;
         term_t head = PL_new_term_ref();
         term_t tail = PL_copy_term_ref(bindings);
         while (PL_get_list(tail, head, tail))
@@ -1048,8 +1048,8 @@ Array Prologot::query_text_named(String const& p_goal)
             char* name_chars = nullptr;
             if (!PL_get_atom_chars(name_term, &name_chars) || !name_chars)
                 continue;
-            dict[String(name_chars)] =
-                PrologConversion::term_to_variant(value_term);
+            dict[godot::String(name_chars)] =
+                term_to_variant(value_term);
         }
         results.push_back(dict);
     }
@@ -1062,7 +1062,7 @@ Array Prologot::query_text_named(String const& p_goal)
 // Dynamic Assertions
 // =============================================================================
 
-bool Prologot::add_fact(String const& p_fact)
+bool Prologot::add_fact(godot::String const& p_fact)
 {
     if (!m_initialized)
         return false;
@@ -1075,7 +1075,7 @@ bool Prologot::add_fact(String const& p_fact)
     }
 
     // Remove trailing period if present (users might include it by mistake)
-    String fact = p_fact;
+    godot::String fact = p_fact;
     if (fact.length() > 0 && fact[fact.length() - 1] == '.')
     {
         fact = fact.substr(0, fact.length() - 1);
@@ -1109,17 +1109,17 @@ bool Prologot::add_fact(String const& p_fact)
     return result != 0;
 }
 
-bool Prologot::assert_fact(Ref<PrologGoal> const& p_goal)
+bool Prologot::assert_fact(godot::Ref<PrologGoal> const& p_goal)
 {
     return apply_clause_predicate("assertz", p_goal, "Assert fact");
 }
 
-bool Prologot::retract_fact(Ref<PrologGoal> const& p_goal)
+bool Prologot::retract_fact(godot::Ref<PrologGoal> const& p_goal)
 {
     return apply_clause_predicate("retract", p_goal, "Retract fact");
 }
 
-bool Prologot::retract_all(Ref<PrologGoal> const& p_goal)
+bool Prologot::retract_all(godot::Ref<PrologGoal> const& p_goal)
 {
     return apply_clause_predicate("retractall", p_goal, "Retract all");
 }
@@ -1128,7 +1128,7 @@ bool Prologot::retract_all(Ref<PrologGoal> const& p_goal)
 // Introspection
 // =============================================================================
 
-bool Prologot::predicate_exists(String const& p_predicate, int p_arity)
+bool Prologot::predicate_exists(godot::String const& p_predicate, int p_arity)
 {
     if (!m_initialized)
         return false;
@@ -1141,16 +1141,16 @@ bool Prologot::predicate_exists(String const& p_predicate, int p_arity)
     return pred != 0;
 }
 
-Array Prologot::list_predicates()
+godot::Array Prologot::list_predicates()
 {
-    Array predicates;
+    godot::Array predicates;
     if (!m_initialized)
         return predicates;
 
     // Query for all current predicates using Prolog's built-in
     // current_predicate/1 This returns all predicates in the form Name/Arity
-    String goal = "current_predicate(Name/Arity)";
-    Array results = query_text_all(goal);
+    godot::String goal = "current_predicate(Name/Arity)";
+    godot::Array results = query_text_all(goal);
 
     return results;
 }
@@ -1160,13 +1160,13 @@ Array Prologot::list_predicates()
 // Exception Handling
 // =============================================================================
 
-void Prologot::push_error(String const& p_message, String const& p_type)
+void Prologot::push_error(godot::String const& p_message, godot::String const& p_type)
 {
     // Store error in m_last_error
     m_last_error = p_message;
 
     // Determine which option to check
-    String option = (p_type == "warning") ? m_on_warning : m_on_error;
+    godot::String option = (p_type == "warning") ? m_on_warning : m_on_error;
 
     // Handle according to option
     if (option == "print")
@@ -1178,11 +1178,11 @@ void Prologot::push_error(String const& p_message, String const& p_type)
         godot::UtilityFunctions::push_error("Prologot: " + p_message);
 
         // Quit the application
-        Engine* engine = Engine::get_singleton();
+        godot::Engine* engine = godot::Engine::get_singleton();
         if (engine)
         {
-            SceneTree* scene_tree =
-                Object::cast_to<SceneTree>(engine->get_main_loop());
+            godot::SceneTree* scene_tree =
+                godot::Object::cast_to<godot::SceneTree>(engine->get_main_loop());
             if (scene_tree)
             {
                 scene_tree->quit(1);
@@ -1192,7 +1192,7 @@ void Prologot::push_error(String const& p_message, String const& p_type)
     // "status" option: only store in m_last_error, don't print
 }
 
-bool Prologot::handle_prolog_exception(qid_t p_qid, String const& p_context)
+bool Prologot::handle_prolog_exception(qid_t p_qid, godot::String const& p_context)
 {
     term_t exception = PL_exception(p_qid);
     if (exception)
@@ -1202,8 +1202,8 @@ bool Prologot::handle_prolog_exception(qid_t p_qid, String const& p_context)
                          &exception_str,
                          CVT_WRITE | CVT_EXCEPTION | BUF_DISCARDABLE))
         {
-            String error_msg =
-                p_context + String(" error: ") + String(exception_str);
+            godot::String error_msg =
+                p_context + godot::String(" error: ") + godot::String(exception_str);
             push_error(error_msg, "error");
             return true;
         }
@@ -1221,7 +1221,9 @@ Prologot* Prologot::get_singleton()
     return m_singleton;
 }
 
-String Prologot::get_last_error() const
+godot::String Prologot::get_last_error() const
 {
     return m_last_error;
 }
+
+} // namespace prologot

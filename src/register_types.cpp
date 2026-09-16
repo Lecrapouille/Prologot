@@ -22,7 +22,8 @@
 #include <godot_cpp/core/defs.hpp>
 #include <godot_cpp/godot.hpp>
 
-using namespace godot;
+namespace prologot
+{
 
 /**
  * @brief Initializes the Prologot module.
@@ -33,24 +34,24 @@ using namespace godot;
  *
  * @param p_level The initialization level. We only initialize at SCENE level.
  */
-void initialize_prologot_module(ModuleInitializationLevel p_level)
+void initialize_prologot_module(godot::ModuleInitializationLevel p_level)
 {
     // Only initialize at SCENE level (after core systems are ready)
-    if (p_level != MODULE_INITIALIZATION_LEVEL_SCENE)
+    if (p_level != godot::MODULE_INITIALIZATION_LEVEL_SCENE)
     {
         return;
     }
 
     // Register the Prologot class with Godot's class database
     // This makes it available to GDScript and the editor
-    ClassDB::register_class<PrologTerm>();
-    ClassDB::register_class<PrologVariable>();
-    ClassDB::register_class<PrologGoal>();
-    ClassDB::register_class<PrologPredicate>();
-    ClassDB::register_class<PrologQuery>();
-    ClassDB::register_class<PrologSolution>();
-    ClassDB::register_class<PrologObject>();
-    ClassDB::register_class<Prologot>();
+    godot::ClassDB::register_class<PrologTerm>();
+    godot::ClassDB::register_class<PrologVariable>();
+    godot::ClassDB::register_class<PrologGoal>();
+    godot::ClassDB::register_class<PrologPredicate>();
+    godot::ClassDB::register_class<PrologQuery>();
+    godot::ClassDB::register_class<PrologSolution>();
+    godot::ClassDB::register_class<PrologObject>();
+    godot::ClassDB::register_class<Prologot>();
 }
 
 /**
@@ -62,15 +63,17 @@ void initialize_prologot_module(ModuleInitializationLevel p_level)
  *
  * @param p_level The initialization level. We only uninitialize at SCENE level.
  */
-void uninitialize_prologot_module(ModuleInitializationLevel p_level)
+void uninitialize_prologot_module(godot::ModuleInitializationLevel p_level)
 {
     // Only uninitialize at SCENE level
-    if (p_level != MODULE_INITIALIZATION_LEVEL_SCENE)
+    if (p_level != godot::MODULE_INITIALIZATION_LEVEL_SCENE)
     {
         return;
     }
     Prologot::shutdown_engine();
 }
+
+} // namespace prologot
 
 /**
  * @brief Entry point for the GDExtension library.
@@ -95,15 +98,15 @@ extern "C"
             p_get_proc_address, p_library, r_initialization);
 
         // Register our initialization function (called when extension loads)
-        init_obj.register_initializer(initialize_prologot_module);
+        init_obj.register_initializer(prologot::initialize_prologot_module);
 
         // Register our termination function (called when extension unloads)
-        init_obj.register_terminator(uninitialize_prologot_module);
+        init_obj.register_terminator(prologot::uninitialize_prologot_module);
 
         // Set the minimum initialization level required
         // SCENE level means we need scene systems to be ready
         init_obj.set_minimum_library_initialization_level(
-            MODULE_INITIALIZATION_LEVEL_SCENE);
+            godot::MODULE_INITIALIZATION_LEVEL_SCENE);
 
         // Perform the actual initialization
         return init_obj.init();

@@ -8,21 +8,24 @@
 #include "PrologQuery.hpp"
 #include <godot_cpp/core/class_db.hpp>
 
+namespace prologot
+{
+
 void PrologQuery::_bind_methods()
 {
-    ClassDB::bind_method(D_METHOD("has_solution"), &PrologQuery::has_solution);
-    ClassDB::bind_method(D_METHOD("first"), &PrologQuery::first);
-    ClassDB::bind_method(D_METHOD("all"), &PrologQuery::all);
-    ClassDB::bind_method(D_METHOD("_iter_init", "iter"),
+    godot::ClassDB::bind_method(godot::D_METHOD("has_solution"), &PrologQuery::has_solution);
+    godot::ClassDB::bind_method(godot::D_METHOD("first"), &PrologQuery::first);
+    godot::ClassDB::bind_method(godot::D_METHOD("all"), &PrologQuery::all);
+    godot::ClassDB::bind_method(godot::D_METHOD("_iter_init", "iter"),
                          &PrologQuery::_iter_init);
-    ClassDB::bind_method(D_METHOD("_iter_next", "iter"),
+    godot::ClassDB::bind_method(godot::D_METHOD("_iter_next", "iter"),
                          &PrologQuery::_iter_next);
-    ClassDB::bind_method(D_METHOD("_iter_get", "iter"), &PrologQuery::_iter_get);
+    godot::ClassDB::bind_method(godot::D_METHOD("_iter_get", "iter"), &PrologQuery::_iter_get);
 }
 
-Ref<PrologQuery> PrologQuery::create(Array const& p_solutions)
+godot::Ref<PrologQuery> PrologQuery::create(godot::Array const& p_solutions)
 {
-    Ref<PrologQuery> query;
+    godot::Ref<PrologQuery> query;
     query.instantiate();
     query->m_solutions = p_solutions;
     return query;
@@ -33,33 +36,35 @@ bool PrologQuery::has_solution() const
     return !m_solutions.is_empty();
 }
 
-Variant PrologQuery::first() const
+godot::Variant PrologQuery::first() const
 {
     if (m_solutions.is_empty())
-        return Variant();
+        return godot::Variant();
     return m_solutions[0];
 }
 
-Array PrologQuery::all() const
+godot::Array PrologQuery::all() const
 {
     return m_solutions;
 }
 
-bool PrologQuery::_iter_init(Variant const&)
+bool PrologQuery::_iter_init(godot::Variant const&)
 {
     m_iter_index = 0;
     return m_iter_index < m_solutions.size();
 }
 
-bool PrologQuery::_iter_next(Variant const&)
+bool PrologQuery::_iter_next(godot::Variant const&)
 {
     m_iter_index += 1;
     return m_iter_index < m_solutions.size();
 }
 
-Variant PrologQuery::_iter_get(Variant const&)
+godot::Variant PrologQuery::_iter_get(godot::Variant const&)
 {
     if (m_iter_index < 0 || m_iter_index >= m_solutions.size())
-        return Variant();
+        return godot::Variant();
     return m_solutions[m_iter_index];
 }
+
+} // namespace prologot

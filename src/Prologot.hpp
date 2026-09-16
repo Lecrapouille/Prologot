@@ -26,7 +26,8 @@
 #include <utility>
 #include <vector>
 
-using namespace godot;
+namespace prologot
+{
 
 /**
  * @class Prologot
@@ -53,9 +54,9 @@ using namespace godot;
  *     print(solution.get(child))
  * p.cleanup()
  */
-class Prologot: public RefCounted
+class Prologot: public godot::RefCounted
 {
-    GDCLASS(Prologot, RefCounted)
+    GDCLASS(Prologot, godot::RefCounted)
 
 public:
 
@@ -148,7 +149,7 @@ public:
      *     return
      * print(prolog.is_initialized())  # true
      */
-    bool initialize(Dictionary const& p_options = Dictionary());
+    bool initialize(godot::Dictionary const& p_options = godot::Dictionary());
 
     /**
      * @brief Detaches this handle from the process-global Prolog engine.
@@ -210,7 +211,7 @@ public:
      * prolog.consult_string("enemy(goblin, 10).")  # Adds even more clauses
      * # All clauses from both files and the code string are now available
      */
-    bool consult_file(String const& p_filename);
+    bool consult_file(godot::String const& p_filename);
 
     /**
      * @brief Consults Prolog code from a string into the knowledge base.
@@ -241,7 +242,7 @@ public:
      * prolog.consult_file("res://rules/game_rules.pl")
      * # All clauses from both code strings and the file are now available
      */
-    bool consult_string(String const& p_prolog_code);
+    bool consult_string(godot::String const& p_prolog_code);
 
     // =========================================================================
     // Structured term factories
@@ -261,7 +262,7 @@ public:
      * print(tom.as_text())  # tom
      * prolog.solve(prolog.predicate("parent").call(tom, "bob")).has_solution()
      */
-    Ref<PrologTerm> atom(String const& p_name);
+    godot::Ref<PrologTerm> atom(godot::String const& p_name);
 
     /**
      * @brief Creates a Prolog integer term.
@@ -275,7 +276,7 @@ public:
      * var hp = prolog.integer(42)
      * print(hp.get_integer())  # 42
      */
-    Ref<PrologTerm> integer(int64_t p_value);
+    godot::Ref<PrologTerm> integer(int64_t p_value);
 
     /**
      * @brief Creates a Prolog floating-point term.
@@ -289,7 +290,7 @@ public:
      * var dist = prolog.real(3.14)
      * print(dist.get_real())  # 3.14
      */
-    Ref<PrologTerm> real(double p_value);
+    godot::Ref<PrologTerm> real(double p_value);
 
     /**
      * @brief Creates a Prolog string term (quoted, distinct from an atom).
@@ -305,7 +306,7 @@ public:
      * print(s.as_text())  # "hello"
      * prolog.assert_fact(prolog.predicate("title").call(s))
      */
-    Ref<PrologTerm> string(String const& p_value);
+    godot::Ref<PrologTerm> string(godot::String const& p_value);
 
     /**
      * @brief Creates the empty Prolog list [].
@@ -316,7 +317,7 @@ public:
      * print(prolog.nil().as_text())  # []
      * prolog.solve(prolog.predicate("empty").call(prolog.nil())).has_solution()
      */
-    Ref<PrologTerm> nil();
+    godot::Ref<PrologTerm> nil();
 
     /**
      * @brief Creates a Prolog list from a Godot Array.
@@ -333,7 +334,7 @@ public:
      * if prolog.solve(prolog.predicate("member").call("sword", items)).has_solution():
      *     print("found")
      */
-    Ref<PrologTerm> list(Array const& p_items);
+    godot::Ref<PrologTerm> list(godot::Array const& p_items);
 
     /**
      * @brief Creates a compound term functor(args...).
@@ -350,7 +351,7 @@ public:
      * print(point.as_text())  # point(10, 20)
      * prolog.assert_fact(prolog.predicate("at").call("hero", point))
      */
-    Ref<PrologTerm> compound(String const& p_functor, Array const& p_args);
+    godot::Ref<PrologTerm> compound(godot::String const& p_functor, godot::Array const& p_args);
 
     /**
      * @brief Creates a logical variable object.
@@ -372,7 +373,7 @@ public:
      * var a2 = prolog.variable("A")
      * print(a1.get_id() != a2.get_id())  # true
      */
-    Ref<PrologVariable> variable(String const& p_name = String());
+    godot::Ref<PrologVariable> variable(godot::String const& p_name = godot::String());
 
     /**
      * @brief Creates a fresh anonymous variable (_).
@@ -389,7 +390,7 @@ public:
      *     print("tom has at least one child")
      * prolog.retract_all(parent.call(prolog.anonymous(), prolog.anonymous()))
      */
-    Ref<PrologVariable> anonymous();
+    godot::Ref<PrologVariable> anonymous();
 
     /**
      * @brief Creates a reusable predicate (functor only, no stored arity).
@@ -407,7 +408,7 @@ public:
      * var unary: PrologGoal = parent.call("tom")          # parent/1
      * var binary: PrologGoal = parent.call("tom", child)  # parent/2
      */
-    Ref<PrologPredicate> predicate(String const& p_name);
+    godot::Ref<PrologPredicate> predicate(godot::String const& p_name);
 
     /**
      * @brief Wraps a Godot Object (Node, Resource, ...) as a Prolog handle.
@@ -425,7 +426,7 @@ public:
      * # Passing the Node to call() wraps it the same way:
      * prolog.solve(at.call($Player, "zone_1")).has_solution()
      */
-    Ref<PrologObject> object(Object* p_object);
+    godot::Ref<PrologObject> object(godot::Object* p_object);
 
     // =========================================================================
     // High-level solving (structured terms, no Prolog source parsing)
@@ -451,7 +452,7 @@ public:
      *     print(solution.get(child))
      * var first = prolog.solve(parent.call("tom", child)).first()
      */
-    Ref<PrologQuery> solve(Ref<PrologGoal> const& p_goal);
+    godot::Ref<PrologQuery> solve(godot::Ref<PrologGoal> const& p_goal);
 
     /**
      * @brief Gets the last error message from Prolog.
@@ -468,7 +469,7 @@ public:
      * if not prolog.consult_file("res://missing.pl"):
      *     push_error(prolog.get_last_error())
      */
-    String get_last_error() const;
+    godot::String get_last_error() const;
 
     // =========================================================================
     // Dynamic Assertions
@@ -485,7 +486,7 @@ public:
      * prolog.assert_fact(parent.call("tom", "bob"))
      * prolog.solve(parent.call("tom", "bob")).has_solution()  # true
      */
-    bool assert_fact(Ref<PrologGoal> const& p_goal);
+    bool assert_fact(godot::Ref<PrologGoal> const& p_goal);
 
     /**
      * @brief Removes the first clause that unifies with p_goal (retract/1).
@@ -497,7 +498,7 @@ public:
      * var parent = prolog.predicate("parent")
      * prolog.retract_fact(parent.call("tom", "bob"))
      */
-    bool retract_fact(Ref<PrologGoal> const& p_goal);
+    bool retract_fact(godot::Ref<PrologGoal> const& p_goal);
 
     /**
      * @brief Removes every clause that unifies with p_goal (retractall/1).
@@ -513,7 +514,7 @@ public:
      * prolog.retract_all(parent.call("tom", prolog.anonymous()))
      * prolog.retract_all(parent.call(prolog.anonymous(), prolog.anonymous()))
      */
-    bool retract_all(Ref<PrologGoal> const& p_goal);
+    bool retract_all(godot::Ref<PrologGoal> const& p_goal);
 
     // =========================================================================
     // Explicit Godot → Prolog exposure (properties and methods)
@@ -542,9 +543,9 @@ public:
      * var sol = prolog.solve(prolog.predicate("node_name").call($Player, name)).first()
      * print(sol.get(name))  # Player
      */
-    bool expose_property(String const& p_class,
-                         String const& p_property,
-                         String const& p_predicate = String());
+    bool expose_property(godot::String const& p_class,
+                         godot::String const& p_property,
+                         godot::String const& p_predicate = godot::String());
 
     /**
      * @brief Exposes a Godot method as a Prolog predicate.
@@ -563,9 +564,9 @@ public:
      * var sol = prolog.solve(prolog.predicate("godot_class").call($Player, cls)).first()
      * print(sol.get(cls))  # Node
      */
-    bool expose_method(String const& p_class,
-                       String const& p_method,
-                       String const& p_predicate = String());
+    bool expose_method(godot::String const& p_class,
+                       godot::String const& p_method,
+                       godot::String const& p_predicate = godot::String());
 
     /**
      * @brief Removes an exposed wrapper predicate (retractall + bookkeeping).
@@ -579,7 +580,7 @@ public:
      * prolog.solve(prolog.predicate("node_name").call($Player, "Hero")).has_solution()
      * # false — the wrapper is gone
      */
-    bool unexpose(String const& p_predicate, int p_arity);
+    bool unexpose(godot::String const& p_predicate, int p_arity);
 
     /**
      * @brief Returns the list of currently exposed members.
@@ -592,7 +593,7 @@ public:
      * for item in prolog.list_exposed():
      *     print(item["predicate"], "/", item["arity"], " -> ", item["member"])
      */
-    Array list_exposed() const;
+    godot::Array list_exposed() const;
 
     /**
      * @brief SWI foreign: prologot_property(Class, Property, Object, Value).
@@ -630,7 +631,7 @@ public:
      *     var tax = prolog.variable("Tax")
      *     var sol = prolog.solve(prolog.predicate("calculate_total_tax").call("zorglub", tax)).first()
      */
-    bool predicate_exists(String const& p_predicate, int p_arity);
+    bool predicate_exists(godot::String const& p_predicate, int p_arity);
 
     /**
      * @brief Lists all currently defined predicates.
@@ -646,7 +647,7 @@ public:
      * # Returns: [{"functor": "parent", "args": ["/", 2]}, ...]
      * # Format: Name/Arity
      */
-    Array list_predicates();
+    godot::Array list_predicates();
 
 protected:
 
@@ -673,7 +674,7 @@ private:
      * @return Resolved absolute path with boot.prc, or empty for system
      * default, and error message if validation fails.
      */
-    std::pair<String, String> set_swi_home_dir(String const& p_home_option);
+    std::pair<godot::String, godot::String> set_swi_home_dir(godot::String const& p_home_option);
 
     /**
      * @brief Resolves Godot virtual paths to absolute filesystem paths.
@@ -685,19 +686,19 @@ private:
      * @param p_path The path to resolve (may be res://, user://, or absolute).
      * @return The absolute filesystem path.
      */
-    static String resolve_godot_path(String const& p_path);
+    static godot::String resolve_godot_path(godot::String const& p_path);
 
     /**
      * @brief Eagerly collects every PrologSolution for p_goal (used by solve()).
      */
-    Array collect_goal_solutions(Ref<PrologGoal> const& p_goal);
+    godot::Array collect_goal_solutions(godot::Ref<PrologGoal> const& p_goal);
 
     /**
      * @brief Calls a unary built-in (assertz, retract, retractall) on a goal.
      */
     bool apply_clause_predicate(char const* p_name,
-                                Ref<PrologGoal> const& p_goal,
-                                String const& p_context);
+                                godot::Ref<PrologGoal> const& p_goal,
+                                godot::String const& p_context);
 
     /**
      * @brief Helper to push error messages respecting error handling options.
@@ -708,7 +709,7 @@ private:
      * @param p_message The error message to handle.
      * @param p_type The error type ("error" or "warning").
      */
-    void push_error(String const& p_message, String const& p_type = "error");
+    void push_error(godot::String const& p_message, godot::String const& p_type = "error");
 
     /**
      * @brief Helper to handle Prolog exceptions.
@@ -721,27 +722,27 @@ private:
      * "Load file").
      * @return true if exception was handled, false if no exception occurred.
      */
-    bool handle_prolog_exception(qid_t p_qid, String const& p_context);
+    bool handle_prolog_exception(qid_t p_qid, godot::String const& p_context);
 
     /**
      * @brief Internal assertz of a Prolog source clause (used by expose_*).
      */
-    bool add_fact(String const& p_fact);
+    bool add_fact(godot::String const& p_fact);
 
     /**
      * @brief Internal yes/no string query (editor / bootstrap helpers).
      */
-    bool query_text(String const& p_goal);
+    bool query_text(godot::String const& p_goal);
 
     /**
      * @brief Internal findall wrapper around a string goal.
      */
-    Array query_text_all(String const& p_goal);
+    godot::Array query_text_all(godot::String const& p_goal);
 
     /**
      * @brief Internal first-solution string query.
      */
-    Variant query_text_one(String const& p_goal);
+    godot::Variant query_text_one(godot::String const& p_goal);
 
     /**
      * @brief Parses a typed editor goal and returns named bindings.
@@ -753,7 +754,7 @@ private:
      * var rows = prolog._editor_query("parent(tom, X)")
      * # [{"X": "bob"}, {"X": "liz"}]
      */
-    Array query_text_named(String const& p_goal);
+    godot::Array query_text_named(godot::String const& p_goal);
 
     /**
      * @brief Registers prologot_property/4 and prologot_method/5 after init.
@@ -777,10 +778,10 @@ private:
 
     struct ExposedBinding
     {
-        String kind;
-        String class_name;
-        String member;
-        String predicate;
+        godot::String kind;
+        godot::String class_name;
+        godot::String member;
+        godot::String predicate;
         int arity = 0;
     };
 
@@ -791,13 +792,13 @@ private:
     std::vector<ExposedBinding> m_exposed;
 
     /** Last error message from Prolog. */
-    String m_last_error;
+    godot::String m_last_error;
 
     /** Error handling option: "print", "halt", or "status". */
-    String m_on_error;
+    godot::String m_on_error;
 
     /** Warning handling option: "print", "halt", or "status". */
-    String m_on_warning;
+    godot::String m_on_warning;
 
     /**
      * @brief C++ singleton handle used by foreign predicates.
@@ -806,3 +807,5 @@ private:
      */
     static Prologot* m_singleton;
 };
+
+} // namespace prologot

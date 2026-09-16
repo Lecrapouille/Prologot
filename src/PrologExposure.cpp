@@ -13,16 +13,15 @@
 #include <godot_cpp/classes/class_db_singleton.hpp>
 #include <godot_cpp/classes/object.hpp>
 
-using namespace godot;
-
-namespace
+namespace prologot
 {
-bool is_valid_predicate_name(String const& p_name)
+
+static bool is_valid_predicate_name(godot::String const& p_name)
 {
     if (p_name.is_empty())
         return false;
 
-    CharString utf8 = p_name.utf8();
+    godot::CharString utf8 = p_name.utf8();
     char const* s = utf8.get_data();
     if (s == nullptr || s[0] < 'a' || s[0] > 'z')
         return false;
@@ -38,76 +37,76 @@ bool is_valid_predicate_name(String const& p_name)
     return true;
 }
 
-bool is_reserved_predicate(String const& p_name)
+static bool is_reserved_predicate(godot::String const& p_name)
 {
     return p_name == "name" || p_name == "is" || p_name == "true" ||
            p_name == "false" || p_name == "fail" || p_name == "cut" ||
            p_name == "prologot_property" || p_name == "prologot_method";
 }
 
-String quote_prolog_atom(String const& p_name)
+static godot::String quote_prolog_atom(godot::String const& p_name)
 {
-    return String("'") + p_name.replace("'", "''") + String("'");
+    return godot::String("'") + p_name.replace("'", "''") + godot::String("'");
 }
 
-String default_property_predicate(String const& p_property)
+static godot::String default_property_predicate(godot::String const& p_property)
 {
     if (p_property == "name")
         return "node_name";
     return p_property;
 }
 
-bool term_as_string(term_t p_term, String& r_out)
+static bool term_as_string(term_t p_term, godot::String& r_out)
 {
     char* s = nullptr;
     if (!PL_get_chars(p_term, &s, CVT_ATOM | CVT_STRING | REP_UTF8))
         return false;
-    r_out = String::utf8(s);
+    r_out = godot::String::utf8(s);
     return true;
 }
 
-Object* object_from_term(term_t p_term)
+static godot::Object* object_from_term(term_t p_term)
 {
-    Ref<PrologObject> handle = PrologObject::from_swi_term(p_term);
+    godot::Ref<PrologObject> handle = PrologObject::from_swi_term(p_term);
     if (handle.is_null() || !handle->is_valid())
         return nullptr;
     return handle->get_object();
 }
 
-bool object_matches_class(Object* p_object, String const& p_class)
+static bool object_matches_class(godot::Object* p_object, godot::String const& p_class)
 {
     if (p_class.is_empty())
         return true;
     return p_object->is_class(p_class);
 }
 
-bool object_has_property(Object* p_object, String const& p_property)
+static bool object_has_property(godot::Object* p_object, godot::String const& p_property)
 {
-    TypedArray<Dictionary> list = p_object->get_property_list();
+    godot::TypedArray<godot::Dictionary> list = p_object->get_property_list();
     for (int i = 0; i < list.size(); ++i)
     {
-        Dictionary d = list[i];
-        if (String(d.get("name", "")) == p_property)
+        godot::Dictionary d = list[i];
+        if (godot::String(d.get("name", "")) == p_property)
             return true;
     }
     return false;
 }
 
-Variant unwrap_godot_arg(Variant const& p_value)
+static godot::Variant unwrap_godot_arg(godot::Variant const& p_value)
 {
-    if (p_value.get_type() == Variant::OBJECT)
+    if (p_value.get_type() == godot::Variant::OBJECT)
     {
-        Ref<PrologObject> handle = p_value;
+        godot::Ref<PrologObject> handle = p_value;
         if (handle.is_valid())
         {
-            Object* obj = handle->get_object();
-            return obj ? Variant(obj) : Variant();
+            godot::Object* obj = handle->get_object();
+            return obj ? godot::Variant(obj) : godot::Variant();
         }
     }
-    if (p_value.get_type() == Variant::ARRAY)
+    if (p_value.get_type() == godot::Variant::ARRAY)
     {
-        Array src = p_value;
-        Array out;
+        godot::Array src = p_value;
+        godot::Array out;
         for (int i = 0; i < src.size(); ++i)
             out.push_back(unwrap_godot_arg(src[i]));
         return out;
@@ -115,65 +114,65 @@ Variant unwrap_godot_arg(Variant const& p_value)
     return p_value;
 }
 
-bool class_has_named_property(String const& p_class, String const& p_property)
+static bool class_has_named_property(godot::String const& p_class, godot::String const& p_property)
 {
-    ClassDBSingleton* cdb = ClassDBSingleton::get_singleton();
+    godot::ClassDBSingleton* cdb = godot::ClassDBSingleton::get_singleton();
     if (cdb == nullptr || p_class.is_empty() || !cdb->class_exists(p_class))
         return false;
 
-    TypedArray<Dictionary> props = cdb->class_get_property_list(p_class, false);
+    godot::TypedArray<godot::Dictionary> props = cdb->class_get_property_list(p_class, false);
     for (int i = 0; i < props.size(); ++i)
     {
-        Dictionary d = props[i];
-        if (String(d.get("name", "")) == p_property)
+        godot::Dictionary d = props[i];
+        if (godot::String(d.get("name", "")) == p_property)
             return true;
     }
     return false;
 }
 
-bool lookup_method(String const& p_class,
-                   String const& p_method,
+static bool lookup_method(godot::String const& p_class,
+                   godot::String const& p_method,
                    int& r_argc,
                    bool& r_has_return)
 {
     r_argc = 0;
     r_has_return = true;
 
-    ClassDBSingleton* cdb = ClassDBSingleton::get_singleton();
+    godot::ClassDBSingleton* cdb = godot::ClassDBSingleton::get_singleton();
     if (cdb == nullptr || p_class.is_empty() || !cdb->class_exists(p_class))
         return p_class.is_empty();
 
     if (!cdb->class_has_method(p_class, p_method))
         return false;
 
-    TypedArray<Dictionary> methods = cdb->class_get_method_list(p_class, false);
+    godot::TypedArray<godot::Dictionary> methods = cdb->class_get_method_list(p_class, false);
     for (int i = 0; i < methods.size(); ++i)
     {
-        Dictionary d = methods[i];
-        if (String(d.get("name", "")) != p_method)
+        godot::Dictionary d = methods[i];
+        if (godot::String(d.get("name", "")) != p_method)
             continue;
 
-        Array args = d.get("args", Array());
-        Array defaults = d.get("default_args", Array());
+        godot::Array args = d.get("args", godot::Array());
+        godot::Array defaults = d.get("default_args", godot::Array());
         r_argc = args.size() - defaults.size();
         if (r_argc < 0)
             r_argc = 0;
 
-        Variant ret = d.get("return", Variant());
-        if (ret.get_type() != Variant::DICTIONARY)
-            ret = d.get("return_val", Variant());
-        if (ret.get_type() == Variant::DICTIONARY)
+        godot::Variant ret = d.get("return", godot::Variant());
+        if (ret.get_type() != godot::Variant::DICTIONARY)
+            ret = d.get("return_val", godot::Variant());
+        if (ret.get_type() == godot::Variant::DICTIONARY)
         {
-            Dictionary rd = ret;
+            godot::Dictionary rd = ret;
             if (rd.has("type"))
             {
                 int t = rd["type"];
-                r_has_return = t != (int)Variant::NIL;
+                r_has_return = t != (int)godot::Variant::NIL;
             }
         }
-        else if (ret.get_type() == Variant::INT)
+        else if (ret.get_type() == godot::Variant::INT)
         {
-            r_has_return = (int)ret != (int)Variant::NIL;
+            r_has_return = (int)ret != (int)godot::Variant::NIL;
         }
         return true;
     }
@@ -182,7 +181,7 @@ bool lookup_method(String const& p_class,
     return true;
 }
 
-foreign_t pl_prologot_property(term_t p_class,
+static foreign_t pl_prologot_property(term_t p_class,
                                term_t p_property,
                                term_t p_object,
                                term_t p_value)
@@ -192,7 +191,7 @@ foreign_t pl_prologot_property(term_t p_class,
                : FALSE;
 }
 
-foreign_t pl_prologot_method(term_t p_class,
+static foreign_t pl_prologot_method(term_t p_class,
                              term_t p_method,
                              term_t p_object,
                              term_t p_args,
@@ -203,7 +202,6 @@ foreign_t pl_prologot_method(term_t p_class,
                ? TRUE
                : FALSE;
 }
-} // namespace
 
 bool Prologot::register_foreign_predicates()
 {
@@ -222,9 +220,9 @@ bool Prologot::register_foreign_predicates()
     return true;
 }
 
-bool Prologot::expose_property(String const& p_class,
-                               String const& p_property,
-                               String const& p_predicate)
+bool Prologot::expose_property(godot::String const& p_class,
+                               godot::String const& p_property,
+                               godot::String const& p_predicate)
 {
     if (!m_initialized)
     {
@@ -237,31 +235,31 @@ bool Prologot::expose_property(String const& p_class,
         return false;
     }
 
-    String predicate = p_predicate.is_empty()
+    godot::String predicate = p_predicate.is_empty()
                            ? default_property_predicate(p_property)
                            : p_predicate;
     if (!is_valid_predicate_name(predicate))
     {
-        push_error(String("Invalid Prolog predicate name: ") + predicate +
-                   String(" (use a lowercase identifier, e.g. node_name)"));
+        push_error(godot::String("Invalid Prolog predicate name: ") + predicate +
+                   godot::String(" (use a lowercase identifier, e.g. node_name)"));
         return false;
     }
     if (is_reserved_predicate(predicate))
     {
-        push_error(String("Cannot expose as ") + predicate +
-                   String("/2 (reserved or clashes with SWI-Prolog). "
+        push_error(godot::String("Cannot expose as ") + predicate +
+                   godot::String("/2 (reserved or clashes with SWI-Prolog). "
                           "Pass a custom predicate name."));
         return false;
     }
 
     if (!p_class.is_empty())
     {
-        ClassDBSingleton* cdb = ClassDBSingleton::get_singleton();
+        godot::ClassDBSingleton* cdb = godot::ClassDBSingleton::get_singleton();
         if (cdb != nullptr && cdb->class_exists(p_class) &&
             !class_has_named_property(p_class, p_property))
         {
-            push_error(String("Unknown property '") + p_property +
-                       String("' on class ") + p_class);
+            push_error(godot::String("Unknown property '") + p_property +
+                       godot::String("' on class ") + p_class);
             return false;
         }
     }
@@ -269,12 +267,12 @@ bool Prologot::expose_property(String const& p_class,
     int const arity = 2;
     unexpose(predicate, arity);
 
-    String clause = predicate + String("(Obj, Val) :- prologot_property(") +
-                    quote_prolog_atom(p_class) + String(", ") +
-                    quote_prolog_atom(p_property) + String(", Obj, Val)");
+    godot::String clause = predicate + godot::String("(Obj, Val) :- prologot_property(") +
+                    quote_prolog_atom(p_class) + godot::String(", ") +
+                    quote_prolog_atom(p_property) + godot::String(", Obj, Val)");
     if (!add_fact(clause))
     {
-        push_error(String("Failed to install property wrapper: ") + clause);
+        push_error(godot::String("Failed to install property wrapper: ") + clause);
         return false;
     }
 
@@ -288,9 +286,9 @@ bool Prologot::expose_property(String const& p_class,
     return true;
 }
 
-bool Prologot::expose_method(String const& p_class,
-                             String const& p_method,
-                             String const& p_predicate)
+bool Prologot::expose_method(godot::String const& p_class,
+                             godot::String const& p_method,
+                             godot::String const& p_predicate)
 {
     if (!m_initialized)
     {
@@ -303,16 +301,16 @@ bool Prologot::expose_method(String const& p_class,
         return false;
     }
 
-    String predicate = p_predicate.is_empty() ? p_method : p_predicate;
+    godot::String predicate = p_predicate.is_empty() ? p_method : p_predicate;
     if (!is_valid_predicate_name(predicate))
     {
-        push_error(String("Invalid Prolog predicate name: ") + predicate);
+        push_error(godot::String("Invalid Prolog predicate name: ") + predicate);
         return false;
     }
     if (is_reserved_predicate(predicate))
     {
-        push_error(String("Cannot expose as ") + predicate +
-                   String(" (reserved or clashes with SWI-Prolog). "
+        push_error(godot::String("Cannot expose as ") + predicate +
+                   godot::String(" (reserved or clashes with SWI-Prolog). "
                           "Pass a custom predicate name."));
         return false;
     }
@@ -321,38 +319,38 @@ bool Prologot::expose_method(String const& p_class,
     bool has_return = true;
     if (!lookup_method(p_class, p_method, argc, has_return))
     {
-        push_error(String("Unknown method '") + p_method +
-                   String("' on class ") +
-                   (p_class.is_empty() ? String("<any>") : p_class));
+        push_error(godot::String("Unknown method '") + p_method +
+                   godot::String("' on class ") +
+                   (p_class.is_empty() ? godot::String("<any>") : p_class));
         return false;
     }
 
     int arity = 1 + argc + (has_return ? 1 : 0);
     unexpose(predicate, arity);
 
-    String head = predicate + String("(Obj");
-    String args_list = String("[");
+    godot::String head = predicate + godot::String("(Obj");
+    godot::String args_list = godot::String("[");
     for (int i = 0; i < argc; ++i)
     {
-        String var = String("A") + String::num_int64(i + 1);
-        head += String(", ") + var;
+        godot::String var = godot::String("A") + godot::String::num_int64(i + 1);
+        head += godot::String(", ") + var;
         if (i > 0)
-            args_list += String(", ");
+            args_list += godot::String(", ");
         args_list += var;
     }
-    args_list += String("]");
+    args_list += godot::String("]");
     if (has_return)
-        head += String(", Result");
-    head += String(")");
+        head += godot::String(", Result");
+    head += godot::String(")");
 
-    String result_var = has_return ? String("Result") : String("_");
-    String clause = head + String(" :- prologot_method(") +
-                    quote_prolog_atom(p_class) + String(", ") +
-                    quote_prolog_atom(p_method) + String(", Obj, ") +
-                    args_list + String(", ") + result_var + String(")");
+    godot::String result_var = has_return ? godot::String("Result") : godot::String("_");
+    godot::String clause = head + godot::String(" :- prologot_method(") +
+                    quote_prolog_atom(p_class) + godot::String(", ") +
+                    quote_prolog_atom(p_method) + godot::String(", Obj, ") +
+                    args_list + godot::String(", ") + result_var + godot::String(")");
     if (!add_fact(clause))
     {
-        push_error(String("Failed to install method wrapper: ") + clause);
+        push_error(godot::String("Failed to install method wrapper: ") + clause);
         return false;
     }
 
@@ -366,7 +364,7 @@ bool Prologot::expose_method(String const& p_class,
     return true;
 }
 
-bool Prologot::unexpose(String const& p_predicate, int p_arity)
+bool Prologot::unexpose(godot::String const& p_predicate, int p_arity)
 {
     if (!m_initialized)
         return false;
@@ -388,19 +386,19 @@ bool Prologot::unexpose(String const& p_predicate, int p_arity)
         }
     }
 
-    Array args;
+    godot::Array args;
     for (int i = 0; i < p_arity; ++i)
         args.push_back(PrologVariable::create_anonymous());
     retract_all(PrologGoal::from_compound(p_predicate, args));
     return found || predicate_exists(p_predicate, p_arity);
 }
 
-Array Prologot::list_exposed() const
+godot::Array Prologot::list_exposed() const
 {
-    Array out;
+    godot::Array out;
     for (ExposedBinding const& binding : m_exposed)
     {
-        Dictionary d;
+        godot::Dictionary d;
         d["kind"] = binding.kind;
         d["class"] = binding.class_name;
         d["member"] = binding.member;
@@ -422,19 +420,19 @@ bool Prologot::foreign_property(term_t p_class,
     if (PL_exception(0))
         PL_clear_exception();
 
-    String class_name;
-    String property;
+    godot::String class_name;
+    godot::String property;
     if (!term_as_string(p_class, class_name) ||
         !term_as_string(p_property, property))
         return false;
 
-    Object* obj = object_from_term(p_object);
+    godot::Object* obj = object_from_term(p_object);
     if (obj == nullptr || !object_matches_class(obj, class_name))
         return false;
     if (!object_has_property(obj, property))
         return false;
 
-    term_t converted = PrologConversion::variant_to_term(obj->get(property));
+    term_t converted = variant_to_term(obj->get(property));
     if (!converted)
         return false;
     return PL_unify(p_value, converted) != FALSE;
@@ -450,26 +448,28 @@ bool Prologot::foreign_method(term_t p_class,
     if (self == nullptr || !self->m_initialized)
         return false;
 
-    String class_name;
-    String method;
+    godot::String class_name;
+    godot::String method;
     if (!term_as_string(p_class, class_name) ||
         !term_as_string(p_method, method))
         return false;
 
-    Object* obj = object_from_term(p_object);
+    godot::Object* obj = object_from_term(p_object);
     if (obj == nullptr || !object_matches_class(obj, class_name))
         return false;
     if (!obj->has_method(method))
         return false;
 
-    Variant args_var = PrologConversion::term_to_variant(p_args);
-    if (args_var.get_type() != Variant::ARRAY)
+    godot::Variant args_var = term_to_variant(p_args);
+    if (args_var.get_type() != godot::Variant::ARRAY)
         return false;
-    Array args = unwrap_godot_arg(args_var);
+    godot::Array args = unwrap_godot_arg(args_var);
 
-    Variant result = obj->callv(method, args);
-    term_t converted = PrologConversion::variant_to_term(result);
+    godot::Variant result = obj->callv(method, args);
+    term_t converted = variant_to_term(result);
     if (!converted)
         return false;
     return PL_unify(p_result, converted) != FALSE;
 }
+
+} // namespace prologot

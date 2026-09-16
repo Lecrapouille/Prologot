@@ -16,7 +16,8 @@
 #include <godot_cpp/variant/array.hpp>
 #include <godot_cpp/variant/string.hpp>
 
-using namespace godot;
+namespace prologot
+{
 
 /**
  * @class PrologGoal
@@ -37,9 +38,9 @@ using namespace godot;
  * for solution in prolog.solve(chain):
  *     print(solution.get(via), " -> ", solution.get(grandchild))
  */
-class PrologGoal: public RefCounted
+class PrologGoal: public godot::RefCounted
 {
-    GDCLASS(PrologGoal, RefCounted)
+    GDCLASS(PrologGoal, godot::RefCounted)
 
 public:
 
@@ -62,8 +63,8 @@ public:
      * @param p_args Arguments in order.
      * @return A new PrologGoal.
      */
-    static Ref<PrologGoal> from_compound(String const& p_functor,
-                                         Array const& p_args);
+    static godot::Ref<PrologGoal> from_compound(godot::String const& p_functor,
+                                         godot::Array const& p_args);
 
     /**
      * @brief Returns the outermost functor name.
@@ -71,7 +72,7 @@ public:
      * @example
      * print(parent.call("tom", child).get_functor())  # parent
      */
-    String get_functor() const { return m_functor; }
+    godot::String get_functor() const { return m_functor; }
 
     /**
      * @brief Returns the outermost arguments.
@@ -84,7 +85,7 @@ public:
      * var goal: PrologGoal = parent.call("tom", child)
      * print(goal.get_args())  # ["tom", <PrologVariable>]
      */
-    Array get_args() const { return m_args; }
+    godot::Array get_args() const { return m_args; }
 
     /**
      * @brief Returns the number of outermost arguments.
@@ -105,7 +106,7 @@ public:
      * @example
      * print(parent.call("tom", child).as_text())  # parent(tom, Child)
      */
-    String as_text() const;
+    godot::String as_text() const;
 
     /**
      * @brief Converts this goal to a compound PrologTerm.
@@ -119,7 +120,7 @@ public:
      * print(term.is_compound())  # true
      * print(term.as_text())      # parent(tom, bob)
      */
-    Ref<PrologTerm> to_term() const;
+    godot::Ref<PrologTerm> to_term() const;
 
     /**
      * @brief Returns this , Other (Prolog conjunction).
@@ -136,7 +137,7 @@ public:
      * var goal = parent.call("tom", via).conjunction(parent.call(via, "ann"))
      * prolog.solve(goal).has_solution()  # true if tom -> via -> ann
      */
-    Ref<PrologGoal> conjunction(Ref<PrologGoal> const& p_other) const;
+    godot::Ref<PrologGoal> conjunction(godot::Ref<PrologGoal> const& p_other) const;
 
     /**
      * @brief Returns this ; Other (Prolog disjunction).
@@ -150,7 +151,7 @@ public:
      * var animal = prolog.predicate("animal")
      * var goal = animal.call("dog").disjunction(animal.call("cat"))
      */
-    Ref<PrologGoal> disjunction(Ref<PrologGoal> const& p_other) const;
+    godot::Ref<PrologGoal> disjunction(godot::Ref<PrologGoal> const& p_other) const;
 
     /**
      * @brief Returns \\+(this) (Prolog negation as failure).
@@ -161,7 +162,7 @@ public:
      * var parent = prolog.predicate("parent")
      * prolog.solve(parent.call("bob", "tom").negated()).has_solution()
      */
-    Ref<PrologGoal> negated() const;
+    godot::Ref<PrologGoal> negated() const;
 
 protected:
 
@@ -172,6 +173,8 @@ protected:
 
 private:
 
-    String m_functor;
-    Array m_args;
+    godot::String m_functor;
+    godot::Array m_args;
 };
+
+} // namespace prologot

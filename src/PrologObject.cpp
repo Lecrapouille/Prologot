@@ -11,20 +11,21 @@
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/core/object.hpp>
 
-namespace
+namespace prologot
 {
+
 struct GodotObjectBlob
 {
     uint64_t instance_id = 0;
 };
 
-int release_godot_object(atom_t)
+static int release_godot_object(atom_t)
 {
     // The blob does not own the Godot object (weak handle via instance id).
     return TRUE;
 }
 
-int compare_godot_object(atom_t p_a, atom_t p_b)
+static int compare_godot_object(atom_t p_a, atom_t p_b)
 {
     size_t len_a = 0;
     size_t len_b = 0;
@@ -39,7 +40,7 @@ int compare_godot_object(atom_t p_a, atom_t p_b)
     return 0;
 }
 
-int write_godot_object(IOSTREAM* p_stream, atom_t p_atom, int)
+static int write_godot_object(IOSTREAM* p_stream, atom_t p_atom, int)
 {
     size_t len = 0;
     auto* blob =
@@ -49,20 +50,19 @@ int write_godot_object(IOSTREAM* p_stream, atom_t p_atom, int)
     return TRUE;
 }
 
-PL_blob_t g_godot_object_blob;
-bool g_blob_ready = false;
-} // namespace
+static PL_blob_t g_godot_object_blob;
+static bool g_blob_ready = false;
 
 void PrologObject::_bind_methods()
 {
-    ClassDB::bind_method(D_METHOD("get_object"), &PrologObject::get_object);
-    ClassDB::bind_method(D_METHOD("is_valid"), &PrologObject::is_valid);
-    ClassDB::bind_method(D_METHOD("get_instance_id"),
+    godot::ClassDB::bind_method(godot::D_METHOD("get_object"), &PrologObject::get_object);
+    godot::ClassDB::bind_method(godot::D_METHOD("is_valid"), &PrologObject::is_valid);
+    godot::ClassDB::bind_method(godot::D_METHOD("get_instance_id"),
                          &PrologObject::get_instance_id);
-    ClassDB::bind_method(D_METHOD("get_class_name"),
+    godot::ClassDB::bind_method(godot::D_METHOD("get_class_name"),
                          &PrologObject::get_class_name);
-    ClassDB::bind_method(D_METHOD("equals", "other"), &PrologObject::equals);
-    ClassDB::bind_method(D_METHOD("as_text"), &PrologObject::as_text);
+    godot::ClassDB::bind_method(godot::D_METHOD("equals", "other"), &PrologObject::equals);
+    godot::ClassDB::bind_method(godot::D_METHOD("as_text"), &PrologObject::as_text);
 }
 
 void PrologObject::register_blob_type()
@@ -86,18 +86,18 @@ bool PrologObject::is_blob_type(PL_blob_t* p_type)
     return g_blob_ready && p_type == &g_godot_object_blob;
 }
 
-Ref<PrologObject> PrologObject::create(Object* p_object)
+godot::Ref<PrologObject> PrologObject::create(godot::Object* p_object)
 {
     if (!p_object)
-        return Ref<PrologObject>();
+        return godot::Ref<PrologObject>();
     return create_from_id(p_object->get_instance_id());
 }
 
-Ref<PrologObject> PrologObject::create_from_id(uint64_t p_instance_id)
+godot::Ref<PrologObject> PrologObject::create_from_id(uint64_t p_instance_id)
 {
     if (p_instance_id == 0)
-        return Ref<PrologObject>();
-    Ref<PrologObject> handle;
+        return godot::Ref<PrologObject>();
+    godot::Ref<PrologObject> handle;
     handle.instantiate();
     handle->m_instance_id = p_instance_id;
     return handle;
@@ -119,24 +119,24 @@ term_t PrologObject::to_swi_term() const
     return t;
 }
 
-Ref<PrologObject> PrologObject::from_swi_term(term_t p_term)
+godot::Ref<PrologObject> PrologObject::from_swi_term(term_t p_term)
 {
     void* data = nullptr;
     size_t len = 0;
     PL_blob_t* type = nullptr;
     if (!PL_get_blob(p_term, &data, &len, &type) || !is_blob_type(type) ||
         !data || len < sizeof(GodotObjectBlob))
-        return Ref<PrologObject>();
+        return godot::Ref<PrologObject>();
 
     auto* blob = static_cast<GodotObjectBlob*>(data);
     return create_from_id(blob->instance_id);
 }
 
-Object* PrologObject::get_object() const
+godot::Object* PrologObject::get_object() const
 {
     if (m_instance_id == 0)
         return nullptr;
-    return ObjectDB::get_instance(m_instance_id);
+    return godot::ObjectDB::get_instance(m_instance_id);
 }
 
 bool PrologObject::is_valid() const
@@ -144,27 +144,29 @@ bool PrologObject::is_valid() const
     return get_object() != nullptr;
 }
 
-String PrologObject::get_class_name() const
+godot::String PrologObject::get_class_name() const
 {
-    Object* object = get_object();
+    godot::Object* object = get_object();
     if (!object)
-        return String();
+        return godot::String();
     return object->get_class();
 }
 
-bool PrologObject::equals(Ref<PrologObject> const& p_other) const
+bool PrologObject::equals(godot::Ref<PrologObject> const& p_other) const
 {
     if (p_other.is_null())
         return false;
     return m_instance_id == p_other->m_instance_id;
 }
 
-String PrologObject::as_text() const
+godot::String PrologObject::as_text() const
 {
-    Object* object = get_object();
+    godot::Object* object = get_object();
     if (!object)
-        return String("<freed#") + String::num_uint64(m_instance_id) +
-               String(">");
-    return object->get_class() + String("#") +
-           String::num_uint64(m_instance_id);
+        return godot::String("<freed#") + godot::String::num_uint64(m_instance_id) +
+               godot::String(">");
+    return object->get_class() + godot::String("#") +
+           godot::String::num_uint64(m_instance_id);
 }
+
+} // namespace prologot

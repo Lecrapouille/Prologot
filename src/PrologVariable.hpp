@@ -12,6 +12,9 @@
 
 #include "PrologTerm.hpp"
 
+namespace prologot
+{
+
 /**
  * @class PrologVariable
  * @brief Distinct Prolog variable object (not a magic uppercase string).
@@ -69,7 +72,7 @@ public:
      * print(child.get_name())      # Child
      * print(child.is_anonymous())  # false
      */
-    static Ref<PrologVariable> create(String const& p_name = String());
+    static godot::Ref<PrologVariable> create(godot::String const& p_name = godot::String());
 
     /**
      * @brief Creates an anonymous variable (_).
@@ -82,7 +85,7 @@ public:
      * # parent(tom, _) : succeed if tom has any child
      * prolog.solve(parent.call("tom", prolog.anonymous())).has_solution()
      */
-    static Ref<PrologVariable> create_anonymous();
+    static godot::Ref<PrologVariable> create_anonymous();
 
     /**
      * @brief Returns the stable identity used as a solution key.
@@ -110,7 +113,7 @@ public:
      * print(prolog.variable().get_name())         # empty or _N
      * print(prolog.anonymous().get_name())        # empty
      */
-    String get_name() const { return m_name; }
+    godot::String get_name() const { return m_name; }
 
     /**
      * @brief Returns true if this was created with anonymous().
@@ -135,6 +138,8 @@ private:
     static int64_t next_id();
 
     int64_t m_id = 0;
-    String m_name;
+    godot::String m_name;
     bool m_anonymous = false;
 };
+
+} // namespace prologot

@@ -15,7 +15,8 @@
 #include <godot_cpp/variant/array.hpp>
 #include <godot_cpp/variant/string.hpp>
 
-using namespace godot;
+namespace prologot
+{
 
 /**
  * @class PrologTerm
@@ -35,9 +36,9 @@ using namespace godot;
  * print(name.as_text())    # tom
  * print(items.get_kind())  # list
  */
-class PrologTerm: public RefCounted
+class PrologTerm: public godot::RefCounted
 {
-    GDCLASS(PrologTerm, RefCounted)
+    GDCLASS(PrologTerm, godot::RefCounted)
 
 public:
 
@@ -80,7 +81,7 @@ public:
      * print(tom.is_atom())   # true
      * print(tom.get_atom())  # tom
      */
-    static Ref<PrologTerm> make_atom(String const& p_name);
+    static godot::Ref<PrologTerm> make_atom(godot::String const& p_name);
 
     /**
      * @brief Creates an integer term.
@@ -92,7 +93,7 @@ public:
      * var n = prolog.integer(42)
      * print(n.get_integer())  # 42
      */
-    static Ref<PrologTerm> make_integer(int64_t p_value);
+    static godot::Ref<PrologTerm> make_integer(int64_t p_value);
 
     /**
      * @brief Creates a floating-point term.
@@ -104,7 +105,7 @@ public:
      * var pi = prolog.real(3.14)
      * print(pi.get_real())  # 3.14
      */
-    static Ref<PrologTerm> make_real(double p_value);
+    static godot::Ref<PrologTerm> make_real(double p_value);
 
     /**
      * @brief Creates a Prolog string term (distinct from an atom).
@@ -119,7 +120,7 @@ public:
      * var s = prolog.string("hello")
      * print(s.as_text())  # "hello"
      */
-    static Ref<PrologTerm> make_string(String const& p_value);
+    static godot::Ref<PrologTerm> make_string(godot::String const& p_value);
 
     /**
      * @brief Creates the empty list [].
@@ -129,7 +130,7 @@ public:
      * @example
      * print(prolog.nil().as_text())  # []
      */
-    static Ref<PrologTerm> make_nil();
+    static godot::Ref<PrologTerm> make_nil();
 
     /**
      * @brief Creates a list term from a Godot Array.
@@ -143,7 +144,7 @@ public:
      * var nums = prolog.list([1, 2, 3])
      * print(nums.as_text())  # [1, 2, 3]
      */
-    static Ref<PrologTerm> make_list(Array const& p_items);
+    static godot::Ref<PrologTerm> make_list(godot::Array const& p_items);
 
     /**
      * @brief Creates a compound term functor(args...).
@@ -157,8 +158,8 @@ public:
      * print(point.as_text())      # point(10, 20)
      * print(point.get_functor())  # point
      */
-    static Ref<PrologTerm> make_compound(String const& p_functor,
-                                         Array const& p_args);
+    static godot::Ref<PrologTerm> make_compound(godot::String const& p_functor,
+                                         godot::Array const& p_args);
 
     /**
      * @brief Returns the kind as a GDScript string.
@@ -169,7 +170,7 @@ public:
      * @example
      * print(prolog.atom("tom").get_kind())  # atom
      */
-    String get_kind() const;
+    godot::String get_kind() const;
 
     /**
      * @brief Returns the kind as a C++ enum (not bound to GDScript).
@@ -252,7 +253,7 @@ public:
      * @example
      * print(prolog.atom("tom").get_atom())  # tom
      */
-    String get_atom() const;
+    godot::String get_atom() const;
 
     /**
      * @brief Returns the integer value (0 if this is not an integer).
@@ -278,7 +279,7 @@ public:
      * @example
      * print(prolog.string("hello").get_string())  # hello
      */
-    String get_string_value() const;
+    godot::String get_string_value() const;
 
     /**
      * @brief Returns the functor name, or empty if not a compound.
@@ -286,7 +287,7 @@ public:
      * @example
      * print(prolog.compound("point", [1, 2]).get_functor())  # point
      */
-    String get_functor() const;
+    godot::String get_functor() const;
 
     /**
      * @brief Returns list elements or compound arguments.
@@ -294,7 +295,7 @@ public:
      * @example
      * print(prolog.compound("point", [10, 20]).get_args())  # [10, 20]
      */
-    Array get_args() const { return m_args; }
+    godot::Array get_args() const { return m_args; }
 
     /**
      * @brief Returns a readable Prolog-like representation.
@@ -305,7 +306,7 @@ public:
      * print(prolog.compound("parent", ["tom", "bob"]).as_text())
      * # parent(tom, bob)
      */
-    String as_text() const;
+    godot::String as_text() const;
 
 protected:
 
@@ -315,16 +316,18 @@ protected:
     static void _bind_methods();
 
     void set_kind(Kind p_kind) { m_kind = p_kind; }
-    void set_text(String const& p_text) { m_text = p_text; }
+    void set_text(godot::String const& p_text) { m_text = p_text; }
     void set_integer(int64_t p_value) { m_integer = p_value; }
     void set_real(double p_value) { m_real = p_value; }
-    void set_args(Array const& p_args) { m_args = p_args; }
+    void set_args(godot::Array const& p_args) { m_args = p_args; }
 
 private:
 
     Kind m_kind = KIND_NIL;
-    String m_text;
+    godot::String m_text;
     int64_t m_integer = 0;
     double m_real = 0.0;
-    Array m_args;
+    godot::Array m_args;
 };
+
+} // namespace prologot
