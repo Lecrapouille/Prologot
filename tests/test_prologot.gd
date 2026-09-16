@@ -664,6 +664,24 @@ func test_lists_atoms_and_variants() -> void:
 	var list_sol: PrologSolution = prolog.solve(goal("length", [[1, 2, 3, 4], list_n])).first()
 	assert_equal(list_sol.get(list_n), 4, "length/2 binds the list length")
 
+	assert_true(prolog.consult_string("""
+		nest(0, leaf).
+		nest(N, [T]) :- integer(N), N > 0, M is N - 1, nest(M, T).
+		cyclic(L) :- L = [a|L].
+	"""), "Load nest/2 and cyclic/1")
+
+	var nest_var := prolog.variable("T")
+	var nest8: PrologSolution = prolog.solve(goal("nest", [8, nest_var])).first()
+	var walked := nest8.get(nest_var)
+	for _i in 8:
+		assert_true(walked is Array and walked.size() == 1, "depth-8 nest is a chain of singleton arrays")
+		walked = walked[0]
+	assert_equal(walked, "leaf", "depth-8 nest reaches leaf")
+
+	var cycle: PrologSolution = prolog.solve(goal("cyclic", [list_var])).first()
+	assert_true(cycle != null, "cyclic/1 succeeds in Prolog")
+	assert_true(cycle.get(list_var) == null, "cyclic list does not convert (would not terminate)")
+
 	teardown_prolog()
 
 

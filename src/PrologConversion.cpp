@@ -192,18 +192,23 @@ term_t godot_object_to_term(godot::Object* p_object)
     return handle->to_swi_term();
 }
 
-static godot::Array list_term_to_array(term_t p_term)
+static godot::Variant term_to_variant_at(term_t p_term, int p_depth);
+
+static godot::Array list_term_to_array(term_t p_term, int p_depth)
 {
     godot::Array list_array;
     term_t head = PL_new_term_ref();
     term_t tail = PL_copy_term_ref(p_term);
     while (PL_get_list(tail, head, tail))
-        list_array.push_back(term_to_variant(head));
+        list_array.push_back(term_to_variant_at(head, p_depth + 1));
     return list_array;
 }
 
-godot::Variant term_to_variant(term_t p_term)
+static godot::Variant term_to_variant_at(term_t p_term, int p_depth)
 {
+    if (p_depth > kMaxTermDepth)
+        return godot::Variant();
+
     int type = PL_term_type(p_term);
 
     switch (type)
@@ -276,12 +281,12 @@ godot::Variant term_to_variant(term_t p_term)
             return godot::Array();
 
         case PL_LIST_PAIR:
-            return list_term_to_array(p_term);
+            return list_term_to_array(p_term, p_depth);
 
         case PL_TERM:
         {
             if (PL_is_list(p_term))
-                return list_term_to_array(p_term);
+                return list_term_to_array(p_term, p_depth);
 
             atom_t name;
             size_t arity;
@@ -300,7 +305,7 @@ godot::Variant term_to_variant(term_t p_term)
                     term_t arg = PL_new_term_ref();
                     if (!PL_get_arg(i, p_term, arg))
                         return godot::Variant();
-                    args.push_back(term_to_variant(arg));
+                    args.push_back(term_to_variant_at(arg, p_depth + 1));
                 }
                 compound["args"] = args;
                 return compound;
@@ -309,6 +314,15 @@ godot::Variant term_to_variant(term_t p_term)
     }
 
     return godot::Variant();
+}
+
+godot::Variant term_to_variant(term_t p_term)
+{
+    // Cyclic terms (X = [a|X], mutual compounds, …) would make the
+    // iterative list walker run forever. Depth only guards nesting.
+    if (!PL_is_acyclic(p_term))
+        return godot::Variant();
+    return term_to_variant_at(p_term, 0);
 }
 
 term_t variant_to_term(godot::Variant const& p_var)

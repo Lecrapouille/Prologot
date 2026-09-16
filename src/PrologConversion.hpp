@@ -33,6 +33,9 @@
 namespace prologot
 {
 
+/** Max nesting of lists / compounds in term_to_variant (stack guard). */
+inline constexpr int kMaxTermDepth = 64;
+
 /**
  * @brief Converts a Prolog term to a Godot Variant (solve / get() output).
  *
@@ -47,6 +50,10 @@ namespace prologot
  *
  * Atoms become String on purpose: Godot Variant has no ATOM type, and game
  * code treats names as String (`== "bob"`, `match`, `"bob" in array`).
+ *
+ * Recursion (nested lists / compounds) stops at kMaxTermDepth; that
+ * subtree is NIL. A cyclic term is NIL as a whole (the list walker is
+ * iterative and would otherwise not terminate).
  */
 godot::Variant term_to_variant(term_t p_term);
 

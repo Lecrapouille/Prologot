@@ -376,6 +376,8 @@ Use `prolog.string()` only when the clause stores a quoted Prolog string. Use `p
 
 Why, and the two rejected alternatives: [glossary — conversion philosophies](glossary.md#three-conversion-philosophies). Code: `term_to_variant` / `variant_to_term` in `src/PrologConversion.cpp`.
 
+Nested lists and compounds recurse up to 64 levels (`kMaxTermDepth`); a deeper subtree is `null`. A cyclic term (`X = [a|X]`) is `null` as a whole — the list walker is iterative and would not stop.
+
 ### Prolog → Godot (typical bindings)
 
 | Prolog | Godot |
