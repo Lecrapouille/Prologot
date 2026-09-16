@@ -133,6 +133,7 @@ jobs:
         timeout-minutes: 2
         run: |
           Copy-Item -Recurse bin tests\bin
+          Get-ChildItem tests\bin\windows -Filter *.dll | Select-Object -ExpandProperty Name
           $env:PATH = "$(Resolve-Path tests\bin\windows);C:\Program Files\swipl\bin;$env:PATH"
           godot --headless --path tests -s run_tests.gd
 
@@ -176,7 +177,10 @@ jobs:
           sudo mv Godot.app/Contents/MacOS/Godot /usr/local/bin/godot
 
       - name: Run unit tests
-        run: godot --headless --path tests -s run_tests.gd
+        run: |
+          ls -l bin/macos/*.dylib
+          otool -L bin/macos/libswipl.dylib || true
+          godot --headless --path tests -s run_tests.gd
         timeout-minutes: 2
 
       - name: Upload macOS artifacts

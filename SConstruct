@@ -127,19 +127,36 @@ def find_swipl_lib(swipl, plbase):
 # ============================================================================
 # Copy Shared Library
 # ============================================================================
+def overwrite_copied_file(src: Path, dest: Path) -> None:
+    """Replace dest even if a previous copy2 left it mode 444 (Homebrew)."""
+    if dest.is_symlink() or dest.is_file():
+        try:
+            dest.chmod(0o666)
+        except OSError:
+            pass
+        dest.unlink()
+    elif dest.is_dir():
+        def _rm_readonly(_func, path, _exc):
+            try:
+                Path(path).chmod(0o666)
+                _func(path)
+            except FileNotFoundError:
+                pass
+        shutil.rmtree(dest, onerror=_rm_readonly)
+    shutil.copy2(src, dest)
+    try:
+        dest.chmod(0o644)
+    except OSError:
+        pass
+
+
 def copy_shared_lib(lib_path: Path, bin_dir: Path, copied_files: list):
     """Copy a shared library, resolving symlinks but keeping the symlink name."""
     if not lib_path.exists():
         return False
 
     dest = bin_dir / lib_path.name
-
-    # Remove destination if it exists to avoid permission errors
-    if dest.exists():
-        dest.chmod(0o666)
-        dest.unlink()
-
-    shutil.copy2(lib_path.resolve(), dest)
+    overwrite_copied_file(lib_path.resolve(), dest)
     copied_files.append(str(dest))
     return True
 
@@ -147,46 +164,138 @@ def copy_shared_lib(lib_path: Path, bin_dir: Path, copied_files: list):
 # Copy SWI-Prolog Libraries (Windows)
 # ============================================================================
 def copy_swipl_libraries_windows(plbase, bin_dir, copied_files):
-    """Copy SWI-Prolog DLL and import library on Windows."""
+    """Copy SWI-Prolog DLL, its sibling runtime DLLs, and the import library.
+
+    Godot loads GDExtensions with LoadLibraryEx(LOAD_LIBRARY_SEARCH_DEFAULT_DIRS)
+    and does not search PATH, so gmp/zlib/pthread/gcc must sit next to libprologot.
+    """
     search_dirs = [plbase / sub for sub in ("bin", "lib", "lib/x64") if (plbase / sub).exists()]
 
-    # Find and copy DLL
+    swipl_dll = None
     for dll_name in ("libswipl.dll", "swipl.dll"):
         for d in search_dirs:
             if (dll := d / dll_name).exists():
-                shutil.copy2(dll, bin_dir / dll_name)
-                copied_files.append(str(bin_dir / dll_name))
+                swipl_dll = dll
                 break
-        else:
-            continue
-        break
+        if swipl_dll:
+            break
 
-    # Find and copy import library
+    if swipl_dll:
+        for dll in swipl_dll.parent.glob("*.dll"):
+            dest = bin_dir / dll.name
+            overwrite_copied_file(dll, dest)
+            copied_files.append(str(dest))
+
     for lib_name in ("swipl.lib", "libswipl.lib", "libswipl.dll.a"):
         for d in search_dirs:
             if (lib := d / lib_name).exists():
-                shutil.copy2(lib, bin_dir / "swipl.lib")
+                overwrite_copied_file(lib, bin_dir / "swipl.lib")
                 copied_files.append(str(bin_dir / "swipl.lib"))
                 return
         else:
             continue
         break
 
+MACOS_SYSTEM_DYLIB_PREFIXES = ("/usr/lib/", "/System/", "/Library/Apple/")
+
+
+def _otool_load_dylibs(lib_path: Path) -> list:
+    """Absolute / @rpath load commands from `otool -L` (skips the header line)."""
+    out = subprocess.check_output(["otool", "-L", str(lib_path)], text=True)
+    deps = []
+    for line in out.splitlines()[1:]:
+        line = line.strip()
+        if line:
+            deps.append(line.split(" ", 1)[0])
+    return deps
+
+
+def _macos_is_system_dylib(path: str) -> bool:
+    return path.startswith(MACOS_SYSTEM_DYLIB_PREFIXES)
+
+
+def _macos_rewrite_install_names(dylib: Path, bin_dir: Path) -> None:
+    """Point this dylib at @rpath/<basename> so Godot finds copies next to itself."""
+    subprocess.run(["install_name_tool", "-id", f"@rpath/{dylib.name}", str(dylib)], check=False)
+    subprocess.run(["install_name_tool", "-add_rpath", "@loader_path", str(dylib)], check=False)
+    for dep in _otool_load_dylibs(dylib):
+        if _macos_is_system_dylib(dep) or dep.startswith("@rpath/") or dep.startswith("@loader_path/"):
+            continue
+        basename = Path(dep).name
+        if (bin_dir / basename).exists():
+            subprocess.run(
+                ["install_name_tool", "-change", dep, f"@rpath/{basename}", str(dylib)],
+                check=False,
+            )
+    subprocess.run(["codesign", "--force", "--sign", "-", str(dylib)], check=False)
+
+
+def _macos_rewrite_built_extension(target, source, env) -> None:
+    bin_dir = Path("bin") / "macos"
+    for item in target:
+        path = Path(str(item))
+        if path.suffix == ".dylib" or ".dylib" in path.name:
+            _macos_rewrite_install_names(path, bin_dir)
+
+
+def copy_macos_swipl_runtime(swipl_lib, bin_dir, copied_files):
+    """Copy libswipl plus Homebrew deps (gmp, …) and rewrite install names."""
+    resolved = swipl_lib.resolve()
+    copy_shared_lib(swipl_lib, bin_dir, copied_files)
+    if swipl_lib.name != "libswipl.dylib":
+        dest = bin_dir / "libswipl.dylib"
+        overwrite_copied_file(resolved, dest)
+        copied_files.append(str(dest))
+
+    queue = [resolved]
+    seen = set()
+    extras = {}
+    while queue:
+        current = queue.pop()
+        if not current.exists():
+            continue
+        key = str(current.resolve())
+        if key in seen:
+            continue
+        seen.add(key)
+        for dep in _otool_load_dylibs(current):
+            if _macos_is_system_dylib(dep) or dep.startswith("@loader_path/") or dep.startswith("@executable_path/"):
+                continue
+            dep_path = Path(dep)
+            if dep.startswith("@rpath/"):
+                candidate = current.parent / Path(dep).name
+                if not candidate.exists():
+                    continue
+                dep_path = candidate
+            if not dep_path.exists():
+                continue
+            dep_path = dep_path.resolve()
+            if dep_path == resolved:
+                continue
+            extras[dep_path.name] = dep_path
+            queue.append(dep_path)
+
+    for name, src in extras.items():
+        dest = bin_dir / name
+        overwrite_copied_file(src, dest)
+        copied_files.append(str(dest))
+        print(f"Copied {name}")
+
+    for dylib in bin_dir.glob("*.dylib"):
+        if dylib.name.startswith("libprologot"):
+            continue
+        _macos_rewrite_install_names(dylib, bin_dir)
+
+
 # ============================================================================
 # Copy SWI-Prolog Libraries (Unix and MacOS)
 # ============================================================================
 def copy_swipl_libraries_unix(swipl_lib, bin_dir, copied_files):
     """Copy SWI-Prolog shared library on Unix/macOS."""
+    if sys.platform == "darwin":
+        copy_macos_swipl_runtime(swipl_lib, bin_dir, copied_files)
+        return
     copy_shared_lib(swipl_lib, bin_dir, copied_files)
-
-    # On macOS, also copy as libswipl.dylib for linking
-    if sys.platform == 'darwin' and swipl_lib.name != 'libswipl.dylib':
-        base_dest = bin_dir / 'libswipl.dylib'
-        if base_dest.exists():
-            base_dest.chmod(0o666)
-            base_dest.unlink()
-        shutil.copy2(swipl_lib.resolve(), base_dest)
-        copied_files.append(str(base_dest))
 
 # ============================================================================
 # Copy SWI-Prolog Libraries (Windows, MacOS and Unix)
@@ -232,24 +341,19 @@ def copy_swipl_resources(plbase, output_dir=None):
     boot_files = list(plbase.glob("boot*.prc"))
     if boot_files:
         boot_dest = output_dir / "boot.prc"
-        try:
-            if boot_dest.exists():
-                boot_dest.chmod(0o666)
-                boot_dest.unlink()
-        except FileNotFoundError:
-            pass
-        shutil.copy2(boot_files[0], boot_dest)
+        overwrite_copied_file(boot_files[0], boot_dest)
         copied.append(str(boot_dest))
         print(f"Copied {boot_files[0].name} -> {boot_dest}")
     else:
         print(f"Warning: No boot*.prc found in {plbase}")
 
     # SWI-Prolog 9+ refuses a home without ABI (and uses swipl.home as marker).
+    # make all runs scons twice; Homebrew copies are often 444, so overwrite.
     for name in ("ABI", "swipl.home", "swipl.rc"):
         src = plbase / name
         if src.is_file():
             dest = output_dir / name
-            shutil.copy2(src, dest)
+            overwrite_copied_file(src, dest)
             copied.append(str(dest))
             print(f"Copied {name} -> {dest}")
 
@@ -376,6 +480,8 @@ def build_library(env):
     # Build and post-process
     library = env.SharedLibrary(lib_name, source=glob("src/*.cpp"))
     env.AddPostAction(library, lambda target, source, env: create_gdextension_file())
+    if sys.platform == "darwin":
+        env.AddPostAction(library, _macos_rewrite_built_extension)
 
     Default(library)
     return library
