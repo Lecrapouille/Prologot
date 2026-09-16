@@ -192,6 +192,8 @@ term_t godot_object_to_term(godot::Object* p_object)
     return handle->to_swi_term();
 }
 
+static constexpr int MAX_TERM_DEPTH = 64;
+
 static godot::Variant term_to_variant_at(term_t p_term, int p_depth);
 
 static godot::Array list_term_to_array(term_t p_term, int p_depth)
@@ -206,7 +208,7 @@ static godot::Array list_term_to_array(term_t p_term, int p_depth)
 
 static godot::Variant term_to_variant_at(term_t p_term, int p_depth)
 {
-    if (p_depth > kMaxTermDepth)
+    if (p_depth > MAX_TERM_DEPTH)
         return godot::Variant();
 
     int type = PL_term_type(p_term);
