@@ -9,6 +9,7 @@
  */
 
 #include "Prologot.hpp"
+#include "PrologConversion.hpp"
 #include <godot_cpp/classes/class_db_singleton.hpp>
 #include <godot_cpp/classes/object.hpp>
 
@@ -433,7 +434,7 @@ bool Prologot::foreign_property(term_t p_class,
     if (!object_has_property(obj, property))
         return false;
 
-    term_t converted = self->variant_to_term(obj->get(property));
+    term_t converted = PrologConversion::variant_to_term(obj->get(property));
     if (!converted)
         return false;
     return PL_unify(p_value, converted) != FALSE;
@@ -461,13 +462,13 @@ bool Prologot::foreign_method(term_t p_class,
     if (!obj->has_method(method))
         return false;
 
-    Variant args_var = self->term_to_variant(p_args);
+    Variant args_var = PrologConversion::term_to_variant(p_args);
     if (args_var.get_type() != Variant::ARRAY)
         return false;
     Array args = unwrap_godot_arg(args_var);
 
     Variant result = obj->callv(method, args);
-    term_t converted = self->variant_to_term(result);
+    term_t converted = PrologConversion::variant_to_term(result);
     if (!converted)
         return false;
     return PL_unify(p_result, converted) != FALSE;

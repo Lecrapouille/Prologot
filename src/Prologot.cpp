@@ -8,8 +8,8 @@
  */
 
 #include "Prologot.hpp"
+#include "PrologConversion.hpp"
 #include <algorithm>
-#include <cstring>
 #include <deque>
 #include <map>
 #include <string>
@@ -28,10 +28,6 @@
 #include <godot_cpp/classes/scene_tree.hpp>
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
-#include <godot_cpp/variant/vector2.hpp>
-#include <godot_cpp/variant/vector2i.hpp>
-#include <godot_cpp/variant/vector3.hpp>
-#include <godot_cpp/variant/vector3i.hpp>
 
 // =============================================================================
 // Static Member Initialization
@@ -748,160 +744,6 @@ Ref<PrologObject> Prologot::object(Object* p_object)
 // High-level solving (structured terms)
 // =============================================================================
 
-term_t Prologot::object_arg_to_term(Variant const& p_arg,
-                                    std::map<int64_t, term_t>& p_vars,
-                                    std::vector<Ref<PrologVariable>>& p_order)
-{
-    if (p_arg.get_type() == Variant::OBJECT)
-    {
-        Ref<PrologVariable> variable = p_arg;
-        if (variable.is_valid())
-        {
-            if (variable->is_anonymous())
-            {
-                term_t fresh = PL_new_term_ref();
-                if (!PL_put_variable(fresh))
-                    return (term_t)0;
-                return fresh;
-            }
-            auto it = p_vars.find(variable->get_id());
-            if (it != p_vars.end())
-                return it->second;
-            term_t var = PL_new_term_ref();
-            if (!PL_put_variable(var))
-                return (term_t)0;
-            p_vars[variable->get_id()] = var;
-            p_order.push_back(variable);
-            return var;
-        }
-
-        Ref<PrologGoal> nested = p_arg;
-        if (nested.is_valid())
-        {
-            term_t goal = PL_new_term_ref();
-            if (!compile_goal(nested, goal, p_vars, p_order))
-                return (term_t)0;
-            return goal;
-        }
-
-        Ref<PrologTerm> term = p_arg;
-        if (term.is_valid())
-            return prolog_term_to_swi(term, p_vars, p_order);
-
-        Ref<PrologObject> handle = p_arg;
-        if (handle.is_valid())
-            return handle->to_swi_term();
-
-        Object* native = p_arg;
-        if (native)
-            return godot_object_to_term(native);
-    }
-
-    if (p_arg.get_type() == Variant::ARRAY)
-    {
-        Array arr = p_arg;
-        term_t list = PL_new_term_ref();
-        if (!PL_put_nil(list))
-            return (term_t)0;
-        for (int i = arr.size() - 1; i >= 0; i--)
-        {
-            term_t elem = object_arg_to_term(arr[i], p_vars, p_order);
-            if (!elem)
-                return (term_t)0;
-            term_t new_list = PL_new_term_ref();
-            if (!PL_cons_list(new_list, elem, list))
-                return (term_t)0;
-            list = new_list;
-        }
-        return list;
-    }
-
-    return variant_to_term(p_arg);
-}
-
-term_t Prologot::prolog_term_to_swi(Ref<PrologTerm> const& p_term,
-                                    std::map<int64_t, term_t>& p_vars,
-                                    std::vector<Ref<PrologVariable>>& p_order)
-{
-    if (p_term.is_null())
-        return (term_t)0;
-
-    Ref<PrologVariable> variable = p_term;
-    if (variable.is_valid())
-        return object_arg_to_term(variable, p_vars, p_order);
-
-    switch (p_term->get_kind_enum())
-    {
-        case PrologTerm::KIND_ATOM:
-            return variant_to_term(p_term->get_atom());
-        case PrologTerm::KIND_INTEGER:
-            return variant_to_term(p_term->get_integer());
-        case PrologTerm::KIND_FLOAT:
-            return variant_to_term(p_term->get_real());
-        case PrologTerm::KIND_STRING:
-        {
-            term_t t = PL_new_term_ref();
-            if (!PL_put_string_chars(
-                    t, p_term->get_string_value().utf8().get_data()))
-                return (term_t)0;
-            return t;
-        }
-        case PrologTerm::KIND_NIL:
-        {
-            term_t t = PL_new_term_ref();
-            if (!PL_put_nil(t))
-                return (term_t)0;
-            return t;
-        }
-        case PrologTerm::KIND_LIST:
-            return object_arg_to_term(p_term->get_args(), p_vars, p_order);
-        case PrologTerm::KIND_COMPOUND:
-        {
-            Ref<PrologGoal> goal = PrologGoal::from_compound(
-                p_term->get_functor(), p_term->get_args());
-            term_t t = PL_new_term_ref();
-            if (!compile_goal(goal, t, p_vars, p_order))
-                return (term_t)0;
-            return t;
-        }
-        case PrologTerm::KIND_VARIABLE:
-            return (term_t)0;
-    }
-    return (term_t)0;
-}
-
-bool Prologot::compile_goal(Ref<PrologGoal> const& p_goal,
-                            term_t p_out_goal,
-                            std::map<int64_t, term_t>& p_vars,
-                            std::vector<Ref<PrologVariable>>& p_order)
-{
-    if (p_goal.is_null())
-        return false;
-
-    Array args = p_goal->get_args();
-    int arity = args.size();
-    term_t arg_refs = arity > 0 ? PL_new_term_refs(arity) : (term_t)0;
-    for (int i = 0; i < arity; i++)
-    {
-        term_t arg = object_arg_to_term(args[i], p_vars, p_order);
-        if (!arg || !PL_put_term(arg_refs + i, arg))
-        {
-            m_last_error =
-                "Failed to convert goal argument " + String::num_int64(i);
-            return false;
-        }
-    }
-
-    functor_t f = PL_new_functor(
-        PL_new_atom(p_goal->get_functor().utf8().get_data()), arity);
-    if (!PL_cons_functor_v(p_out_goal, f, arg_refs))
-    {
-        m_last_error = "Failed to construct goal term";
-        return false;
-    }
-    return true;
-}
-
 Array Prologot::collect_goal_solutions(Ref<PrologGoal> const& p_goal)
 {
     Array results;
@@ -915,8 +757,11 @@ Array Prologot::collect_goal_solutions(Ref<PrologGoal> const& p_goal)
     std::map<int64_t, term_t> vars;
     std::vector<Ref<PrologVariable>> order;
     term_t goal = PL_new_term_ref();
-    if (!compile_goal(p_goal, goal, vars, order))
+    String error;
+    if (!PrologConversion::compile_goal(p_goal, goal, vars, order, &error))
     {
+        if (!error.is_empty())
+            m_last_error = error;
         PL_discard_foreign_frame(frame);
         return results;
     }
@@ -942,7 +787,8 @@ Array Prologot::collect_goal_solutions(Ref<PrologGoal> const& p_goal)
         {
             auto it = vars.find(variable->get_id());
             if (it != vars.end())
-                solution->put(variable, term_to_variant(it->second));
+                solution->put(
+                    variable, PrologConversion::term_to_variant(it->second));
         }
         results.push_back(solution);
     }
@@ -950,14 +796,6 @@ Array Prologot::collect_goal_solutions(Ref<PrologGoal> const& p_goal)
     PL_close_query(qid);
     PL_close_foreign_frame(frame);
     return results;
-}
-
-term_t Prologot::godot_object_to_term(Object* p_object)
-{
-    Ref<PrologObject> handle = PrologObject::create(p_object);
-    if (handle.is_null())
-        return (term_t)0;
-    return handle->to_swi_term();
 }
 
 bool Prologot::apply_clause_predicate(char const* p_name,
@@ -975,10 +813,12 @@ bool Prologot::apply_clause_predicate(char const* p_name,
     std::map<int64_t, term_t> vars;
     std::vector<Ref<PrologVariable>> order;
     term_t term = PL_new_term_ref();
-    if (!compile_goal(p_goal, term, vars, order))
+    String error;
+    if (!PrologConversion::compile_goal(p_goal, term, vars, order, &error))
     {
-        if (m_last_error.is_empty())
-            m_last_error = p_context + String(": failed to compile goal");
+        m_last_error = error.is_empty()
+                           ? p_context + String(": failed to compile goal")
+                           : error;
         return false;
     }
 
@@ -1087,7 +927,7 @@ Array Prologot::query_text_all(String const& p_goal)
             term_t head = PL_new_term_ref();
             term_t tail = PL_copy_term_ref(findall_term);
             while (PL_get_list(tail, head, tail))
-                results.push_back(term_to_variant(head));
+                results.push_back(PrologConversion::term_to_variant(head));
         }
     }
 
@@ -1127,7 +967,7 @@ Variant Prologot::query_text_one(String const& p_goal)
 
     Variant var;
     if (result)
-        var = term_to_variant(t);
+        var = PrologConversion::term_to_variant(t);
 
     PL_close_query(qid);
     return var;
@@ -1208,7 +1048,8 @@ Array Prologot::query_text_named(String const& p_goal)
             char* name_chars = nullptr;
             if (!PL_get_atom_chars(name_term, &name_chars) || !name_chars)
                 continue;
-            dict[String(name_chars)] = term_to_variant(value_term);
+            dict[String(name_chars)] =
+                PrologConversion::term_to_variant(value_term);
         }
         results.push_back(dict);
     }
@@ -1314,371 +1155,6 @@ Array Prologot::list_predicates()
     return results;
 }
 
-// =============================================================================
-// Term Conversion
-// =============================================================================
-
-Variant Prologot::term_to_variant(term_t p_term)
-{
-    int type = PL_term_type(p_term);
-
-    switch (type)
-    {
-        case PL_VARIABLE:
-            // Unbound variables cannot be converted to a concrete value
-            return Variant();
-
-        case PL_ATOM:
-        case PL_BLOB:
-        {
-            PL_blob_t* blob_type = nullptr;
-            if (PL_is_blob(p_term, &blob_type) &&
-                PrologObject::is_blob_type(blob_type))
-            {
-                Ref<PrologObject> handle = PrologObject::from_swi_term(p_term);
-                if (handle.is_valid())
-                    return handle;
-            }
-
-            if (type == PL_BLOB)
-                return Variant();
-
-            // Atom → Godot String. Distinct from a Prolog string.
-            char* s;
-            if (!PL_get_atom_chars(p_term, &s))
-                return Variant();
-            return String(s);
-        }
-
-        case PL_INTEGER:
-        {
-            // Convert Prolog integer to int64_t
-            int64_t i;
-            if (!PL_get_int64(p_term, &i))
-                return Variant();
-            return i;
-        }
-
-        case PL_FLOAT:
-        {
-            // Convert Prolog float to double
-            double d;
-            if (!PL_get_float(p_term, &d))
-                return Variant();
-            return d;
-        }
-
-        case PL_STRING:
-        {
-            // Prolog string → PrologTerm, so it is not confused with an atom.
-            char* s;
-            size_t len;
-            if (!PL_get_string_chars(p_term, &s, &len))
-                return Variant();
-            (void)len;
-            return PrologTerm::make_string(String(s));
-        }
-
-        case PL_NIL:
-        {
-            // Empty list [] - return empty Godot Array
-            return Array();
-        }
-
-        case PL_LIST_PAIR:
-        {
-            // Non-empty list [H|T] - convert to Godot Array
-            // In modern SWI-Prolog, lists have their own type PL_LIST_PAIR
-            Array list_array;
-            term_t head = PL_new_term_ref();
-            term_t tail = PL_copy_term_ref(p_term);
-
-            while (PL_get_list(tail, head, tail))
-            {
-                list_array.push_back(term_to_variant(head));
-            }
-
-            return list_array;
-        }
-
-        case PL_TERM:
-        {
-            // Compound terms can be lists or structured terms
-            // First, try to deconstruct as a list [Head|Tail]
-            term_t list_copy = PL_copy_term_ref(p_term);
-            term_t head = PL_new_term_ref();
-            term_t tail = PL_new_term_ref();
-
-            // Try to deconstruct as a list
-            if (PL_get_list(list_copy, head, tail))
-            {
-                // It's a list! Convert to Godot Array
-                Array list_array;
-
-                // Add first element (head)
-                list_array.push_back(term_to_variant(head));
-
-                // Iterate through the rest of the list (tail)
-                // PL_get_list() modifies tail to point to the next element
-                while (PL_get_list(tail, head, tail))
-                {
-                    list_array.push_back(term_to_variant(head));
-                }
-
-                return list_array;
-            }
-
-            // Not a list, try as compound term (e.g., functor(arg1, arg2))
-            atom_t name;
-            size_t arity;
-            if (PL_get_name_arity(p_term, &name, &arity))
-            {
-                // Check for empty list atom (special case)
-                // Empty list can be represented as the atom []
-                const char* atom_name = PL_atom_chars(name);
-                if (arity == 0 && strcmp(atom_name, "[]") == 0)
-                {
-                    // Empty list represented as atom
-                    return Array();
-                }
-
-                // Convert compound term to Dictionary format:
-                // {"functor": "name", "args": [arg1, arg2, ...]}
-                // This distinguishes compound terms from lists (which are
-                // Arrays)
-                Dictionary compound;
-                compound["functor"] = String(atom_name);
-
-                Array args;
-                // Recursively convert each argument
-                for (size_t i = 1; i <= arity; i++)
-                {
-                    term_t arg = PL_new_term_ref();
-                    if (!PL_get_arg(i, p_term, arg))
-                    {
-                        // Failed to get argument, return invalid Variant
-                        return Variant();
-                    }
-                    args.push_back(term_to_variant(arg));
-                }
-                compound["args"] = args;
-                return compound;
-            }
-        }
-    }
-
-    // Unknown or unsupported type
-    return Variant();
-}
-
-term_t Prologot::variant_to_term(Variant const& p_var)
-{
-    term_t t = PL_new_term_ref();
-
-    switch (p_var.get_type())
-    {
-        case Variant::NIL:
-            // Null becomes empty list atom
-            if (!PL_put_atom_chars(t, "[]"))
-            {
-                return (term_t)0; // Return invalid term on failure
-            }
-            break;
-
-        case Variant::BOOL:
-            // Boolean to Prolog atom (true or false)
-            // Prolog has built-in atoms for boolean values
-            if (!PL_put_atom_chars(t, (bool)p_var ? "true" : "false"))
-            {
-                return (term_t)0; // Return invalid term on failure
-            }
-            break;
-
-        case Variant::INT:
-            // Convert integer to Prolog integer
-            if (!PL_put_int64(t, (int64_t)p_var))
-            {
-                return (term_t)0; // Return invalid term on failure
-            }
-            break;
-
-        case Variant::FLOAT:
-            // Convert float to Prolog float
-            if (!PL_put_float(t, (double)p_var))
-            {
-                return (term_t)0; // Return invalid term on failure
-            }
-            break;
-
-        case Variant::STRING:
-        case Variant::STRING_NAME:
-            // A GDScript String / StringName is always a Prolog atom.
-            // Use prolog.string() for a Prolog string ("text").
-            if (!PL_put_atom_chars(t, String(p_var).utf8().get_data()))
-            {
-                return (term_t)0;
-            }
-            break;
-
-        case Variant::OBJECT:
-        {
-            Ref<PrologTerm> term = p_var;
-            if (term.is_valid())
-            {
-                std::map<int64_t, term_t> vars;
-                std::vector<Ref<PrologVariable>> order;
-                return prolog_term_to_swi(term, vars, order);
-            }
-            Ref<PrologObject> handle = p_var;
-            if (handle.is_valid())
-                return handle->to_swi_term();
-            Object* native = p_var;
-            if (native)
-                return godot_object_to_term(native);
-            return (term_t)0;
-        }
-
-        case Variant::ARRAY:
-        {
-            // Array becomes Prolog list [elem1, elem2, ...]
-            Array arr = p_var;
-            if (arr.size() == 0)
-            {
-                // Empty array becomes empty list []
-                if (!PL_put_nil(t))
-                {
-                    return (term_t)0;
-                }
-            }
-            else
-            {
-                // Build list from end to start
-                // Start with empty list, then prepend elements
-                term_t list = PL_new_term_ref();
-                if (!PL_put_nil(list))
-                {
-                    return (term_t)0;
-                }
-
-                // Iterate backwards to build the list correctly
-                for (int i = arr.size() - 1; i >= 0; i--)
-                {
-                    term_t elem = variant_to_term(arr[i]);
-                    if (!elem)
-                    {
-                        return (term_t)0;
-                    }
-                    term_t new_list = PL_new_term_ref();
-                    if (!PL_cons_list(new_list, elem, list))
-                    {
-                        return (term_t)0;
-                    }
-                    list = new_list;
-                }
-
-                if (!PL_put_term(t, list))
-                {
-                    return (term_t)0;
-                }
-            }
-            break;
-        }
-
-        case Variant::VECTOR2:
-        {
-            Vector2 v = p_var;
-            Array arr;
-            arr.push_back(v.x);
-            arr.push_back(v.y);
-            return variant_to_term(arr);
-        }
-
-        case Variant::VECTOR2I:
-        {
-            Vector2i v = p_var;
-            Array arr;
-            arr.push_back(v.x);
-            arr.push_back(v.y);
-            return variant_to_term(arr);
-        }
-
-        case Variant::VECTOR3:
-        {
-            Vector3 v = p_var;
-            Array arr;
-            arr.push_back(v.x);
-            arr.push_back(v.y);
-            arr.push_back(v.z);
-            return variant_to_term(arr);
-        }
-
-        case Variant::VECTOR3I:
-        {
-            Vector3i v = p_var;
-            Array arr;
-            arr.push_back(v.x);
-            arr.push_back(v.y);
-            arr.push_back(v.z);
-            return variant_to_term(arr);
-        }
-
-        case Variant::DICTIONARY:
-        {
-            // Dictionary with "functor" and "args" becomes compound term
-            // Format: {"functor": "name", "args": [arg1, arg2, ...]}
-            //      -> name(arg1, arg2, ...)
-            Dictionary dict = p_var;
-            if (dict.has("functor") && dict.has("args"))
-            {
-                String functor = dict["functor"];
-                Array args_arr = dict["args"];
-                int arity = args_arr.size();
-
-                // Create the functor (predicate signature)
-                functor_t f = PL_new_functor(
-                    PL_new_atom(functor.utf8().get_data()), arity);
-
-                // Allocate term references for arguments
-                term_t args = PL_new_term_refs(arity);
-
-                // Convert each argument recursively
-                for (int i = 0; i < arity; i++)
-                {
-                    term_t arg = variant_to_term(args_arr[i]);
-                    if (!arg || !PL_put_term(args + i, arg))
-                    {
-                        return (term_t)0;
-                    }
-                }
-
-                // Construct the compound term from functor and arguments
-                if (!PL_cons_functor_v(t, f, args))
-                {
-                    return (term_t)0;
-                }
-            }
-            else
-            {
-                // Dictionary without proper structure becomes empty list
-                if (!PL_put_atom_chars(t, "[]"))
-                {
-                    return (term_t)0;
-                }
-            }
-            break;
-        }
-
-        default:
-            // Unknown or unsupported types become empty list atom
-            // This provides a safe fallback for unexpected types
-            if (!PL_put_atom_chars(t, "[]"))
-            {
-                return (term_t)0; // Return invalid term on failure
-            }
-    }
-
-    return t;
-}
 
 // =============================================================================
 // Exception Handling
