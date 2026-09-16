@@ -222,7 +222,7 @@ func goblin_pick_potion(goblin: Node2D, potion: Area2D) -> void:
 	goblin.potion_node = potion
 	game.set_has(goblin, potion, true)
 	potion.visible = false
-	potion.monitoring = false
+	potion.set_deferred("monitoring", false)
 	spawn_burst(potion.global_position, DungeonTheme.SUCCESS)
 
 
@@ -232,7 +232,7 @@ func monster_pick_weapon(monster: Node2D, item: Area2D, functor: String) -> bool
 		return false
 	game.set_has(monster, item, true)
 	item.visible = false
-	item.monitoring = false
+	item.set_deferred("monitoring", false)
 	monster.set_held_weapon(functor)
 	spawn_burst(item.global_position, DungeonTheme.GOLD)
 	banner.text = "A goblin armed itself — Prolog: armed/1."
@@ -244,7 +244,7 @@ func consume_potion(potion: Node2D) -> void:
 		potion.visible = false
 		if potion is Area2D:
 			potion.taken = true
-			potion.monitoring = false
+			potion.set_deferred("monitoring", false)
 	potions.erase(potion)
 
 
@@ -302,11 +302,14 @@ func player_open_chest(opened_chest: Area2D) -> void:
 		var treasure := _spawn_item(PickupScript.Kind.TREASURE, opened_chest.global_position + Vector2(0, -28), "treasure")
 		treasure.dungeon = self
 		banner.text = "The chest holds the dungeon treasure."
-	else:
+	elif key != null and is_instance_valid(key):
 		key.global_position = opened_chest.global_position + Vector2(0, -28)
 		key.visible = true
-		key.monitoring = true
+		key.set_deferred("monitoring", true)
 		banner.text = "A key! Pick it up so can_open/2 becomes true."
+	else:
+		# Ascent: no door/key on the floor. The chest is still there.
+		banner.text = "Empty. You already have the treasure — take the UP stairs."
 	spawn_burst(opened_chest.global_position, DungeonTheme.GOLD)
 
 
@@ -318,6 +321,13 @@ func player_pick_key(key_item: Area2D) -> void:
 		door.set_can_open_glow(true)
 	banner.text = "can_open(Player, Door) is now true."
 	spawn_burst(player.global_position, DungeonTheme.GOLD)
+
+
+## Door is the alcove mouth; DOWN stairs are the landing just behind it.
+func on_door_opened() -> void:
+	if dungeon_exit and is_instance_valid(dungeon_exit) and dungeon_exit.get_node_or_null("Visual"):
+		dungeon_exit.get_node("Visual").highlight = true
+	banner.text = "Stairwell open. Walk through the door onto the DOWN stairs."
 
 
 ## DOWN stairs. Blocked if already climbing, the door is shut, or this is floor 4.
@@ -486,7 +496,7 @@ func _spawn_level(index: int) -> void:
 	var need_key_door := index < MAX_FLOOR and not ascending
 	if need_key_door:
 		door = DOOR_SCENE.instantiate()
-		door.position = Vector2(1120, 400)
+		door.position = Vector2(1088, 400)
 		door.dungeon = self
 		world.add_child(door)
 		game.register(door, "door")
@@ -494,12 +504,15 @@ func _spawn_level(index: int) -> void:
 		key.visible = false
 		key.monitoring = false
 		game.set_requires(door, key)
-		dungeon_exit = _spawn_item(PickupScript.Kind.EXIT, Vector2(1210, 400), "stairs_down")
+		# Immediately behind the door, inside the east alcove — walk through to descend.
+		dungeon_exit = _spawn_item(PickupScript.Kind.EXIT, Vector2(1162, 400), "stairs_down")
 
 	if index > 1 or ascending:
 		stairs_up = _spawn_item(PickupScript.Kind.STAIRS_UP, Vector2(80, 400), "stairs_up")
 		if stairs_up.get_node_or_null("Visual"):
 			stairs_up.get_node("Visual").highlight = ascending
+	if dungeon_exit and dungeon_exit.get_node_or_null("Visual"):
+		dungeon_exit.get_node("Visual").highlight = false
 
 
 ## Per-floor lineup. `armed` → hidden sword token + has/2 at spawn.
@@ -560,10 +573,10 @@ func _hidden_token(functor: String) -> Node2D:
 ## Hide a picked-up loot and move it into $Keep so it survives a floor change.
 func _stash(item: Area2D) -> void:
 	item.visible = false
-	item.monitoring = false
+	item.set_deferred("monitoring", false)
 	item.add_to_group("kept_item")
 	game.set_on_floor(item, false)
-	item.reparent(keep)
+	item.call_deferred("reparent", keep)
 
 
 func _nearest_living_hostile() -> Node2D:
@@ -666,6 +679,12 @@ func _build_walls(index: int) -> void:
 		rects.append(Rect2(700, 300, 28, 140))
 	if index >= 4:
 		rects.append(Rect2(420, 80, 28, 160))
+	# East alcove: the locked door is the mouth; DOWN stairs sit just behind it.
+	if index < MAX_FLOOR and not ascending:
+		rects.append(Rect2(1076, 300, 204, 22))
+		rects.append(Rect2(1076, 478, 204, 22))
+		rects.append(Rect2(1076, 300, 24, 72))
+		rects.append(Rect2(1076, 428, 24, 72))
 	for r in rects:
 		var wall := StaticBody2D.new()
 		wall.set_script(WallScript)

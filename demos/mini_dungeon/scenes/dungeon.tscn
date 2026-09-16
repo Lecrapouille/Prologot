@@ -1,71 +1,70 @@
-[gd_scene load_steps=4 format=3 uid="uid://md_dungeon"]
+[gd_scene format=3 uid="uid://cjox775vabt1m"]
 
-[ext_resource type="Script" path="res://scripts/dungeon.gd" id="1_dungeon"]
-[ext_resource type="Script" path="res://scripts/dungeon_floor.gd" id="2_floor"]
-[ext_resource type="PackedScene" uid="uid://md_player" path="res://scenes/player.tscn" id="3_player"]
+[ext_resource type="Script" uid="uid://d2620ke1dh0vf" path="res://scripts/dungeon.gd" id="1_dungeon"]
+[ext_resource type="Script" uid="uid://c4ayyf0pxqbu5" path="res://scripts/dungeon_floor.gd" id="2_floor"]
+[ext_resource type="PackedScene" path="res://scenes/player.tscn" id="3_player"]
 
-[node name="Dungeon" type="Node2D"]
+[node name="Dungeon" type="Node2D" unique_id=277029748]
 script = ExtResource("1_dungeon")
 
-[node name="Background" type="ColorRect" parent="."]
+[node name="Background" type="ColorRect" parent="." unique_id=640723660]
 offset_right = 1280.0
 offset_bottom = 720.0
-color = Color(0.071, 0.071, 0.11, 1)
 mouse_filter = 2
+color = Color(0.071, 0.071, 0.11, 1)
 
-[node name="Floor" type="Node2D" parent="."]
+[node name="Floor" type="Node2D" parent="." unique_id=1211985964]
 script = ExtResource("2_floor")
 
-[node name="World" type="Node2D" parent="."]
+[node name="World" type="Node2D" parent="." unique_id=566087521]
 
-[node name="Keep" type="Node2D" parent="."]
+[node name="Keep" type="Node2D" parent="." unique_id=1620077242]
 visible = false
 
-[node name="Player" parent="." instance=ExtResource("3_player")]
+[node name="Player" parent="." unique_id=1596264618 instance=ExtResource("3_player")]
 position = Vector2(160, 560)
 
-[node name="Camera2D" type="Camera2D" parent="."]
+[node name="Camera2D" type="Camera2D" parent="." unique_id=1653044372]
 position = Vector2(640, 360)
 
-[node name="HUD" type="CanvasLayer" parent="."]
+[node name="HUD" type="CanvasLayer" parent="." unique_id=1451901603]
 
-[node name="Panel" type="PanelContainer" parent="HUD"]
+[node name="Panel" type="PanelContainer" parent="HUD" unique_id=68742703]
 offset_left = 16.0
 offset_top = 16.0
 offset_right = 380.0
 offset_bottom = 180.0
 
-[node name="VBox" type="VBoxContainer" parent="HUD/Panel"]
+[node name="VBox" type="VBoxContainer" parent="HUD/Panel" unique_id=1488755251]
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="Title" type="Label" parent="HUD/Panel/VBox"]
+[node name="Title" type="Label" parent="HUD/Panel/VBox" unique_id=1983243469]
 layout_mode = 2
 theme_override_font_sizes/font_size = 18
 text = "Mini Dungeon"
 
-[node name="HpBar" type="ProgressBar" parent="HUD/Panel/VBox"]
+[node name="HpBar" type="ProgressBar" parent="HUD/Panel/VBox" unique_id=626505402]
 custom_minimum_size = Vector2(0, 16)
 layout_mode = 2
-max_value = 100.0
 value = 100.0
 show_percentage = false
 
-[node name="Inventory" type="Label" parent="HUD/Panel/VBox"]
+[node name="Inventory" type="Label" parent="HUD/Panel/VBox" unique_id=1836288540]
 layout_mode = 2
-autowrap_mode = 3
 text = "Gear: none — find a weapon"
-
-[node name="Decision" type="Label" parent="HUD/Panel/VBox"]
-layout_mode = 2
 autowrap_mode = 3
-text = "Goblin (Prolog): Thinking..."
 
-[node name="Goals" type="Label" parent="HUD/Panel/VBox"]
+[node name="Decision" type="Label" parent="HUD/Panel/VBox" unique_id=411994655]
+layout_mode = 2
+text = "Goblin (Prolog): Thinking..."
+autowrap_mode = 3
+
+[node name="Goals" type="Label" parent="HUD/Panel/VBox" unique_id=745078565]
 layout_mode = 2
 text = "Goals: … / … / …"
 
-[node name="Banner" type="Label" parent="HUD"]
+[node name="Banner" type="Label" parent="HUD" unique_id=1905222007]
 anchors_preset = 12
 anchor_top = 1.0
 anchor_right = 1.0
@@ -75,39 +74,39 @@ offset_top = -48.0
 offset_right = -20.0
 offset_bottom = -16.0
 theme_override_font_sizes/font_size = 16
-autowrap_mode = 3
 text = "WASD move. Space attack. Q drink. G drop sword. Stairs: down / up."
+autowrap_mode = 3
 
-[node name="GameOver" type="CanvasLayer" parent="."]
+[node name="GameOver" type="CanvasLayer" parent="." unique_id=1203925914]
 layer = 20
 visible = false
 
-[node name="Dim" type="ColorRect" parent="GameOver"]
+[node name="Dim" type="ColorRect" parent="GameOver" unique_id=377916737]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 mouse_filter = 2
 color = Color(0.35, 0.02, 0.06, 0.82)
 
-[node name="Center" type="CenterContainer" parent="GameOver"]
+[node name="Center" type="CenterContainer" parent="GameOver" unique_id=321307127]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 
-[node name="VBox" type="VBoxContainer" parent="GameOver/Center"]
+[node name="VBox" type="VBoxContainer" parent="GameOver/Center" unique_id=368678390]
 layout_mode = 2
 theme_override_constants/separation = 16
 
-[node name="Title" type="Label" parent="GameOver/Center/VBox"]
+[node name="Title" type="Label" parent="GameOver/Center/VBox" unique_id=2076115365]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.914, 0.271, 0.376, 1)
 theme_override_font_sizes/font_size = 72
-horizontal_alignment = 1
 text = "GAME OVER"
+horizontal_alignment = 1
 
-[node name="Hint" type="Label" parent="GameOver/Center/VBox"]
+[node name="Hint" type="Label" parent="GameOver/Center/VBox" unique_id=254585499]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.918, 0.918, 0.918, 1)
 theme_override_font_sizes/font_size = 20
-horizontal_alignment = 1
 text = "Press R to restart"
+horizontal_alignment = 1

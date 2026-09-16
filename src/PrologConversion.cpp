@@ -320,6 +320,7 @@ static godot::Variant term_to_variant_at(term_t p_term, int p_depth)
 
 godot::Variant term_to_variant(term_t p_term)
 {
+    StringBuffers strings;
     // Cyclic terms (X = [a|X], mutual compounds, …) would make the
     // iterative list walker run forever. Depth only guards nesting.
     if (!PL_is_acyclic(p_term))

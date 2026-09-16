@@ -197,6 +197,7 @@ static std::vector<std::pair<std::string, int>> list_user_predicate_indicators()
     if (!pl_engine_is_up())
         return predicates;
 
+    StringBuffers strings;
     fid_t frame = PL_open_foreign_frame();
     term_t findall_goal = PL_new_term_ref();
     if (!PL_chars_to_term(
@@ -1013,9 +1014,6 @@ bool Prologot::apply_clause_predicate(char const* p_name,
 
     bool const tracks_new_predicates =
         std::strcmp(p_name, "assertz") == 0 || std::strcmp(p_name, "asserta") == 0;
-    auto const before = tracks_new_predicates
-                            ? list_user_predicate_indicators()
-                            : std::vector<std::pair<std::string, int>>();
 
     qid_t qid = PL_open_query(
         NULL, PL_Q_CATCH_EXCEPTION, PL_predicate(p_name, 1, "user"), term);
@@ -1027,8 +1025,13 @@ bool Prologot::apply_clause_predicate(char const* p_name,
         return false;
     }
     PL_close_query(qid);
-    if (result != 0 && tracks_new_predicates)
-        remember_new_predicates(before);
+    if (result != 0 && tracks_new_predicates && p_goal.is_valid())
+    {
+        std::string const name = p_goal->get_functor().utf8().get_data();
+        int const arity = p_goal->get_arity();
+        if (!is_protected_predicate(name, arity))
+            g_added_predicates.insert({name, arity});
+    }
     return result != 0;
 }
 
@@ -1245,6 +1248,7 @@ godot::Array Prologot::query_text_named(godot::String const& p_goal)
             break;
 
         godot::Dictionary dict;
+        StringBuffers strings;
         term_t head = PL_new_term_ref();
         term_t tail = PL_copy_term_ref(bindings);
         while (PL_get_list(tail, head, tail))
@@ -1419,6 +1423,7 @@ bool Prologot::handle_prolog_exception(qid_t p_qid, godot::String const& p_conte
     term_t exception = PL_exception(p_qid);
     if (exception)
     {
+        StringBuffers strings;
         char* exception_str;
         if (PL_get_chars(exception,
                          &exception_str,

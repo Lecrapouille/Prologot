@@ -14,6 +14,10 @@ config/name="Prologot Mini Dungeon"
 run/main_scene="res://scenes/dungeon.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
 
+[autoload]
+
+PrologotEngine="*uid://dr5yarvvm83w1"
+
 [display]
 
 window/size/viewport_width=1280

@@ -63,6 +63,7 @@ static godot::String default_property_predicate(godot::String const& p_property)
 // Atom or Prolog string → Godot String (foreign predicate arguments).
 static bool term_as_string(term_t p_term, godot::String& r_out)
 {
+    StringBuffers strings;
     char* s = nullptr;
     if (!PL_get_chars(p_term, &s, CVT_ATOM | CVT_STRING | REP_UTF8))
         return false;

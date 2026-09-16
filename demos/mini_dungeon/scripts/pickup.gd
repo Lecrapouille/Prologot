@@ -12,7 +12,11 @@ var taken: bool = false
 var opened: bool = false
 var dungeon: Node = null
 ## true only on the floor-4 chest (while not climbing back up).
-var contains_treasure: bool = false
+var contains_treasure: bool = false:
+	set(value):
+		contains_treasure = value
+		if _visual and kind == Kind.CHEST:
+			_visual.highlight = value
 ## Prevents picking the sword back up immediately after G (drop).
 var pickup_lock: float = 0.0
 
@@ -24,7 +28,7 @@ func _ready() -> void:
 	var cs := $CollisionShape2D
 	if cs.shape == null:
 		var circle := CircleShape2D.new()
-		circle.radius = 16
+		circle.radius = 28 if kind in [Kind.EXIT, Kind.STAIRS_UP] else 16
 		cs.shape = circle
 	_apply_visual()
 	if not body_entered.is_connected(_on_body_entered):
@@ -56,6 +60,8 @@ func _apply_visual() -> void:
 		Kind.ARROW: ProceduralActor.Kind.ARROW,
 	}
 	_visual.kind = map[kind]
+	if kind == Kind.CHEST:
+		_visual.highlight = contains_treasure
 	if kind == Kind.POTION:
 		var glow := CPUParticles2D.new()
 		glow.emitting = true
@@ -72,9 +78,19 @@ func _apply_visual() -> void:
 		add_child(glow)
 
 
-## Dispatch by Kind. Sword/bow: an unarmed goblin may pick them up too.
+## Physics callback: do not mutate Areas / StaticBodies here (Godot is
+## flushing queries). Resolve on the next idle frame.
 func _on_body_entered(body: Node) -> void:
 	if dungeon == null or pickup_lock > 0.0:
+		return
+	_resolve_overlap.call_deferred(body)
+
+
+## Dispatch by Kind. Sword/bow: an unarmed goblin may pick them up too.
+func _resolve_overlap(body: Node) -> void:
+	if dungeon == null or not is_instance_valid(self) or not is_instance_valid(body):
+		return
+	if pickup_lock > 0.0:
 		return
 	match kind:
 		Kind.POTION:

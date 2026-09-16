@@ -11,7 +11,7 @@ var dungeon: Node = null
 func _ready() -> void:
 	if _collision.shape == null:
 		var rect := RectangleShape2D.new()
-		rect.size = Vector2(28, 48)
+		rect.size = Vector2(24, 56)
 		_collision.shape = rect
 	z_index = 4
 	_visual.kind = ProceduralActor.Kind.DOOR
@@ -35,6 +35,8 @@ func open() -> void:
 	_collision.set_deferred("disabled", true)
 	dungeon.game.set_opened(self)
 	dungeon.spawn_burst(global_position, DungeonTheme.SUCCESS)
+	if dungeon.has_method("on_door_opened"):
+		dungeon.on_door_opened()
 
 
 ## Green outline when query_can_open is true (player holds the right key).

@@ -34,6 +34,24 @@ namespace prologot
 {
 
 /**
+ * @brief Releases SWI temporary string buffers (PL_get_chars family).
+ *
+ * Without this, each atom/string conversion stays on SWI's string stack
+ * until the process hits "Too many stacked strings". Mark once per
+ * public entry, not around every recursive conversion.
+ */
+class StringBuffers
+{
+    buf_mark_t m_mark{};
+
+public:
+    StringBuffers() { PL_mark_string_buffers(&m_mark); }
+    ~StringBuffers() { PL_release_string_buffers_from_mark(m_mark); }
+    StringBuffers(StringBuffers const&) = delete;
+    StringBuffers& operator=(StringBuffers const&) = delete;
+};
+
+/**
  * @brief Converts a Prolog term to a Godot Variant (solve / get() output).
  *
  * Mapping:
