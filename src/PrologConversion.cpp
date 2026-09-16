@@ -192,6 +192,16 @@ term_t godot_object_to_term(godot::Object* p_object)
     return handle->to_swi_term();
 }
 
+static godot::Array list_term_to_array(term_t p_term)
+{
+    godot::Array list_array;
+    term_t head = PL_new_term_ref();
+    term_t tail = PL_copy_term_ref(p_term);
+    while (PL_get_list(tail, head, tail))
+        list_array.push_back(term_to_variant(head));
+    return list_array;
+}
+
 godot::Variant term_to_variant(term_t p_term)
 {
     int type = PL_term_type(p_term);
@@ -266,35 +276,12 @@ godot::Variant term_to_variant(term_t p_term)
             return godot::Array();
 
         case PL_LIST_PAIR:
-        {
-            godot::Array list_array;
-            term_t head = PL_new_term_ref();
-            term_t tail = PL_copy_term_ref(p_term);
-
-            while (PL_get_list(tail, head, tail))
-            {
-                list_array.push_back(term_to_variant(head));
-            }
-
-            return list_array;
-        }
+            return list_term_to_array(p_term);
 
         case PL_TERM:
         {
-            term_t list_copy = PL_copy_term_ref(p_term);
-            term_t head = PL_new_term_ref();
-            term_t tail = PL_new_term_ref();
-
-            if (PL_get_list(list_copy, head, tail))
-            {
-                godot::Array list_array;
-                list_array.push_back(term_to_variant(head));
-                while (PL_get_list(tail, head, tail))
-                {
-                    list_array.push_back(term_to_variant(head));
-                }
-                return list_array;
-            }
+            if (PL_is_list(p_term))
+                return list_term_to_array(p_term);
 
             atom_t name;
             size_t arity;
