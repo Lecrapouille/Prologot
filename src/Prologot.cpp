@@ -41,15 +41,20 @@ namespace prologot
 
 Prologot* Prologot::m_singleton = nullptr;
 
+// Live handles attached via initialize() (not the number of Prologot objects).
 static int g_attach_count = 0;
+// Every constructed Prologot, used to pick a new C++ singleton on destroy.
 static std::vector<Prologot*> g_instances;
+// Predicates added through consult_* / assert_fact; wiped on last cleanup().
 static std::set<std::pair<std::string, int>> g_added_predicates;
 
+// True after a successful PL_initialise in this process (any handle).
 static bool pl_engine_is_up()
 {
     return PL_is_initialised(nullptr, nullptr) != FALSE;
 }
 
+// Run a ground goal, swallow exceptions. Used when wiping the user KB.
 static bool call_prolog_silent(char const* p_goal)
 {
     if (PL_exception(0))
@@ -73,6 +78,7 @@ static bool call_prolog_silent(char const* p_goal)
     return result != 0 && result != PL_S_EXCEPTION;
 }
 
+// One-shot PL_open_query / PL_next_solution / PL_close_query. Clears exceptions.
 static bool pl_call_pred(predicate_t p_pred, term_t p_args)
 {
     qid_t qid = PL_open_query(
@@ -84,6 +90,7 @@ static bool pl_call_pred(predicate_t p_pred, term_t p_args)
     return result != 0 && result != PL_S_EXCEPTION;
 }
 
+// Predicates we must never abolish (bootstrap helpers + SWI hooks / lists).
 static bool is_protected_predicate(std::string const& p_name, int p_arity)
 {
     if ((p_name == "load_program_from_string" && p_arity == 1) ||
@@ -115,6 +122,7 @@ static bool is_protected_predicate(std::string const& p_name, int p_arity)
     return false;
 }
 
+// Writes user:Name/Arity into p_out (for predicate_property/2).
 static bool put_user_predicate_indicator(term_t p_out,
                                          char const* p_name,
                                          int p_arity)
@@ -133,6 +141,7 @@ static bool put_user_predicate_indicator(term_t p_out,
                p_out, PL_new_functor(PL_new_atom(":"), 2), user, pi) != FALSE;
 }
 
+// True if user:Name/Arity has the given predicate_property/2 atom (built_in, …).
 static bool user_predicate_has_atom_property(char const* p_name,
                                              int p_arity,
                                              char const* p_property)
@@ -146,6 +155,7 @@ static bool user_predicate_has_atom_property(char const* p_name,
     return ok;
 }
 
+// retractall + abolish one tracked user predicate. Skips protected / foreign.
 static void wipe_user_predicate(char const* p_name, int p_arity)
 {
     if (is_protected_predicate(p_name, p_arity))
@@ -181,6 +191,7 @@ static void wipe_user_predicate(char const* p_name, int p_arity)
     call_prolog_silent(abolish.c_str());
 }
 
+// Snapshot of current_predicate(user:PI). Used to detect predicates we added.
 static std::vector<std::pair<std::string, int>> list_user_predicate_indicators()
 {
     std::vector<std::pair<std::string, int>> predicates;
@@ -241,6 +252,7 @@ static std::vector<std::pair<std::string, int>> list_user_predicate_indicators()
     return predicates;
 }
 
+// After consult/assert, record PIs that were not in p_before (last-handle wipe).
 static void remember_new_predicates(
     std::vector<std::pair<std::string, int>> const& p_before)
 {
@@ -406,15 +418,18 @@ bool Prologot::initialize(godot::Dictionary const& p_options)
     if (pl_engine_is_up())
         return attach_handle();
 
-    // Extract other options
+    // Embed options (typical Godot use).
     bool quiet = p_options.get("quiet", true);
-    bool optimized = p_options.get("optimized", false);
-    bool traditional = p_options.get("traditional", false);
     bool threads = p_options.get("threads", true);
-    bool packs = p_options.get("packs", true);
     godot::String stack_limit = p_options.get("stack limit", "");
     godot::String table_space = p_options.get("table space", "");
     godot::String shared_table_space = p_options.get("shared table space", "");
+
+    // Same keys as `swipl` on the command line. Prefer consult_* / solve()
+    // after initialize(); these only apply to the first PL_initialise.
+    bool optimized = p_options.get("optimized", false);
+    bool traditional = p_options.get("traditional", false);
+    bool packs = p_options.get("packs", true);
     godot::String init_file = p_options.get("init file", "");
     godot::String script_file = p_options.get("script file", "");
     godot::String toplevel = p_options.get("toplevel", "");
@@ -442,15 +457,14 @@ bool Prologot::initialize(godot::Dictionary const& p_options)
         argv_list.push_back(string_storage.back().c_str());
     }
 
-    // Boolean options
     if (quiet)
         argv_list.push_back("--quiet");
+    if (!threads)
+        argv_list.push_back("--no-threads");
     if (optimized)
         argv_list.push_back("-O");
     if (traditional)
         argv_list.push_back("--traditional");
-    if (!threads)
-        argv_list.push_back("--no-threads");
     if (!packs)
         argv_list.push_back("--no-packs");
 
@@ -486,19 +500,24 @@ bool Prologot::initialize(godot::Dictionary const& p_options)
         argv_list.push_back(string_storage.back().c_str());
     }
 
-    // Files and toplevel
+    // "init file" → `swipl -f FILE`: user init instead of ~/.swiplrc
+    // (`"none"` skips that file). Not the same as consult_file().
     if (!init_file.is_empty())
     {
         argv_list.push_back("-f");
         string_storage.push_back(init_file.utf8().get_data());
         argv_list.push_back(string_storage.back().c_str());
     }
+    // "script file" → `swipl -l FILE`: consult a .pl once at boot.
+    // After start, use consult_file() instead.
     if (!script_file.is_empty())
     {
         argv_list.push_back("-l");
         string_storage.push_back(script_file.utf8().get_data());
         argv_list.push_back(string_storage.back().c_str());
     }
+    // "toplevel" → `swipl -t GOAL`: replaces the interactive Prolog prompt.
+    // Godot has no SWI REPL; leave empty.
     if (!toplevel.is_empty())
     {
         argv_list.push_back("-t");
@@ -506,7 +525,7 @@ bool Prologot::initialize(godot::Dictionary const& p_options)
         argv_list.push_back(string_storage.back().c_str());
     }
 
-    // Goals (-g can be repeated)
+    // "goal" → `swipl -g GOAL` (repeatable): run at startup, before toplevel.
     if (goal_var.get_type() == godot::Variant::STRING)
     {
         godot::String goal = goal_var;
@@ -701,6 +720,7 @@ bool Prologot::initialize(godot::Dictionary const& p_options)
     return attach_handle();
 }
 
+// Mark this object as attached. Does not call PL_initialise (engine already up).
 bool Prologot::attach_handle()
 {
     m_initialized = true;
@@ -710,6 +730,7 @@ bool Prologot::attach_handle()
     return true;
 }
 
+// Retract expose_* wrappers installed by this handle (other handles stay).
 void Prologot::uninstall_exposed()
 {
     if (!pl_engine_is_up() || !m_initialized)
@@ -724,6 +745,7 @@ void Prologot::uninstall_exposed()
     m_exposed.clear();
 }
 
+// Abolish predicates recorded in g_added_predicates. Leaves SWI running.
 void Prologot::reset_user_knowledge()
 {
     if (!pl_engine_is_up())
@@ -885,6 +907,9 @@ bool Prologot::consult_string(godot::String const& p_prolog_code)
 
 // =============================================================================
 // Structured term factories
+//
+// Thin forwards to PrologTerm / PrologVariable / PrologPredicate /
+// PrologObject. No SWI call. Bound on Prologot so GDScript has one facade.
 // =============================================================================
 
 godot::Ref<PrologTerm> Prologot::atom(godot::String const& p_name)
@@ -946,6 +971,7 @@ godot::Ref<PrologObject> Prologot::object(godot::Object* p_object)
 // High-level solving (structured terms)
 // =============================================================================
 
+// assertz / asserta / retract / retractall on a compiled PrologGoal.
 bool Prologot::apply_clause_predicate(char const* p_name,
                                       godot::Ref<PrologGoal> const& p_goal,
                                       godot::String const& p_context)
@@ -1001,6 +1027,7 @@ godot::Ref<PrologQuery> Prologot::solve(godot::Ref<PrologGoal> const& p_goal,
 // Low-level queries (Prolog source text, editor/REPL)
 // =============================================================================
 
+// Editor/REPL helpers accept "parent(tom, X)." — SWI term parse does not.
 static godot::String strip_trailing_period(godot::String text)
 {
     if (text.length() > 0 && text[text.length() - 1] == '.')

@@ -117,32 +117,22 @@ public:
      * - Handling directives (:-) and queries (?-) appropriately
      * - Asserting regular clauses into the knowledge base
      *
-     * @param p_options Dictionary containing initialization options:
-     *   Main options:
-     *     - "home" (String): Path to SWI-Prolog installation
-     *     - "quiet" (bool): Suppress informational messages (default: true)
-     *     - "goal" (String/Array): Goal(s) to execute at startup
-     *     - "toplevel" (String): Custom toplevel goal
-     *     - "init file" (String): User initialization file
-     *     - "script file" (String): Script source file to load
-     *   Performance options:
-     *     - "stack limit" (String): Prolog stack limit (e.g. "1g", "512m")
-     *     - "table space" (String): Space for SLG tables (e.g. "128m")
-     *     - "shared table space" (String): Space for shared SLG tables
-     *     - "optimized" (bool): Enable optimized compilation
-     *   Behavior options:
-     *     - "traditional" (bool): Traditional mode, disable v7 extensions
-     *     - "threads" (bool): Allow threads (default: true)
-     *     - "packs" (bool): Attach add-ons/packages (default: true)
-     *   Error handling:
-     *     - "on error" (String): Error handling style ("print", "halt",
-     * "status")
-     *     - "on warning" (String): Warning handling style ("print", "halt",
-     * "status")
-     *   Advanced options:
-     *     - "prolog flags" (Dictionary): Define Prolog flags
-     *     - "file search paths" (Dictionary): Define file search paths
-     *     - "custom args" (Array): Additional custom arguments
+     * @param p_options Passed to PL_initialise on the first start only.
+     *        Later initialize() calls attach and ignore these keys except
+     *        "on error" / "on warning" (stored on this handle).
+     *
+     *        Embed (what a game / editor actually needs):
+     *          "home", "quiet" (default true), "stack limit",
+     *          "table space", "shared table space", "threads" (default true),
+     *          "on error", "on warning"
+     *
+     *        SWI command-line passthrough (rarely useful in Godot):
+     *          "init file"   (`swipl -f`): user init instead of ~/.swiplrc
+     *          "script file" (`swipl -l`): consult a .pl at boot
+     *          "toplevel"    (`swipl -t`): replaces the interactive prompt
+     *          "goal"        (`swipl -g`): run a goal at startup
+     *          "optimized", "traditional", "packs",
+     *          "prolog flags", "file search paths", "custom args"
      *
      * @return true if initialization succeeded, false otherwise.
      *
@@ -249,7 +239,14 @@ public:
     bool consult_string(godot::String const& p_prolog_code);
 
     // =========================================================================
-    // Structured term factories
+    // Structured term factories (GDScript facade)
+    //
+    // These do not talk to SWI. They only build Godot objects; the same
+    // constructors live on PrologTerm / PrologVariable / PrologPredicate /
+    // PrologObject. They sit on Prologot so game code uses one handle
+    // (prolog.atom(), prolog.predicate()) instead of four static APIs.
+    // object() stores an instance id; putting the blob in a term needs
+    // initialize() so the SWI blob type is registered.
     // =========================================================================
 
     /**

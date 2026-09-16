@@ -101,8 +101,10 @@ Idempotent per handle. Bootstraps helpers for `consult_string()` on first start.
 | `"threads"` | bool | `true` | Allow threads |
 | `"on error"` | String | `"print"` | `"print"`, `"halt"`, `"status"` |
 | `"on warning"` | String | `"print"` | Same values |
-| `"goal"` | String / Array | — | Run at startup |
-| `"script file"` | String | — | Load script at startup |
+| `"init file"` | String | — | `swipl -f`: user init instead of `~/.swiplrc` |
+| `"script file"` | String | — | `swipl -l`: consult a `.pl` at boot (`consult_file` after start) |
+| `"toplevel"` | String | — | `swipl -t`: REPL goal; unused in Godot |
+| `"goal"` | String / Array | — | `swipl -g`: goal(s) run at startup |
 | `"prolog flags"` | Dictionary | `{}` | Flag overrides |
 | `"file search paths"` | Dictionary | `{}` | File search paths |
 
