@@ -1,3 +1,29 @@
+Version 0.3.0:
+    * Object-oriented query API: PrologPredicate, PrologGoal, PrologQuery,
+      PrologSolution, PrologVariable, PrologTerm, and PrologObject
+    * Remove public string query API (query_text / call_predicate); use
+      predicate(...).call(...) and solve(goal) instead
+    * Lazy solve(): has_solution(), first(), iteration, all(), optional
+      max_solutions cap, and PrologGoal.cut()
+    * Process-global SWI-Prolog engine shared by all Prologot handles;
+      cleanup() detaches without PL_cleanup() until extension unload
+    * Shared prologot_boot.gd (create_engine, bundled res://bin/<os>/swipl)
+    * GDScript facade, PrologotEngine autoload, named knowledge bases
+      (create_knowledge_base / switch_knowledge_base with wipe)
+    * PrologotNode scene node and PrologKnowledge Resource
+    * expose_property / expose_method for explicit Godot ↔ Prolog bridges
+    * Hybrid conversion policy: String → atom in, atom → String out,
+      Prolog string → PrologTerm
+    * Bundled SWI runtime copied into bin/<os>/swipl/ at build time;
+      auto-detect home when initialize() omits "home"
+    * Mini Dungeon demo (Prolog-driven goblin AI, nodes as Prolog terms)
+    * Galactic Customs demo polish (atlas UI, briefing, gameplay fixes)
+    * CI: reliable Windows/macOS builds, SWI DLL/@rpath fixes, ci_result.txt
+      test gate, lint job (informational)
+    * Documentation overhaul: glossary, getting started, API, installation,
+      use cases, troubleshooting, prolog-developers
+    * Expanded regression tests (facade, cut, knowledge bases, expose, lazy solve)
+
 Version 0.2.0:
     * Generate GitHub artifacts for Godot asset lib
 
