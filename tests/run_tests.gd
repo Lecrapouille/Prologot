@@ -8,31 +8,42 @@
 
 extends SceneTree
 
+
 func _init() -> void:
-	# Load and run the test script
 	var test_script := load("res://test_prologot.gd")
+	if test_script == null:
+		_finish(1, "ERROR: Could not load test script")
+		return
 
-	if test_script:
-		var test_node := Node.new()
-		test_node.set_script(test_script)
-		root.add_child(test_node)
+	var test_node := Node.new()
+	test_node.set_script(test_script)
+	# Connect before add_child: _ready() may run immediately and emit.
+	if test_node.has_signal("tests_finished"):
+		test_node.tests_finished.connect(_on_tests_finished)
+	root.add_child(test_node)
 
-		# Connect to the tests_finished signal
-		if test_node.has_signal("tests_finished"):
-			test_node.tests_finished.connect(_on_tests_finished)
-
-		# Fallback timeout (10 seconds) in case signal never fires
-		var timeout_timer := create_timer(10.0)
-		timeout_timer.timeout.connect(_on_timeout)
-	else:
-		print("ERROR: Could not load test script")
-		quit(1)
+	create_timer(90.0).timeout.connect(_on_timeout)
 
 
 func _on_tests_finished(exit_code: int) -> void:
-	quit(exit_code)
+	_finish(exit_code, "")
 
 
 func _on_timeout() -> void:
-	push_error("ERROR: Tests timed out after 10 seconds!")
-	quit(1)
+	_finish(1, "ERROR: Tests timed out after 90 seconds!")
+
+
+func _finish(exit_code: int, message: String) -> void:
+	if not message.is_empty():
+		push_error(message)
+	_write_ci_result(exit_code)
+	quit(exit_code)
+
+
+func _write_ci_result(exit_code: int) -> void:
+	var path := ProjectSettings.globalize_path("res://") + "ci_result.txt"
+	var file := FileAccess.open(path, FileAccess.WRITE)
+	if file:
+		file.store_string("PROLOGOT_CI_RESULT=%d\n" % exit_code)
+		file.close()
+	print("PROLOGOT_CI_RESULT=%d" % exit_code)

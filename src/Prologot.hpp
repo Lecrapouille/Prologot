@@ -703,7 +703,8 @@ private:
      * @brief Resolves the SWI-Prolog home directory from the "home" option.
      *
      * Priority: 1) User-specified "home" (resolved from Godot paths), 2)
-     * Extension directory, 3) Empty (system default). Verifies boot.prc exists.
+     * bundled res://bin/<platform>/swipl when boot.prc is there, 3) Empty
+     * (system default). Verifies boot.prc exists.
      * Sets error message if user explicitly provided an invalid path.
      *
      * @param p_home_option Value of the "home" option (may be empty, res://,

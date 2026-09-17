@@ -21,6 +21,7 @@ build/
 dist/
 
 # --- Logs & temporary files ---
+tests/ci_result.txt
 *.log
 *.tmp
 *.temp

@@ -217,7 +217,16 @@ setup-demos:
 tests: setup-demos
 	@$(ECHO) "$(CYAN)▶ Running tests...$(NC)"
 	@$(ECHO) "$(YELLOW)Note: Tests require Godot to be installed$(NC)"
-	@godot --headless --path tests -s run_tests.gd
+	@rm -f tests/ci_result.txt
+	@godot --headless --path tests -s run_tests.gd || true; \
+	if [ ! -f tests/ci_result.txt ]; then \
+		$(ECHO) "$(RED)✗ tests/ci_result.txt missing — runner did not finish$(NC)"; \
+		exit 1; \
+	fi; \
+	grep -qx 'PROLOGOT_CI_RESULT=0' tests/ci_result.txt || { \
+		$(ECHO) "$(RED)✗ Tests failed ($$(cat tests/ci_result.txt))$(NC)"; \
+		exit 1; \
+	}
 
 # Run demo project
 .PHONY: run-demo

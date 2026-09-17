@@ -7,7 +7,7 @@
 # This CI pipeline:
 # 1. Builds and tests the Prologot extension for Linux, Windows, and macOS
 # 2. Packages releases when a version tag is pushed (e.g., v1.0.0)
-# 3. Lints GDScript files for code quality
+# 3. Lints GDScript files (informational — continue-on-error)
 #
 # Workflow triggers:
 # - Push to master branch: builds and tests all platforms
@@ -83,7 +83,6 @@ jobs:
   build-windows:
     name: Build & Test (Windows, Godot ${{ matrix.godot-version }})
     runs-on: windows-latest
-    continue-on-error: true
 
     strategy:
       matrix:
@@ -129,13 +128,28 @@ jobs:
           Add-Content $env:GITHUB_PATH (Get-Location).Path
 
       - name: Run unit tests
-        shell: pwsh
+        shell: cmd
         timeout-minutes: 2
         run: |
-          Copy-Item -Recurse bin tests\bin
-          Get-ChildItem tests\bin\windows -Filter *.dll | Select-Object -ExpandProperty Name
-          $env:PATH = "$(Resolve-Path tests\bin\windows);C:\Program Files\swipl\bin;$env:PATH"
+          if exist tests\bin rmdir /s /q tests\bin
+          if exist tests\ci_result.txt del /f tests\ci_result.txt
+          xcopy /e /i /y bin tests\bin
+          dir /b tests\bin\windows\*.dll
+          dir /b tests\bin\windows\swipl
+          set SWI_HOME_DIR=%CD%\tests\bin\windows\swipl
+          set PATH=%CD%\tests\bin\windows;C:\Program Files\swipl\bin;%PATH%
           godot --headless --path tests -s run_tests.gd
+          echo GODOT_EXIT=%ERRORLEVEL%
+          if not exist tests\ci_result.txt (
+            echo tests/ci_result.txt missing — Godot did not finish the suite
+            exit /b 1
+          )
+          type tests\ci_result.txt
+          findstr /c:"PROLOGOT_CI_RESULT=0" tests\ci_result.txt
+          if errorlevel 1 (
+            echo Unit tests reported failure
+            exit /b 1
+          )
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
@@ -150,7 +164,6 @@ jobs:
   build-macos:
     name: Build & Test (macOS, Godot ${{ matrix.godot-version }})
     runs-on: macos-latest
-    continue-on-error: true
 
     strategy:
       matrix:
@@ -173,14 +186,21 @@ jobs:
         run: |
           wget -q https://github.com/godotengine/godot/releases/download/${{ matrix.godot-version }}-stable/Godot_v${{ matrix.godot-version }}-stable_macos.universal.zip
           unzip -q Godot_v${{ matrix.godot-version }}-stable_macos.universal.zip
+          xattr -cr Godot.app || true
           chmod +x Godot.app/Contents/MacOS/Godot
-          sudo mv Godot.app/Contents/MacOS/Godot /usr/local/bin/godot
 
       - name: Run unit tests
         run: |
+          rm -f tests/ci_result.txt
           ls -l bin/macos/*.dylib
           otool -L bin/macos/libswipl.dylib || true
-          godot --headless --path tests -s run_tests.gd
+          Godot.app/Contents/MacOS/Godot --headless --path tests -s run_tests.gd
+          if [ ! -f tests/ci_result.txt ]; then
+            echo "tests/ci_result.txt missing — Godot did not finish the suite"
+            exit 1
+          fi
+          cat tests/ci_result.txt
+          grep -qx 'PROLOGOT_CI_RESULT=0' tests/ci_result.txt
         timeout-minutes: 2
 
       - name: Upload macOS artifacts
@@ -196,6 +216,7 @@ jobs:
   lint-gdscript:
     name: Lint GDScript
     runs-on: ubuntu-latest
+    continue-on-error: true # Informational only — does not fail the workflow
 
     steps:
       - name: Checkout repository

@@ -44,7 +44,12 @@ func _ready() -> void:
 	else:
 		print("All tests passed!")
 
-	# Emit signal to notify test runner
+	var result_path := ProjectSettings.globalize_path("res://") + "ci_result.txt"
+	var result_file := FileAccess.open(result_path, FileAccess.WRITE)
+	if result_file:
+		result_file.store_string("PROLOGOT_CI_RESULT=%d\n" % exit_code)
+		result_file.close()
+	print("PROLOGOT_CI_RESULT=%d" % exit_code)
 	tests_finished.emit(exit_code)
 
 

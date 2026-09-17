@@ -388,7 +388,20 @@ std::pair<godot::String, godot::String>
 Prologot::set_swi_home_dir(godot::String const& p_home_option)
 {
     if (p_home_option.is_empty())
-        return std::make_pair("", ""); // Use system default SWI-Prolog
+    {
+#if defined(_WIN32)
+        char const* platform = "windows";
+#elif defined(__APPLE__)
+        char const* platform = "macos";
+#else
+        char const* platform = "linux";
+#endif
+        godot::String bundled =
+            resolve_godot_path(godot::String("res://bin/") + platform + "/swipl");
+        if (godot::FileAccess::file_exists(bundled + "/boot.prc"))
+            return std::make_pair(bundled, "");
+        return std::make_pair("", "");
+    }
 
     godot::String path = resolve_godot_path(p_home_option);
 
