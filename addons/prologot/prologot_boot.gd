@@ -9,8 +9,7 @@ extends RefCounted
 
 ## Bundled SWI home under res://bin/<os>/swipl, or empty if that folder is absent.
 static func swipl_home() -> String:
-	var os_map := {"Linux": "linux", "Windows": "windows", "macOS": "macos"}
-	return "res://bin/" + os_map.get(OS.get_name(), OS.get_name().to_lower()) + "/swipl"
+	return "res://bin/" + OS.get_name().to_lower() + "/swipl"
 
 
 ## Options for Prologot.initialize(). Only sets "home" when the path exists.

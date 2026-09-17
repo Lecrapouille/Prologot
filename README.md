@@ -6,69 +6,60 @@
   <img src="doc/logos/Prologot.png" alt="Prologot Logo" width="200">
 </div>
 
-**Prologot** is a GDExtension that integrates SWI-Prolog into Godot 4, enabling logic programming in your games. Use Prolog for AI decision-making, dialogue systems, rule engines, pathfinding, and more.
+**[Prologot](https://github.com/Lecrapouille/Prologot)** is a [Godot 4](https://godotengine.org/) extension that embeds [SWI-Prolog](https://www.swi-prolog.org/), bringing logic programming to your games on Linux, macOS, and Windows. Use Prolog for AI decision-making, dialogue systems, rule engines, pathfinding, and more. This extension offers:
 
-- SWI-Prolog integration via GDExtension.
-- Interactive Prolog console in the Godot editor.
-- Query execution with variable bindings.
-- Dynamic fact assertion and retraction.
-- Consult Prolog files or code strings.
-- Knowledge base management.
-- Type conversion between Prolog terms and Godot Variants.
+- SWI-Prolog integration via GDExtension
+- Interactive Prolog console in the Godot editor
+- Query execution with variable bindings
+- Dynamic fact assertion and retraction
+- Load Prolog from files or code strings
+- Knowledge-base management
+- Type conversion between Prolog terms and Godot Variants
 
-Documentation path: **[Glossary](doc/glossary.md)** (atom / term / predicate / goal) → **[Getting started](doc/getting-started.md)** → **[Use cases](doc/use-cases.md)** → **[API reference](doc/API.md)**. Prolog veterans: **[Prolog developers](doc/prolog-developers.md)**. Playable object-API demo: **[Mini Dungeon](demos/mini_dungeon/README.md)** (`make run-mini-dungeon`).
+**Prolog** is a logic programming language. You describe **facts** and **rules**, then ask **questions** (queries). The engine searches for values that make a question true — it does not run a fixed sequence of instructions like GDScript.
+
+Think of it as a database plus inference:
+
+- **Facts** are records you assert: `parent(tom, bob).`
+- **Rules** derive new truths: “X is a grandparent of Z if X is parent of Y and Y is parent of Z.”
+- **Queries** ask whether something holds, or **which values** make it hold: `parent(tom, Who)?` → `Who = bob`, then `Who = liz`.
 
 ---
 
 ## Documentation
 
-- **Getting Started**: Follow the **[Installation Guide](doc/installation.md)** to set everything up. The quick way to compile:
-
-### Fedora
-
-```bash
-sudo dnf install gcc-c++ make python3-scons pkgconf pl pl-devel libstdc++-static
-pip install scons
-```
-
-### Debian / Ubuntu
+- **Getting started**: Follow the **[Installation Guide](doc/installation.md)** to set everything up. Quick build on Ubuntu:
 
 ```bash
 sudo apt-get install g++ make pkg-config swi-prolog swi-prolog-nox
 pip install scons
-```
 
-### Prologot compilation
-
-```bash
 git clone https://github.com/Lecrapouille/Prologot.git
 cd Prologot
 make GODOT_CPP=4.5 all
 ```
 
-You do not need to pass `-j8` options, the number of cores is found automatically.
-
-- **Mini Dungeon**: A short dungeon crawler whose monster AI is Prolog — **[demos/mini_dungeon](demos/mini_dungeon/README.md)**:
-
-```bash
-make run-mini-dungeon
-```
-
-- **Try the Demo**: Once built, run the **[Interactive Demo](demos/showcases/README.md)** to see Prologot in action:
+- **Try the demo**: Once built, run the **[Interactive Demo](demos/showcases/README.md)** to see Prologot execute Prolog examples and display the results:
 
 ```bash
 make run-demo
 ```
 
-- **Try the Game**: Run the **[Galactic Customs Game](demos/galactic_customs/README.md)** to see a basic game using Prolog in action:
+- **Mini Dungeon**: A short dungeon crawler whose monster AI is powered by Prolog:
+
+```bash
+make run-mini-dungeon
+```
+
+- **Galactic Customs**: A logic puzzle where you play customs officer and approve or deny galactic travelers:
 
 ```bash
 make run-galactic_customs
 ```
 
-- **Getting started from GDScript**: **[Getting started](doc/getting-started.md)** (concepts → first program → pitfalls). Run **[Mini Dungeon](demos/mini_dungeon/README.md)**, then **[Use cases](doc/use-cases.md)** and **[API reference](doc/API.md)**. Minimal script-only sample: [hello_world_prologot.gd](doc/hello_world_prologot.gd).
+- **Learn Prolog and Prologot**: The **[Glossary](doc/glossary.md)** introduces Prolog basics; **[Getting Started](doc/getting-started.md)** walks you through Prologot. **Prolog veterans**: see **[Notes for Prolog Developers](doc/prolog-developers.md)** for switching from SWI-Prolog to Prologot—API mapping and common pitfalls.
 
-- **For Prolog veterans**: **[Note for Prolog developers](doc/prolog-developers.md)** — SWI ↔ Prologot mapping and traps.
+- **Build your game**: The **[API Reference](doc/API.md)** covers the full syntax. **[Use Cases](doc/use-cases.md)** suggests patterns for game logic. For a minimal script-only sample, see [hello_world_prologot.gd](doc/hello_world_prologot.gd).
 
 ---
 
@@ -76,40 +67,59 @@ make run-galactic_customs
 
 ```sh
 Prologot/
-├── src/                          # C++ source files
-│   ├── Prologot.hpp              # Main class header
-│   ├── Prologot.cpp              # Main class implementation
-│   ├── register_types.h          # GDExtension registration header
-│   └── register_types.cpp        # GDExtension registration
-├── tests/                        # Unit tests
-├── addons/prologot/              # Godot plugin
-│   ├── plugin.cfg / plugin.gd    # EditorPlugin (autoload, dock, types)
-│   ├── prologot_boot.gd          # Shared initialize() + bundled SWI home
-│   ├── prologot_facade.gd        # Forwards solve / consult / atom / …
-│   ├── prologot_singleton.gd     # Autoload PrologotEngine + named KBs
-│   ├── prologot_node.gd          # Scene-tree Node (PrologotNode)
-│   ├── prolog_knowledge.gd       # Inspectable Resource (PrologKnowledge)
-│   └── prologot_dock.gd          # Editor console UI
-├── demos/                        # Demo projects
-│   ├── mini_dungeon/             # Playable dungeon (object API + Prolog AI)
-│   └── showcases/                # Interactive demo project
-│       ├── examples/             # Prolog example files (.pl)
-│       ├── prologot-demos.gd     # Main demo script (UI and logic)
-│       └── prologot-demos.tscn   # Scene file (UI layout)
-├── doc/                          # Documentation
-│   └── hello_world_prologot.gd   # Hello World example
-├── bin/                          # Build output (after build)
-│   ├── linux/                    # Linux libs + swipl/
-│   ├── windows/                  # Windows libs + swipl/
-│   ├── macos/                    # macOS libs + swipl/
-│   └── prologot.gdextension     # GDExtension configuration
-├── godot-cpp-*/                  # Godot C++ bindings (git cloned automatically by SConstruct)
-├── SConstruct                    # SCons build system (handles everything: setup, compile, generate .gdextension)
-└── Makefile                      # Convenience commands to SCons
+├── src/                              # C++ GDExtension source
+│   ├── Prologot.hpp / Prologot.cpp   # Core engine: init, consult, assert, solve
+│   ├── PrologQuery.hpp / .cpp        # Lazy query handle (PrologQuery)
+│   ├── PrologGoal.hpp / .cpp         # Goal builder (PrologGoal)
+│   ├── PrologTerm.hpp / .cpp         # Term wrapper (PrologTerm)
+│   ├── PrologSolution.hpp / .cpp     # Solution bindings (PrologSolution)
+│   ├── PrologPredicate.hpp / .cpp    # Predicate builder (PrologPredicate)
+│   ├── PrologVariable.hpp / .cpp     # Logic variable (PrologVariable)
+│   ├── PrologObject.hpp / .cpp       # Opaque Prolog term handle (PrologObject)
+│   ├── PrologConversion.hpp / .cpp   # Prolog ↔ Godot Variant conversion
+│   ├── PrologExposure.cpp            # expose_property / expose_method bridge
+│   ├── register_types.h              # GDExtension registration header
+│   └── register_types.cpp            # Registers native classes with Godot
+├── tests/                            # Headless regression suite
+│   ├── run_tests.gd                  # Test runner (SceneTree entry point)
+│   ├── test_prologot.gd              # Unit tests
+├── addons/prologot/                  # Godot editor plugin
+│   ├── plugin.cfg                    # Plugin manifest
+│   ├── plugin.gd                     # EditorPlugin entry point
+│   ├── prologot_boot.gd              # Shared initialize() and bundled SWI home
+│   ├── prologot_facade.gd            # GDScript wrapper around the native API
+│   ├── prologot_singleton.gd         # Autoload (PrologotEngine) and named KBs
+│   ├── prologot_node.gd              # Scene-tree node wrapper (PrologotNode)
+│   ├── prolog_knowledge.gd           # Inspectable knowledge-base resource
+│   └── prologot_dock.gd              # In-editor Prolog console UI
+├── demos/                            # Sample Godot projects
+│   ├── showcases/                    # Interactive API walkthrough
+│   │   ├── examples/*.pl             # 01–06: queries, rules, pathfinding, AI, …
+│   │   ├── prologot-demos.gd         # Demo UI and logic
+│   │   └── prologot-demos.tscn       # Demo scene
+│   ├── mini_dungeon/                 # Dungeon crawler with Prolog-driven AI
+│   │   ├── prolog/*.pl               # dungeon, combat, ai, rules
+│   │   ├── scripts/*.gd              # player, goblin, dungeon, door, …
+│   │   └── ui/procedural_actor.gd    # Procedural pixel-art rendering
+│   └── galactic_customs/             # Customs-booth logic puzzle
+│       ├── rules/galactic_customs.pl # Base knowledge base
+│       ├── scripts/main.gd           # Game loop and Prolog integration
+│       ├── scripts/alien_sprite.gd   # Alien portrait display
+│       └── ui/galactic_atlas.gd      # Sprite atlas + button skinning
+├── doc/                              # Guides, API reference, and examples
+│   └── hello_world_prologot.gd       # Minimal script-only sample
+├── bin/                              # Build output (created by make / scons)
+│   ├── linux/                        # .so + bundled swipl/ runtime
+│   ├── windows/                      # .dll + bundled swipl/ runtime
+│   ├── macos/                        # .dylib + bundled swipl/ runtime
+│   └── prologot.gdextension          # Generated GDExtension manifest
+├── godot-cpp-*/                      # godot-cpp bindings (cloned by SConstruct)
+├── SConstruct                        # Build: compile, copy SWI runtime, generate .gdextension
+└── Makefile                          # Shortcuts (build, test, run demos)
 ```
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License—see the [LICENSE](LICENSE) file for details.
 
-This project used AI to generate code.
+Parts of this project were developed with AI assistance.

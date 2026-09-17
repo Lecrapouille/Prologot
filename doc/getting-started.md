@@ -1,11 +1,11 @@
 # Getting started with Prologot
 
-This guide is the **first stop** after [installation](installation.md). It explains *what* Prologot is, *how* the pieces fit together, and walks you through a working program step by step.
+This guide is the **first stop** after [installation](installation.md). It explains what Prologot is, how the pieces fit together, and walks you through a working program step by step.
 
 | If you are… | Read next |
 |-------------|-----------|
 | New to Prolog and Godot | Stay here; if *atom / term / goal* are unclear, read the [glossary](glossary.md) first |
-| Already fluent in Prolog | Skim §2, then read [Note for Prolog developers](prolog-developers.md) |
+| Already fluent in Prolog | Skim §2, then read [Notes for Prolog developers](prolog-developers.md) |
 | Building a game feature | [Use cases](use-cases.md) once you understand §5–§7 |
 | Looking up one method | [API reference](API.md) |
 
@@ -81,7 +81,7 @@ Use:
 ```gdscript
 if p.solve(goal).has_solution():  # yes / no (one pull, then cuts)
 var one = p.solve(goal).first()     # first answer or null (one pull, then cuts)
-for solution in p.solve(goal):      # one answer per turn; break cuts Prolog
+for solution in p.solve(goal):      # one answer per iteration; break commits
     ...
 print(p.solve(goal).all().size())   # every answer (drains)
 ```
@@ -128,12 +128,14 @@ Copy this into a Node script, or open the runnable **[Mini Dungeon](../demos/min
 ```gdscript
 extends Node
 
+const PrologotBoot = preload("res://addons/prologot/prologot_boot.gd")
+
 var p: Prologot
 
 func _ready() -> void:
-    p = Prologot.new()
-    if not p.initialize():
-        push_error(p.get_last_error())
+    p = PrologotBoot.create_engine()
+    if p == null:
+        push_error("Failed to initialize Prologot")
         return
 
     # 1. Load knowledge (Prolog source)
@@ -217,7 +219,7 @@ if sol != null:
 
 Same cut as `has_solution()`. Use `for` / `all()` when you need every answer.
 
-### `for` — one solution per turn; `break` cuts Prolog
+### `for` — one solution per iteration; `break` commits
 
 ```gdscript
 for sol in p.solve(parent.call("tom", child)):
@@ -471,8 +473,8 @@ More pitfalls for Prolog users: [prolog-developers.md](prolog-developers.md).
 ## Where to go next
 
 1. **[Glossary](glossary.md)** — Prolog names, connectors, conversion philosophies.
-2. **[Note for Prolog developers](prolog-developers.md)** — map SWI-Prolog names to Prologot, REPL vs object API.
+2. **[Notes for Prolog developers](prolog-developers.md)** — map SWI-Prolog names to Prologot; REPL vs object API.
 3. **[Use cases](use-cases.md)** — recipes for AI, dialogue, crafting, pathfinding.
 4. **[API reference](API.md)** — every class, method, and option.
 5. **Mini Dungeon** — `make run-mini-dungeon`, [demos/mini_dungeon](../demos/mini_dungeon/README.md) (nodes as Prolog terms + goblin AI).
-6. **Demos** — `make run-demo`, [Galactic Customs](../demos/galactic_customs/README.md).
+6. **Demos** — `make run-demo`, `make run-galactic` ([Galactic Customs](../demos/galactic_customs/README.md)).

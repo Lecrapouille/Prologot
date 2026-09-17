@@ -1,6 +1,6 @@
-# Note for Prolog developers
+# Notes for Prolog developers
 
-You already know SWI-Prolog. This page explains **how Prologot reshapes the surface** when Prolog is called from GDScript — not how to write Prolog itself.
+You already know SWI-Prolog. This page explains **how Prologot reshapes the API surface** when Prolog is called from GDScript — not how to write Prolog itself.
 
 | Read first | Then |
 |------------|------|
@@ -13,11 +13,11 @@ You already know SWI-Prolog. This page explains **how Prologot reshapes the surf
 
 ## 1. What stays the same
 
-- **Engine:** SWI-Prolog 8.0+. Standard syntax, modules, CLP, tabling, etc.
-- **Knowledge:** Facts and rules live in `.pl` files or `consult_string` — normal Prolog source.
+- **Engine:** SWI-Prolog 8.0+. Standard syntax, modules, CLP, tabling, and so on.
+- **Knowledge:** Facts and rules live in `.pl` files or `consult_string` — ordinary Prolog source.
 - **Semantics:** Unification, backtracking, cut, `:-`, dynamic predicates — unchanged once clauses are in the KB.
 
-If it runs in SWI outside Godot, the Prolog **text** is almost certainly fine inside Prologot.
+If it runs in SWI outside Godot, the Prolog **text** is almost certainly valid inside Prologot.
 
 ---
 
@@ -44,7 +44,7 @@ flowchart TB
 | A — Knowledge | Prolog | `grandparent(X,Z) :- parent(X,Y), parent(Y,Z).` |
 | B — Queries | GDScript objects | `solve(parent.call("tom", Child)).first()` |
 
-**There is no public string query API** (`query_text`, `call_predicate`, etc.). The editor console parses `parent(tom, X).` internally; game code uses Layer B.
+**There is no public string query API** (`query_text`, `call_predicate`, and similar helpers were removed). The editor console parses `parent(tom, Child).` internally; shipping code uses Layer B.
 
 ---
 
@@ -89,9 +89,9 @@ X = liz.
 
 ```gdscript
 var parent = prolog.predicate("parent")
-var x = prolog.variable("X")
-for solution in prolog.solve(parent.call("tom", x)):
-    print(solution.get(x))  # bob, then liz
+var child = prolog.variable("Child")
+for solution in prolog.solve(parent.call("tom", child)):
+    print(solution.get(child))   # bob, then liz
 ```
 
 Same predicate, same search space. Different **construction** of the goal and **reading** of bindings.
@@ -105,14 +105,14 @@ In Prolog source, `X` in `parent(tom, X)` is a variable.
 In GDScript:
 
 ```gdscript
-parent.call("tom", "X")   # parent(tom, 'X') — atom X
-parent.call("tom", x)     # only a variable if x is prolog.variable()
+parent.call("tom", "Child")              # parent(tom, 'Child') — atom Child
+parent.call("tom", child)                # variable only if child = prolog.variable("Child")
 ```
 
 Rules:
 
 1. **`String` → atom.** Always, in `call()`.
-2. **`prolog.variable("X")` → variable.** The string `"X"` is a debug label only.
+2. **`prolog.variable("Child")` → variable.** The string `"Child"` is a debug label only.
 3. **`solution.get(v)`** uses **object identity**. Two `variable("A")` calls are two variables.
 4. **`anonymous()`** → `_`. Omitted from `PrologSolution`.
 
@@ -225,8 +225,8 @@ Expose properties/methods explicitly — Prolog does not see Godot until you `ex
 
 | | Editor dock | Game code |
 |---|-------------|-----------|
-| Input | `parent(tom, X).` text | `parent.call("tom", x)` |
-| Bindings | Dictionary `{"X": "bob"}` | `solution.get(x)` |
+| Input | `parent(tom, Child).` text | `parent.call("tom", child)` |
+| Bindings | Dictionary `{"Child": "bob"}` | `solution.get(child)` |
 | API | `_editor_query` (internal) | `solve()` |
 
 Use the console to **probe** the KB; use the object API in **shipping** code.
@@ -250,7 +250,7 @@ Cut and meta-predicates in **Prolog source** work as usual. Only GDScript-side g
 ## 13. Quick checklist before you commit game code
 
 - [ ] Rules in `.pl` or `consult_string`, not duplicated as giant GDScript strings unless dynamic.
-- [ ] Every logical variable is `prolog.variable()` / `anonymous()`, never `"X"`.
+- [ ] Every logical variable is `prolog.variable()` / `anonymous()`, never a `"Name"` string in `call()`.
 - [ ] Same variable object reused wherever Prolog should unify.
 - [ ] Boolean tests use `.has_solution()`, not `if solve(...)`.
 - [ ] Huge domains use `first()`, `break`, or `solve(goal, n)` — not unbounded `all()`.

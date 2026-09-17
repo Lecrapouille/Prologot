@@ -1,6 +1,6 @@
 # Use cases
 
-Recipes for **applying** Prologot in a game. This page assumes you have read [Getting started](getting-started.md) §1–§7 (pipeline, variables, lazy `solve()`).
+Recipes for **using** Prologot in a game. Read [Getting started](getting-started.md) §1–§7 first (query pipeline, variables, lazy `solve()`).
 
 | Level | Document |
 |-------|----------|
@@ -21,7 +21,7 @@ Every example follows the same shape:
 3. **Solve** — `has_solution()` / `first()` / `for … in` / `all()` (see [Getting started §4](getting-started.md#4-the-query-pipeline-and-solve)).
 4. **Act** — use bindings in your game code (`sol.get(var)`).
 
-Examples use the `PrologotEngine` autoload when the plugin is enabled. Replace with a local `Prologot.new()` instance if you prefer — the API is identical.
+Examples use the `PrologotEngine` autoload when the plugin is enabled. For a local handle, use `PrologotBoot.create_engine()` — the query API is the same.
 
 ---
 
@@ -31,8 +31,8 @@ Minimal integration without repeating the full tutorial.
 
 ### Autoload (global engine)
 
-Enable the plugin → `/root/PrologotEngine` exists in every running scene
-(not in the editor tree). Same methods as `Prologot` (`consult_*`, `solve`, …).
+Enable the plugin → `/root/PrologotEngine` exists in every running scene (not in
+the editor tree). Same methods as `Prologot` (`consult_*`, `solve`, …).
 
 ```gdscript
 func _ready() -> void:
@@ -82,7 +82,7 @@ See [API — PrologotEngine](API.md#prologotengine-singleton-autoload) for `list
 
 ## AI decision making
 
-**When to use Prolog:** many rules, priority, easy to extend without recompiling GDScript.
+**When to use Prolog:** many rules with clear priority, easy to extend without recompiling GDScript.
 
 **Pattern:** encode conditions in Prolog; GDScript passes **ground numbers** and reads one **action atom**.
 
@@ -108,7 +108,7 @@ match sol.get(action):
     _: _patrol()
 ```
 
-**Tip:** use cut (`!`) in Prolog for deterministic priority; keep numeric state in GDScript variables passed into `call()`.
+**Tip:** use cut (`!`) in Prolog for deterministic priority. Keep numeric state in GDScript and pass it into `call()`.
 
 ---
 
@@ -167,9 +167,9 @@ Sync inventory by retracting old `has_item/2` facts and asserting new counts aft
 
 ## Pathfinding & graphs
 
-**When to use Prolog:** relation `edge/3`, cycle-safe `path/4`, multiple routes.
+**When to use Prolog:** graph relations such as `edge/3`, cycle-safe `path/4`, multiple routes.
 
-Keep the graph in a `.pl` file for large maps:
+For large maps, keep the graph in a `.pl` file:
 
 ```gdscript
 PrologotEngine.consult_file("res://ai/pathfinding.pl")
@@ -218,7 +218,7 @@ Demo reference: [06_ai_behavior.pl](../demos/showcases/examples/06_ai_behavior.p
 
 ## Godot objects in the knowledge base
 
-**When to use Prolog:** “which entity is in zone X?” without stringly-typed paths.
+**When to use Prolog:** “which entity is in zone X?” without string-based node paths.
 
 ```gdscript
 var at = PrologotEngine.predicate("at")
@@ -297,7 +297,7 @@ PrologotEngine.assert_fact(loc.call("zone_2"))
 |---------|---------|-------|
 | Mini Dungeon | `make run-mini-dungeon` | Nodes as Prolog terms, dynamic facts, goblin `best_action/3` |
 | Showcases | `make run-demo` | Queries, rules, dynamic facts, pathfinding, AI |
-| Galactic Customs | `make run-galactic_customs` | Full game loop, taxes, `assert_fact`, `predicate_exists` |
+| Galactic Customs | `make run-galactic` | Full game loop, taxes, `assert_fact`, `predicate_exists` |
 
 ---
 

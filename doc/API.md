@@ -1,6 +1,6 @@
 # Prologot API reference
 
-Complete reference for the Prologot GDExtension. For concepts and tutorials, read [Getting started](getting-started.md) first; for game recipes, see [Use cases](use-cases.md).
+Complete reference for the Prologot GDExtension. For concepts and tutorials, start with [Getting started](getting-started.md); for game recipes, see [Use cases](use-cases.md).
 
 ---
 
@@ -33,9 +33,15 @@ Complete reference for the Prologot GDExtension. For concepts and tutorials, rea
 ### Minimal lifecycle
 
 ```gdscript
-var prolog = Prologot.new()
-prolog.initialize({"home": "res://bin/linux/swipl"})
-prolog.consult_file("res://rules.pl")
+const PrologotBoot = preload("res://addons/prologot/prologot_boot.gd")
+
+var prolog = PrologotBoot.create_engine()
+
+# prolog.consult_file("res://rules.pl")
+prolog.consult_string("""
+parent(tom, bob).
+parent(tom, liz).
+""")
 
 var parent = prolog.predicate("parent")
 var child = prolog.variable("Child")
@@ -46,7 +52,9 @@ for solution in prolog.solve(parent.call("tom", child)):
 prolog.cleanup()
 ```
 
-Not thread-safe: call `initialize()` / `solve()` / `consult_*` / `cleanup()` only from the Godot **main thread** (`WorkerThreadPool` and other threads `push_error` and fail). SWI is one process-global engine; `Prologot` instances are handles, not isolated engines.
+`PrologotBoot.create_engine()` wraps `Prologot.new()` + `initialize()` and picks the bundled `res://bin/<os>/swipl` home when present. You can also call `initialize()` directly on a `Prologot` instance.
+
+**Threading:** not thread-safe. Call `initialize()`, `solve()`, `consult_*`, and `cleanup()` only on Godot's **main thread**. Calls from `WorkerThreadPool` or other threads log an error and fail. SWI-Prolog is a single process-global engine; each `Prologot` is a handle, not an isolated engine.
 
 ### Object graph
 
@@ -80,22 +88,21 @@ flowchart LR
 
 ## Class `Prologot`
 
-Main entry point. SWI-Prolog is process-global; each `Prologot` is a handle.
+Main entry point. SWI-Prolog is process-global; each `Prologot` instance is a handle on that engine.
 
 ### Initialization and cleanup
 
 #### `initialize(options: Dictionary = {}) -> bool`
 
-Starts SWI-Prolog the first time in this process, then attaches the handle.
-Idempotent per handle. Bootstraps helpers for `consult_string()` on first start.
+On the first call in the process, starts SWI-Prolog and bootstraps helpers for `consult_string()`. Then attaches this handle. Safe to call again on the same handle while already initialized (no-op attach).
 
-**Returns:** `true` on success; on failure call `get_last_error()`.
+**Returns:** `true` on success. On failure, call `get_last_error()`.
 
 **Common options:**
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `"home"` | String | `""` | SWI-Prolog home (`res://bin/.../swipl`) |
+| `"home"` | String | `""` | SWI-Prolog home (`res://bin/.../swipl`). When omitted, Prologot tries the bundled `res://bin/<os>/swipl` path, then the system install |
 | `"quiet"` | bool | `true` | Suppress startup messages |
 | `"stack limit"` | String | `""` | e.g. `"1g"`, `"512m"` |
 | `"table space"` | String | `""` | SLG table space |
@@ -117,13 +124,13 @@ prolog.initialize({"home": "res://bin/linux/swipl", "on error": "print"})
 #### `cleanup() -> void`
 
 Detaches this handle. Safe to call multiple times. Does **not** call `PL_cleanup()`
-(that happens when the GDExtension unloads). The last attached handle resets the
-user knowledge base. Must `initialize()` again before use.
+(that runs when the GDExtension unloads). When the last handle detaches, the user
+knowledge base is reset. Call `initialize()` again before further use.
 
 #### `clear_knowledge() -> bool`
 
-Abolishes user predicates added via `consult_*` / `assert_fact`. The handle stays
-attached; SWI keeps running. Same-thread as `initialize()`.
+Removes user predicates added through `consult_*` and `assert_fact`. The handle
+stays attached and SWI keeps running. Main thread only, like `initialize()`.
 
 #### `is_initialized() -> bool`
 
@@ -137,9 +144,9 @@ Last stored error string. Does not call `push_error()`.
 
 #### `consult_file(filename: String) -> bool`
 
-Loads a `.pl` file via SWI `consult/1`. Supports `res://` and `user://`.
+Loads a `.pl` file through SWI `consult/1`. Supports Godot `res://` and `user://`.
 
-**Note:** Clauses **accumulate** across calls.
+**Note:** clauses **accumulate** across repeated calls.
 
 #### `consult_string(code: String) -> bool`
 
@@ -149,7 +156,7 @@ Parses multi-line Prolog (facts, rules, directives) via bootstrap predicate.
 
 ### Term factories
 
-Optional explicit terms. Most queries pass plain Variants to `call()` directly.
+Optional helpers for building terms explicitly. Most queries pass plain Variants to `call()` directly.
 
 | Method | Returns | Notes |
 |--------|---------|-------|
@@ -173,7 +180,7 @@ Optional explicit terms. Most queries pass plain Variants to `call()` directly.
 
 #### `solve(goal: PrologGoal, max_solutions: int = 0) -> PrologQuery`
 
-Opens a lazy SWI query (`PL_open_query`) and returns a non-null `PrologQuery`. Answers are **not** collected up front: each later call pulls at most one `PL_next_solution`. `max_solutions` of `0` means unlimited.
+Opens a lazy SWI query (`PL_open_query`) and returns a `PrologQuery`. Answers are **not** fetched upfront: each later call pulls at most one solution via `PL_next_solution`. A `max_solutions` of `0` means no limit.
 
 Knowledge used in the examples:
 
@@ -194,7 +201,7 @@ if prolog.solve(parent.call("tom", "bob")).has_solution():
     print("true")
 ```
 
-A ground goal that holds still yields one empty `PrologSolution`. Remaining choice points are cut so a temporary `solve(g).has_solution()` does not keep Prolog open until the caller returns. After this, `all()` / `for` on the **same** object only see that first cached answer.
+Even a ground goal that succeeds returns one (possibly empty) `PrologSolution`. Remaining choice points are cut so `solve(g).has_solution()` does not leave Prolog open. After that, `all()` or `for` on the **same** query object only see the cached first answer.
 
 **`first()` — one `PrologSolution` or `null` (at most one pull, then cut)**
 
@@ -204,9 +211,9 @@ if sol != null:
     print(sol.get(child))   # bob
 ```
 
-This is a real solve-one. Use `for` / `all()` for every answer.
+Fetches a single solution. Use `for` or `all()` when you need every answer.
 
-**`for` — one solution per turn; `break` cuts Prolog**
+**`for` — one solution per iteration; `break` commits**
 
 ```gdscript
 for sol in prolog.solve(parent.call("tom", child)):
@@ -215,14 +222,14 @@ for sol in prolog.solve(parent.call("tom", child)):
         break               # remaining answers are not computed
 ```
 
-GDScript cannot write `for via, child in query`. Two variables still mean one `sol` per turn:
+GDScript has no `for via, child in query` syntax. Multiple variables still yield one `sol` per iteration:
 
 ```gdscript
 for sol in prolog.solve(parent.call("tom", via).conjunction(parent.call(via, child))):
     print(sol.get(via), "->", sol.get(child))   # bob -> ann
 ```
 
-Relooping `for` on the same query replays the cache (what was already pulled) and does not reopen Prolog. After a `break`, `all()` continues and pulls the rest. Destroying the query cuts leftover choice points.
+Running `for` again on the same query replays cached answers; it does not reopen Prolog. After `break`, `all()` can still pull the remaining solutions. Destroying the query cuts any leftover choice points.
 
 **`all()` — Array of every `PrologSolution`**
 
@@ -232,7 +239,7 @@ print(sols.size())             # 2
 print(sols[0].get(child))      # bob
 ```
 
-**No `query.values()`.** Read columns with `sol.get(var)`. A matrix (one row = one solution) is a GDScript wrapper, not part of the engine:
+**There is no `query.values()`.** Read each column with `sol.get(var)`. To build a matrix (one row per solution), use a small GDScript helper:
 
 ```gdscript
 func as_matrix(query: PrologQuery, cols: Array) -> Array:
@@ -254,11 +261,11 @@ print(as_matrix(prolog.solve(parent.call("tom", child)), [child]))
 prolog.solve(between.call(1, 1_000_000, n), 5).all()   # 5 solutions, not a million
 ```
 
-Even when lazy, `all()` or a `for` without `break` on an infinite goal will not return.
+Even with lazy evaluation, `all()` or an unbounded `for` on an infinite goal will never finish.
 
-**Constraints:** Godot main thread only (see Overview); do not `cleanup()` the handle while a query is still open.
+**Constraints:** main thread only (see [Overview](#overview)); do not `cleanup()` the handle while a query is still open.
 
-There is **no** public string query API. Editor dock uses internal `_editor_query`.
+There is **no** public string-based query API. The editor dock uses the internal `_editor_query` helper.
 
 ---
 
@@ -280,29 +287,29 @@ prolog.retract_all(parent.call(prolog.anonymous(), prolog.anonymous()))
 
 ### Exposing Godot members
 
-Godot API is **not** auto-exported. `expose_*` installs a thin Prolog wrapper
-around the foreign predicates `prologot_property/4` and `prologot_method/5`
-(registered at `initialize()`). Game code calls the wrapper (`node_name/2`),
-not those internals.
+Godot APIs are **not** exported automatically. Each `expose_*` call installs a
+thin Prolog wrapper around the foreign predicates `prologot_property/4` and
+`prologot_method/5` (registered at `initialize()`). Game code should call the
+wrapper (for example `node_name/2`), not those internals.
 
 Wrappers and `list_exposed()` are **process-global** (one SWI engine). The
-editor dock and `PrologotEngine` share the same list. `cleanup()` of one
-handle does not remove them; last-handle cleanup / `clear_knowledge()` does.
-Foreign callbacks talk to SWI + Godot objects, not to a particular handle.
+editor dock and `PrologotEngine` share the same registry. `cleanup()` on one
+handle does not remove them; last-handle cleanup or `clear_knowledge()` does.
+Foreign callbacks reach SWI and Godot objects directly, not through a specific handle.
 
 #### `expose_property(class_name: String, property: String, predicate: String = "") -> bool`
 
 Installs relational wrapper `predicate(Object, Value)`.
 
 - Unbound `Value` → read property.
-- Ground `Value` → succeed only if equal (no setter).
-- `class_name` filters with `Object.is_class()`. Empty = any live object.
-- Default predicate for property `"name"` is `node_name` (avoid SWI `name/2`).
+- Ground `Value` → succeeds only if equal (read-only; no setter).
+- `class_name` filters with `Object.is_class()`. An empty string matches any live object.
+- The default predicate for property `"name"` is `node_name` (to avoid clashing with SWI `name/2`).
 - `Vector2` / `Vector3` → `[x, y]` / `[x, y, z]`.
 
 #### `expose_method(class_name: String, method: String, predicate: String = "") -> bool`
 
-Arity = 1 (object) + required args + 1 if return value ≠ void.
+Arity = 1 (object) + required arguments + 1 when the return type is not `void`.
 
 #### `unexpose(predicate: String, arity: int) -> bool`
 
@@ -364,16 +371,16 @@ Built by `call()` or composition. Passed to `solve()` / `assert_fact()` / `retra
 
 ## Class `PrologQuery`
 
-Returned by `solve()`. Always truthy as an object — use `has_solution()`. Solutions are pulled on demand (`PL_next_solution`). Do not `cleanup()` the engine while a query is still open.
+Returned by `solve()`. The object itself is always truthy in GDScript — test success with `has_solution()`. Solutions are fetched on demand through `PL_next_solution`. Do not `cleanup()` the engine while a query is still open.
 
-Several **solutions** = several `PrologSolution` (`for` / `all()` / `first()`). Several **variables of one** solution: `sol.get(foo)` then `sol.get(bar)`. There is no `get(foo, bar)` and no `query.values()`.
+Multiple **solutions** mean multiple `PrologSolution` objects (`for`, `all()`, or `first()`). Multiple **variables in one** solution are read separately: `sol.get(foo)`, then `sol.get(bar)`. There is no `get(foo, bar)` and no `query.values()`.
 
 | Method | Description |
 |--------|-------------|
-| `has_solution() -> bool` | At least one solution. Pulls at most one, then **cuts** remaining choice points (so `solve(g).has_solution()` does not keep Prolog open). |
-| `first() -> Variant` | First `PrologSolution` or `null`. Pulls at most one, then **cuts**. |
-| `all() -> Array` | Drain remaining solutions into an Array. After `break` in `for`, continues and pulls the rest. After `has_solution()` / `first()`, only the cached first answer remains. |
-| `_iter_init` / `_iter_next` / `_iter_get` | Godot `for`: one pull per turn. Relooping the same object replays the cache. `break` plus destroying the query cuts Prolog. |
+| `has_solution() -> bool` | Returns whether at least one solution exists. Pulls at most one answer, then **cuts** remaining choice points. |
+| `first() -> Variant` | Returns the first `PrologSolution`, or `null`. Pulls at most one answer, then **cuts**. |
+| `all() -> Array` | Collects all remaining solutions into an `Array`. After `break` in `for`, still pulls the rest. After `has_solution()` or `first()`, only the cached first answer remains. |
+| `_iter_init` / `_iter_next` / `_iter_get` | Powers Godot `for` loops: one pull per iteration. Re-iterating the same object replays the cache. `break` or destroying the query cuts Prolog. |
 
 Examples and the optional `max_solutions` cap: [Query execution](#query-execution).
 
@@ -388,8 +395,8 @@ One answer. Variable bindings keyed by **object identity**.
 | `get(variable: PrologVariable) -> Variant` | Bound value or `null` |
 | `has(variable: PrologVariable) -> bool` | |
 | `get_bindings() -> Dictionary` | `PrologVariable` → value |
-| `values() -> Array` | Flat values of **this** solution (not a result matrix; no `query.values()`) |
-| `put(variable, value)` | Internal / tests |
+| `values() -> Array` | Flat values from **this** solution only (not a result matrix; there is no `query.values()`) |
+| `put(variable, value)` | Internal use / tests |
 
 Anonymous variables omitted.
 
@@ -402,7 +409,7 @@ Logical variable. Subclass of `PrologTerm`.
 | Method | Description |
 |--------|-------------|
 | `get_id() -> int` | Stable identity for binding keys |
-| `get_name() -> String` | Debug label only |
+| `get_name() -> String` | Debug label; not used for binding |
 | `is_anonymous() -> bool` | |
 
 ---
@@ -428,36 +435,37 @@ Handle to a Godot `Object` (instance id blob).
 | `equals(other: PrologObject) -> bool` | Same id |
 | `as_text() -> String` | Debug label |
 
-Does not keep the node alive.
+Does not keep the underlying Godot object alive.
 
 ---
 
 ## Scene integration (`addons/prologot`)
 
-The editor plugin is GDScript on top of the GDExtension. Enabling it in
+The editor plugin is GDScript built on the GDExtension. Enabling it under
 **Project → Project Settings → Plugins** does four things:
 
 1. Registers the **PrologotEngine** autoload (runtime only; the script is not `@tool`).
-2. Starts a **separate** `Prologot` handle for the [editor console](editor-console.md).
-3. Registers custom types **PrologotNode** and **PrologKnowledge**.
+2. Starts a separate `Prologot` handle for the [editor console](editor-console.md).
+3. Registers the custom types **PrologotNode** and **PrologKnowledge**.
 4. Adds the Prologot Console dock.
 
-SWI-Prolog is still **one engine per process**. The dock handle and the
-autoload are two light handles on that engine. Facts you `consult` in the
-dock stay visible when you press Play, until the last handle cleans up.
+SWI-Prolog remains **one engine per process**. The dock and the autoload are
+two lightweight handles on that engine. Facts you `consult` in the dock remain
+visible when you press Play until the last handle detaches.
 
 | File | Role |
 |------|------|
 | `plugin.gd` | EditorPlugin: autoload, dock handle, custom types |
-| `prologot_boot.gd` | Shared `create_engine()` + bundled `res://bin/<os>/swipl` home |
+| `prologot_boot.gd` | Shared `create_engine()` and bundled `res://bin/<os>/swipl` home detection |
 | `prologot_facade.gd` | Forwards `atom` / `solve` / `consult_*` / `expose_*` / `clear_knowledge` / `is_initialized` / `cleanup` / `predicate_exists` / `list_predicates` |
 | `prologot_singleton.gd` | Autoload: facade + named knowledge bases |
 | `prologot_node.gd` | Scene node: facade + Resource / file loading |
 | `prolog_knowledge.gd` | Inspectable Resource (`files` + inline `code`) |
 | `prologot_dock.gd` | Editor console UI |
 
-You can skip the plugin and use `Prologot.new()` + `initialize()` only.
-The plugin is the usual game path.
+You can skip the plugin and use the GDExtension directly through
+`PrologotBoot.create_engine()` or `Prologot.new()` + `initialize()`. The plugin
+is the usual path for games.
 
 ### `PrologotNode` (Node)
 
@@ -470,7 +478,7 @@ via the facade (`predicate`, `solve`, `consult_*`, `assert_fact`, `expose_*`,
 |--------|---------|---------|
 | `knowledge` | — | `PrologKnowledge` Resource |
 | `consult_files` | `[]` | Extra `.pl` paths after the Resource |
-| `swipl_home` | `""` | SWI home if this node **creates** an engine |
+| `swipl_home` | `""` | SWI home directory when this node creates its own engine |
 | `auto_start` | `true` | Call `start()` from `_ready()` (not in the editor) |
 | `use_autoload` | `true` | Reuse `/root/PrologotEngine.engine` when it is up |
 
@@ -499,22 +507,23 @@ func _ready() -> void:
 
 ## PrologotEngine singleton (Autoload)
 
-Registered as `/root/PrologotEngine` when the plugin is enabled. Created
-on Play, not in the editor tree. Same methods as `Prologot` through
-`prologot_facade.gd` (`consult_file`, `solve`, `predicate`, `clear_knowledge`,
-`is_initialized`, `cleanup`, `predicate_exists`, `list_predicates`, …).
+Registered as `/root/PrologotEngine` when the plugin is enabled. It is created
+when you press Play, not in the editor tree. Exposes the same methods as
+`Prologot` through `prologot_facade.gd` (`consult_file`, `solve`, `predicate`,
+`clear_knowledge`, `is_initialized`, `cleanup`, `predicate_exists`,
+`list_predicates`, …).
 
 **Named bases** (only on the autoload):
 
 | Method | Description |
 |--------|-------------|
-| `create_knowledge_base(name, code) -> bool` | Store `code`, **wipe**, then consult |
-| `switch_knowledge_base(name) -> bool` | `clear_knowledge()` then consult the stored source |
-| `list_knowledge_bases() -> Array` | Names passed to `create_knowledge_base` (not a SWI dump) |
+| `create_knowledge_base(name, code) -> bool` | Store `code`, clear the live base, then consult it |
+| `switch_knowledge_base(name) -> bool` | Call `clear_knowledge()`, then consult the stored source |
+| `list_knowledge_bases() -> Array` | Names registered through `create_knowledge_base` (not a SWI predicate dump) |
 
-Both `create_knowledge_base` and `switch_knowledge_base` **replace** the user
-knowledge base. Creating `"talk"` after `"combat"` abolishes combat clauses
-immediately; `switch_knowledge_base("combat")` loads them back from the stored
+Both `create_knowledge_base` and `switch_knowledge_base` **replace** the active
+user knowledge base. Creating `"talk"` after `"combat"` removes combat clauses
+immediately; `switch_knowledge_base("combat")` restores them from the stored
 source.
 
 ```gdscript
@@ -525,14 +534,16 @@ PrologotEngine.switch_knowledge_base("combat")
 # line/1 is gone; decide/1 is loaded.
 ```
 
-`_exit_tree` detaches the handle; it does not `PL_cleanup()` (the dock may
-still be attached). Example setup: [Use cases](use-cases.md#scene-setup).
+`_exit_tree()` detaches the runtime handle; it does not call `PL_cleanup()` (the
+editor dock may still be attached). Example setup: [Use cases](use-cases.md#scene-setup).
 
 ---
 
 ## Type conversion
 
-Automatic conversion between Prolog terms and Godot `Variant`s when using `call()` / `solve()`. `Variant` has no atom type; Prologot **does not** wrap atoms in `PrologTerm` on the way out (that would break `v == "bob"` and `match`).
+Automatic conversion between Prolog terms and Godot `Variant`s when using
+`call()` and `solve()`. Godot has no atom type, so Prologot **does not** wrap
+atoms in `PrologTerm` on the way out (that would break `v == "bob"` and `match`).
 
 **Retained policy (hybrid):**
 
@@ -541,11 +552,17 @@ Automatic conversion between Prolog terms and Godot `Variant`s when using `call(
 | Godot → Prolog | `String` is **always an atom**. `"X"` is not a variable. |
 | Prolog → Godot | An **atom** is a Godot `String`. A **Prolog string** is a `PrologTerm`. |
 
-Use `prolog.string()` only when the clause stores a quoted Prolog string. Use `prolog.atom()` only when you need an explicit `PrologTerm` on the way **in** (inspection). Bindings from `solution.get()` never return that wrapper for an atom.
+Use `prolog.string()` only when the clause stores a quoted Prolog string. Use
+`prolog.atom()` only when you need an explicit `PrologTerm` on input. Bindings
+from `solution.get()` never return that wrapper for an atom.
 
-Why, and the two rejected alternatives: [glossary — conversion philosophies](glossary.md#three-conversion-philosophies). Code: `term_to_variant` / `variant_to_term` in `src/PrologConversion.cpp`.
+For the rationale and rejected alternatives, see
+[glossary — conversion philosophies](glossary.md#three-conversion-philosophies).
+Implementation: `term_to_variant` / `variant_to_term` in `src/PrologConversion.cpp`.
 
-Nested lists and compounds recurse up to 64 levels (`MAX_TERM_DEPTH`); a deeper subtree is `null`. A cyclic term (`X = [a|X]`) is `null` as a whole — the list walker is iterative and would not stop.
+Nested lists and compounds recurse up to 64 levels (`MAX_TERM_DEPTH`); deeper
+subtrees become `null`. A cyclic term such as `X = [a|X]` becomes `null` as a
+whole because the list walker is iterative and would otherwise never finish.
 
 ### Prolog → Godot (typical bindings)
 

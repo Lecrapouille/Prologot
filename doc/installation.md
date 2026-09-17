@@ -1,114 +1,204 @@
 # Installation Guide
 
-Complete installation instructions for Prologot.
+How to build Prologot from source and add it to a Godot project.
 
 ## Prerequisites
 
-- [Godot Engine 4.2+](https://godotengine.org/) - The game engine.
-- [SWI-Prolog 8.0+](https://www.swi-prolog.org/) - The Prolog implementation.
-- [godot-cpp](https://github.com/godotengine/godot-cpp) - C++ bindings for GDExtension (automatically cloned during build).
-- [SCons](https://scons.org/) - The building system used by Godot and therefore for this project.
-- [Python 3](https://www.python.org/) - Since Scons is based on Python.
-- [C++ compiler](https://gcc.gnu.org/) - For building C++ sources, and optionally a Makefile.
-- [pkg-config](https://www.freedesktop.org/wiki/Software/pkg-config/) - For detecting SWI-Prolog compiler and linker flags.
+| Requirement | Purpose |
+|-------------|---------|
+| [Godot Engine 4.2+](https://godotengine.org/) | Run demos, tests, and your game |
+| [SWI-Prolog 8.0+](https://www.swi-prolog.org/) | **Build time only** — copied into `bin/<os>/` by SCons |
+| [Python 3](https://www.python.org/) | Required by SCons |
+| [SCons](https://scons.org/) | Build system |
+| C++ toolchain | `g++` / Clang — compile the GDExtension |
+| `pkg-config` | Locate SWI-Prolog during the build (Linux/macOS) |
 
-**Note:** The build script may ask your sudo password to install operating system packages.
+[godot-cpp](https://github.com/godotengine/godot-cpp) is cloned automatically by SConstruct; you do not need to install it yourself.
 
-## Installing SWI-Prolog and pkg-config
+**Note:** `make install-swi` may use `sudo` to install OS packages when SWI-Prolog is missing.
 
-### Linux (Debian/Ubuntu)
+---
+
+## Install build dependencies
+
+### Debian / Ubuntu
 
 ```bash
-sudo apt-get update
-sudo apt-get install swi-prolog swi-prolog-nox pkg-config
+sudo apt-get install g++ make pkg-config swi-prolog swi-prolog-nox
+python3 -m pip install scons
 ```
 
-### Linux (Arch)
+### Fedora
 
 ```bash
-sudo pacman -S swi-prolog pkgconf
+sudo dnf install gcc-c++ make python3-scons pkgconf pl pl-devel libstdc++-static
+python3 -m pip install scons
 ```
 
 ### macOS
 
 ```bash
-brew install swi-prolog pkg-config
+brew install scons swi-prolog pkg-config
 ```
 
 ### Windows
 
-- Download [SWI-Prolog 8.0+](https://www.swi-prolog.org/download/stable).
-- Add to PATH during installation.
-- Install pkg-config via [MSYS2](https://www.msys2.org/) or use vcpkg.
+1. Install [SWI-Prolog 8.0+](https://www.swi-prolog.org/Download.html) and add it to `PATH`.
+2. Install Python 3.
+3. Install SCons:
 
-## Installing SCons
-
-```bash
-pip install scons
+```powershell
+python -m pip install scons
 ```
 
-## Building Prologot
+---
 
-### 1. Clone the Repository
+## Build from source
+
+### 1. Clone the repository
 
 ```bash
-git clone https://github.com/yourusername/Prologot.git
+git clone https://github.com/Lecrapouille/Prologot.git
 cd Prologot
 ```
 
-### 2. Build the Extension
+### 2. Build (Linux and macOS)
 
-The simplest way to build the project is using the **Makefile**, which directly calls **SCons** (no intermediate script needed).
+The **Makefile** wraps SCons and sets up demo/test projects.
 
 | Command | Description |
 |---------|-------------|
-| `make help` | Show all available commands. |
-| `make install-swi` | Install SWI-Prolog automatically. |
-| `make check-deps` | Verify dependencies for building. |
-| `make debug` | Compile the extension in debug mode and set up demo and test projects. |
-| `make release` | Compile the extension in release mode and set up demo and test projects. |
-| `make all` | Build both debug and release versions and set up demo and test projects. |
-| `make run-demo` | Run the demo project in Godot. |
-| `make run-mini-dungeon` | Run the Mini Dungeon game in Godot. |
-| `make run-galactic` | Run the demo game in Godot. |
+| `make help` | List all targets |
+| `make install-swi` | Install SWI-Prolog via the OS package manager |
+| `make check-deps` | Verify SWI-Prolog and build tools |
+| `make debug` | Build debug libraries + run `setup-demos` |
+| `make release` | Build release libraries + run `setup-demos` |
+| `make all` | Build debug **and** release + run `setup-demos` |
+| `make tests` | Run the headless regression suite |
+| `make run-demo` | Open the showcases demo in Godot |
+| `make run-mini-dungeon` | Open the Mini Dungeon demo |
+| `make run-galactic` | Open the Galactic Customs demo |
 
-**Notes:**
-
-- By default, it builds for Godot 4.5. To use another version pass `GODOT_CPP=4.4` to make command.
-- By default, the build folder name is `bin`. To use another name pass `BIN=prologot_artifacts` to make command.
-- The `godot-cpp` library is automatically downloaded and compiled when needed during the build process. You don't need to compile it separately.
-- The build system uses SCons with `--godot-cpp=` option internally. You can also use SCons directly: `scons --godot-cpp=4.4 --target=template_release`.
-
-### 3. Other Useful Commands
+Quick start:
 
 ```bash
-make clean           # Clean build compiled files and Prologot artifacts
-make format          # Format C++ sources (for developers)
-make setup-demos     # Link Godot demos to Prologot artifacts (done automatically)
-make tests           # Run tests (for developers)
+make GODOT_CPP=4.5 all
 ```
 
-## Installing Prologot in Your Project
+**Configuration**
 
-To use Prologot in your own project:
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `GODOT_CPP` | `4.5` | godot-cpp version passed to SCons (`4.4`, `4.3.1`, …) |
+| `BIN` | `bin` | Output directory for libraries and `prologot.gdextension` |
+| `JOBS` | CPU count | Parallel SCons jobs (`make JOBS=16 all`) |
 
-1. Copy `addons/prologot/` to your project's `addons/` folder.
-2. Copy the `bin/` folder to your project (it contains the compiled libraries and `prologot.gdextension`).
-3. Enable the plugin in **Project → Project Settings → Plugins**
-5. Optionally, you can move the `swipl/` folder (located in `bin/<os>/swipl/`) to another location. You have to adapt, in your gdscript file, the `initialize` function and set `"home"` to your new path.
+**Notes**
+
+- `setup-demos` creates symlinks so demos and tests share the built `bin/` folder and `addons/`.
+- godot-cpp is downloaded on first build when missing.
+- You can call SCons directly:
+
+```bash
+scons --godot-cpp=4.5 target=template_debug
+scons --godot-cpp=4.5 target=template_release
+```
+
+**Other useful commands**
+
+```bash
+make clean        # Remove bin/, godot-cpp build cache, demo symlinks
+make format       # clang-format on C++ sources
+make setup-demos  # Re-link bin/ into demos/ and tests/ (after a build)
+```
+
+### 3. Build (Windows)
+
+From a shell where `scons` and SWI-Prolog are on `PATH`:
+
+```powershell
+scons --godot-cpp=4.5 target=template_debug arch=x86_64
+scons --godot-cpp=4.5 target=template_release arch=x86_64
+```
+
+Then copy `bin/` and `addons/prologot/` into your Godot project manually (there is no Windows Makefile in this repo).
+
+---
+
+## Add Prologot to your Godot project
+
+Distribution layout after a successful build:
+
+```text
+your_project/
+├── addons/prologot/          # GDScript plugin (editor dock, autoload, helpers)
+└── bin/
+    ├── prologot.gdextension  # Generated manifest
+    ├── linux/                # .so + libswipl + swipl/ runtime
+    ├── windows/              # .dll + libswipl + swipl/ runtime
+    └── macos/                # .dylib + libswipl + swipl/ runtime
+```
+
+Steps:
+
+1. Copy `addons/prologot/` into your project’s `addons/` folder.
+2. Copy the whole `bin/` folder to your project root (libraries **and** bundled `swipl/` resources).
+3. Enable **Project → Project Settings → Plugins → Prologot**.
+4. Open the **Prologot** dock in the editor (bottom panel).
+
+**Runtime initialization**
+
+End players do **not** need SWI-Prolog installed if you ship the bundled `bin/<os>/swipl/` folder.
+
+The plugin and autoload use `prologot_boot.gd`, which picks `res://bin/<os>/swipl` when it exists. In your own scripts you can do the same:
 
 ```gdscript
-prolog = Prologot.new()
-prolog.initialize({"home": "res://bin/linux/swipl"})
+const PrologotBoot = preload("res://addons/prologot/prologot_boot.gd")
+
+var prolog = PrologotBoot.create_engine()
+if prolog == null:
+    push_error("Prologot failed to start")
+    return
 ```
 
-## Verifying Installation
+Custom SWI home:
 
-After installation, you can verify that Prologot is working by:
+```gdscript
+var prolog = PrologotBoot.create_engine("res://path/to/swipl")
+if prolog == null:
+    push_error("Prologot failed to start")
+    return
+```
 
-1. Opening your project in Godot
-2. Going to **Project → Project Settings → Plugins** and enabling "Prologot"
-3. Opening the Prologot Console dock (should appear in the bottom-right panel)
-4. Loading some Prolog code and executing a query
+Minimal example:
 
-If you see no errors, the installation was successful!
+```gdscript
+const PrologotBoot = preload("res://addons/prologot/prologot_boot.gd")
+
+var prolog = PrologotBoot.create_engine()
+prolog.consult_string("""
+parent(tom, bob).
+parent(tom, liz).
+""")
+
+var parent = prolog.predicate("parent")
+var child = prolog.variable("Child")
+prolog.solve(parent.call("tom", "bob")).has_solution()
+for solution in prolog.solve(parent.call("tom", child)):
+    print(solution.get(child))
+
+prolog.cleanup()
+```
+
+---
+
+## Verify the installation
+
+1. Open the project in Godot.
+2. Enable the Prologot plugin.
+3. Open the **Prologot** editor dock.
+4. Run a query, for example: `member(X, [a, b, c]).`
+
+If the dock loads and queries return results, the installation is working.
+
+For common failures (missing `boot.prc`, headless mode, plugin not listed), see **[Troubleshooting](troubleshooting.md)**.
